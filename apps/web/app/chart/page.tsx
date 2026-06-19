@@ -6,6 +6,7 @@ import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
+import { ReadingTabs } from "@/components/ReadingTabs";
 import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
@@ -192,21 +193,7 @@ export default function ChartPage() {
         {err && (
           <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "#FBEEEC", color: "var(--color-seal)", border: "1px solid #EFD6D2" }}>{err}</div>
         )}
-        {reading && (
-          <div className="grid gap-4">
-            {sections.map((s) => (
-              <Card key={s.key} topAccent={s.accent} dark={s.accent === "metal"}>
-                <h3 className="text-[17px] font-semibold">{s.title}</h3>
-                <div className="reading-prose mt-2"><Markdown text={s.body} /></div>
-              </Card>
-            ))}
-            {streaming ? (
-              <p className="text-[12px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p>
-            ) : (
-              <p className="text-[12px] text-muted">此解读已为你保存，下次回到命盘可直接查看。</p>
-            )}
-          </div>
-        )}
+        {reading && <ReadingTabs sections={sections} chart={chart} streaming={streaming} />}
       </Section>
 
       {timeline && (

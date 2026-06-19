@@ -61,7 +61,8 @@ ${
 
 # Output contract
 ${langLine}
-Respond in GitHub-flavored markdown with EXACTLY these FOUR H2 sections (all four are REQUIRED, even if brief; never merge or drop one), in this order, nothing before or after:
+Respond in GitHub-flavored markdown with EXACTLY these FOUR H2 sections (all four are REQUIRED, even if brief; never merge or drop one), in this order, nothing before or after.
+摘要先行：命理/心理/成长三节，正文请以一句 ≤18 字的凝练结论**单独成行**开头，空一行后再展开（该结论会作为卡片大字标题）。概览仍为 2–3 句。
 ## ${H.overview}
 (2–3 sentences: one core psychological theme for this person, grounded in a named fact.)
 ## ${H.fate}
