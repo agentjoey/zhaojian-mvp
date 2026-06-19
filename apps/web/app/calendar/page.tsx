@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
 import { dailyFortuneAction, dailyPolishAction } from "@/app/actions";
+import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { Card } from "@/components/ui";
 import type { DailyFortune } from "@eamvp/core";
 
@@ -118,6 +119,19 @@ export default function CalendarPage() {
         <Card><p className="text-[14px] text-muted">正在推算当日流日…</p></Card>
       ) : (
         <div className="space-y-5">
+          {/* 配图（意境与当日情绪一致，作心理暗示） */}
+          {(() => {
+            const img = matchFortuneImage(fortune.relation, selected);
+            return img ? (
+              <figure className="overflow-hidden" style={{ borderRadius: "var(--radius-card)", border: "1px solid var(--color-line)" }}>
+                <img src={img.file} alt={img.alt} className="block w-full" style={{ aspectRatio: "3 / 2", objectFit: "cover" }} loading="lazy" />
+                <figcaption className="px-4 py-2.5 text-[13px] text-ink-2" style={{ background: "var(--color-surface)" }}>
+                  <span className="text-gold">{MOOD_LABEL[fortune.relation]}</span> · {img.caption}
+                </figcaption>
+              </figure>
+            ) : null;
+          })()}
+
           {/* 总览 */}
           <Card dark>
             <div className="flex items-end justify-between">

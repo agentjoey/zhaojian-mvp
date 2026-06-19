@@ -1,0 +1,58 @@
+import type { Relation } from "@eamvp/core";
+
+/**
+ * 运势配图库（EP-cal-img · A 混合制）。
+ * AI 预生成 → 人工/agent 筛图(见 skill curate-fortune-images) → 打标签存仓库 public/fortune/ → 规则选图。
+ * 每张图带「意境标签」：与当日命理流日的情绪一致，形成心理暗示。
+ * 当前为静态清单 + 仓库内图片；日后量大可把 file 换成 CDN/Storage URL（matchFortuneImage 不变）。
+ */
+export type FortuneImage = {
+  file: string; // 相对 public，如 /fortune/guansha-1.jpeg
+  /** 适配的十神情绪（可多选）—— 主匹配维度，确保意境一致 */
+  moods: Relation[];
+  /** 适配五行（可选，软匹配） */
+  elements?: ("木" | "火" | "土" | "金" | "水")[];
+  /** 意境标签文案（一句，作心理暗示，配在图下） */
+  caption: string;
+  alt: string;
+};
+
+/** 十神情绪 → 该日主题词（与 computeDailyFortune 的关系语义一致）。 */
+export const MOOD_LABEL: Record<Relation, string> = {
+  比和: "协作同行",
+  印: "休整蓄力",
+  食伤: "表达抒发",
+  财: "行动掌控",
+  官杀: "守静自持",
+};
+
+/** 策展后的图库清单（由 skill curate-fortune-images 维护）。seed: 2026-06-19 首批 10 张，纯水墨。 */
+export const FORTUNE_IMAGES: FortuneImage[] = [
+  { file: "/fortune/bihe-1.jpeg", moods: ["比和"], caption: "双峰并峙，今日宜与人同行、稳中共进", alt: "水墨双峰并峙于云海" },
+  { file: "/fortune/bihe-2.jpeg", moods: ["比和"], caption: "孤帆相随，今日宜携手、不必独行", alt: "水墨二帆同向远行" },
+  { file: "/fortune/yin-1.jpeg", moods: ["印"], caption: "深山幽栖，今日宜养息、近师友", alt: "水墨深山幽谷草庐" },
+  { file: "/fortune/yin-2.jpeg", moods: ["印"], caption: "平湖印月，今日宜静心、蓄力以待", alt: "水墨平湖之上淡月" },
+  { file: "/fortune/shishang-1.jpeg", moods: ["食伤"], caption: "飞鸟掠空，今日宜抒怀、轻声表达", alt: "水墨群鸟掠过水面" },
+  { file: "/fortune/shishang-2.jpeg", moods: ["食伤"], caption: "寒林独立，今日宜沉淀、把心绪落成形", alt: "水墨疾风过寒林" },
+  { file: "/fortune/cai-1.jpeg", moods: ["财"], caption: "孤舟破雾，今日宜把握节奏、主动前行", alt: "水墨孤舟破雾前行" },
+  { file: "/fortune/cai-2.jpeg", moods: ["财"], caption: "长河一帆，今日宜务实、循势而动", alt: "水墨长河尽头远帆" },
+  { file: "/fortune/guansha-1.jpeg", moods: ["官杀"], caption: "孤峰独峙，今日宜守静、克己自持", alt: "水墨孤峰独峙寒江" },
+  { file: "/fortune/guansha-2.jpeg", moods: ["官杀"], caption: "寒江独钓，今日宜安住、以静制动", alt: "水墨寒江独钓" },
+];
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/**
+ * 按当日流日选一张配图：先按情绪(relation)匹配，命中多张则按日期确定性轮选（同一天稳定）。
+ * 无匹配则在全库回退。库为空返回 null（UI 降级不显示）。
+ */
+export function matchFortuneImage(relation: Relation, dateStr: string): FortuneImage | null {
+  if (FORTUNE_IMAGES.length === 0) return null;
+  const pool = FORTUNE_IMAGES.filter((i) => i.moods.includes(relation));
+  const list = pool.length ? pool : FORTUNE_IMAGES;
+  return list[hashStr(dateStr) % list.length] ?? null;
+}

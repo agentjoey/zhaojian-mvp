@@ -5,8 +5,8 @@
 - （暂无 —— MVP 主链路已上线：起盘→命盘→解读→运势→档案，全部生产可用）
 
 ## 🟡 MED
-- [ ] [EP-cal-img] 运势日历配图：为当日运势寻找/生成/显示一张匹配的图片（趋吉避祸主题/五行/季节）。**风格须匹配照见基调**（宣纸/宋体/朱墨，水墨写意，非写实/非彩色卡通）。来源：① 预置主题图库按规则匹配 ② 生成式（评估成本/风格一致性）。
 - [ ] [EP-profile-q] 建档交互式心理问卷：起盘流程插入若干心理学问题（自我认知/关系/动机倾向），结果并入 LLM 解读上下文以完善分析（与命盘事实互证，标注主观自陈 vs 命盘客观）。降低起盘摩擦：可「先出盘、后渐进追问」。
+- [ ] [EP-cal-img-2] 运势配图扩库：用 `curate-fortune-images` skill 扩充图库（每情绪 ≥4 张增变化、加季节维度）；样本足够后把筛图从人工转 agent reviewer 自动化。
 - [ ] [EP-theme] 三套基调皮肤切换（data-theme：宣纸/国潮/青绿，仅换 accent）。
 - [ ] [EP-auth] 账号升级：匿名登录 → 邮箱/手机正式登录（跨设备同步档案；当前匿名按设备隔离）。
 
@@ -37,3 +37,4 @@
 - EP-v2：起盘 UX（地名/时辰）+ 西方盘重绘 + 解读显眼 CTA + 解读持久化（一次生成不重算）。
 - EP-002-cal：排盘精度——真太阳时含均时差 EoT；晚子时归日 `ziHourConvention`→lunar sect（默认 current 保持既有）；跨节气/立春金标准测试；日主旺衰启发式（替代 unknown）。core 22/22。
 - EP-cal-llm：运势日历轻润色一句（`polishDailyFortune`，照见声部、非决定论、≤38 字），按 (档案,日期) localStorage 缓存避免重复调 LLM。实跑验证。
+- EP-cal-img：运势配图（A 混合制）。MiniMax image-01 预生成纯水墨图 → 人工筛图(首批 10/10 通过) → 打意境标签存 `public/fortune/` + 清单 `lib/fortune-images.ts` → `matchFortuneImage` 按当日十神情绪规则选图（确定性、同日稳定）。日历展示水墨横幅 + 心理暗示文案。筛图流程做成 skill `curate-fortune-images`（首期人工、后续转 agent reviewer）。
