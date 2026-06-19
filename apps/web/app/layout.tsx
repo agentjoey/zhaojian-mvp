@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notoSerifSC, cormorant } from "./fonts";
+import { notoSerifSC, notoSansSC, cormorant } from "./fonts";
 import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
@@ -16,7 +16,7 @@ export default function RootLayout({
     <html
       lang="zh-Hans"
       data-theme="xuan"
-      className={`${notoSerifSC.variable} ${cormorant.variable} h-full`}
+      className={`${notoSerifSC.variable} ${notoSansSC.variable} ${cormorant.variable} h-full`}
     >
       <body className="min-h-full">
         <AppShell>{children}</AppShell>

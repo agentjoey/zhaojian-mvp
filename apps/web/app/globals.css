@@ -1,24 +1,27 @@
 @import "tailwindcss";
 
 /* ============================================================
-   照见 Zhaojian · Design Tokens（令牌即单一事实源，勿写裸十六进制）
+   照见 Zhaojian · Design Tokens —— 素白 v2（现代化方向）
+   令牌即单一事实源，勿写裸十六进制。
    ============================================================ */
 @theme inline {
-  /* —— 纸 / 墨阶（中性） —— */
-  --color-paper: #f3f1ea;
-  --color-surface: #fbfaf5;
+  /* —— 纸 / 墨阶 —— */
+  --color-paper: #f6f5f1; /* App 页面底 · 素白（冷调） */
+  --color-surface: #ffffff; /* 卡片 / 浮层 */
   --color-float: #ffffff;
-  --color-tint: #eceae1;
-  --color-line: #e6e2d6;
-  --color-divider: #e1dcce;
-  --color-spoke: #d9d3c4;
+  --color-tint: #f1efea; /* 区块浅底 / chip 底 */
+  --color-rail: #ffffff; /* 网页左侧图标栏底 */
+  --color-backdrop: #e4e2db;
+  --color-line: #eceae3; /* 描边 / 分隔线（弱化） */
+  --color-divider: #eceae3;
+  --color-spoke: #ddd9cf; /* 命盘辐条/淡线 */
 
-  --color-ink: #2b2823;
-  --color-ink-2: #655e50;
-  --color-muted: #9a9182;
+  --color-ink: #1f1d19; /* 主文字 + 深色锚点底 */
+  --color-ink-2: #6b6457; /* 次文字 */
+  --color-muted: #9c9486; /* 辅助 / 说明 / 占位 */
 
   /* 深色锚点上的文字 */
-  --color-on-ink: #f3f1ea;
+  --color-on-ink: #f6f5f1;
   --color-on-ink-gold: #c7a878;
   --color-on-ink-muted: #a79e8c;
   --color-on-ink-faint: #827a68;
@@ -43,63 +46,103 @@
   --color-on-water: #edf4f8;
 
   /* —— 圆角 —— */
-  --radius-chip: 3px;
-  --radius-button: 4px;
-  --radius-card: 5px;
-  --radius-panel: 8px;
+  --radius-chip: 11px;
+  --radius-icon: 11px;
   --radius-seal: 11px;
+  --radius-button: 16px;
+  --radius-card: 16px;
+  --radius-panel: 20px;
+
+  /* —— 缓动 —— */
+  --ease-rise: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-cast: cubic-bezier(0.5, 0, 0.5, 1);
 }
 
-/* 字体变量由 next/font 在 <html> 上注入（--font-serif / --font-latin），见 fonts.ts */
+/* 阴影（克制，不入 @theme，直接用变量） */
+:root {
+  --shadow-card: 0 5px 18px rgba(31, 29, 25, 0.05);
+  --shadow-card-hover: 0 11px 26px rgba(31, 29, 25, 0.09);
+  --shadow-soft: 0 6px 22px rgba(31, 29, 25, 0.06);
+  --shadow-btn: 0 12px 28px rgba(203, 70, 54, 0.28);
+  --shadow-btn-hover: 0 16px 34px rgba(203, 70, 54, 0.34);
+  --shadow-panel: 0 18px 50px rgba(31, 29, 25, 0.1);
+}
+
+/* 字体变量由 next/font 注入（--font-serif / --font-sans / --font-latin），见 fonts.ts */
 html {
   background: var(--color-paper);
   color: var(--color-ink);
 }
-
 body {
   background: var(--color-paper);
   color: var(--color-ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans); /* 正文默认无衬线（现代化关键改动） */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+/* 大标题 / 焦点字用宋体 */
+.font-serif,
+.display {
+  font-family: var(--font-serif);
+}
+::selection {
+  background: var(--color-cinnabar);
+  color: #fff;
 }
 
 /* 拉丁/数字/度数/星盘标签 */
 .font-latin {
   font-family: var(--font-latin);
 }
-
-/* 拉丁小标：letter-spacing .3em + uppercase */
 .latin-label {
   font-family: var(--font-latin);
   letter-spacing: 0.3em;
   text-transform: uppercase;
 }
 
-/* 解读正文排版（markdown） */
+/* ============================================================
+   动效语言（统一）
+   ============================================================ */
+@keyframes zjRise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes zjFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zjPop { 0% { opacity: 0; transform: scale(0.9); } 60% { opacity: 1; transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes zjSpinSlow { to { transform: rotate(360deg); } }
+@keyframes zjSpinFast { to { transform: rotate(360deg); } }
+@keyframes zjBell { 0%, 100% { transform: rotate(-11deg); } 50% { transform: rotate(11deg); } }
+@keyframes zjBellIdle { 0%, 100% { transform: rotate(-3.5deg); } 50% { transform: rotate(3.5deg); } }
+@keyframes zjStamp { 0% { opacity: 0; transform: scale(1.7) rotate(-7deg); } 55% { opacity: 1; transform: scale(0.9) rotate(-7deg); } 100% { opacity: 1; transform: scale(1) rotate(-7deg); } }
+@keyframes zjDraw { to { stroke-dashoffset: 0; } }
+@keyframes zjPulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.65; } }
+@keyframes zjGZ { 0% { opacity: 0; transform: translateY(12px) scale(0.6); } 100% { opacity: 1; transform: none; } }
+
+/* 入场：淡入 + 上移；子项错峰用 inline animation-delay */
+.zj-rise { animation: zjRise 0.6s var(--ease-rise) both; }
+.zj-fade { animation: zjFade 0.5s ease both; }
+.zj-bell-idle { transform-origin: 40px 16px; animation: zjBellIdle 4.5s ease-in-out infinite; }
+.zj-spin-slow { transform-origin: center; animation: zjSpinSlow 72s linear infinite; }
+.zj-pulse { animation: zjPulse 3s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .zj-spin-slow, .zj-bell-idle, .zj-pulse { animation: none !important; }
+}
+
+/* ============================================================
+   解读正文排版（markdown），素白 v2
+   ============================================================ */
 .reading-prose {
-  line-height: 1.9;
-  font-size: 15.5px;
-}
-.reading-prose h2 {
-  font-weight: 600;
-  font-size: 19px;
-  margin: 1.4em 0 0.5em;
-}
-.reading-prose p {
-  margin: 0.7em 0;
+  line-height: 1.95;
+  font-size: 14.5px;
+  color: var(--color-ink-2);
 }
 .reading-prose strong {
-  color: var(--color-cinnabar);
+  color: var(--color-ink);
   font-weight: 600;
-}
-.reading-prose ul,
-.reading-prose ol {
-  margin: 0.6em 0;
-  padding-left: 1.3em;
-}
-.reading-prose li {
-  margin: 0.35em 0;
 }
 .reading-prose em {
   color: var(--color-ink-2);

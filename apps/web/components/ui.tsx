@@ -14,6 +14,39 @@ export function elementOf(ganzhi: string): Element | null {
   return STEM[ganzhi] ?? BRANCH[ganzhi] ?? null;
 }
 
+// —— 铜铃 logo（品牌 · 风过则动）——
+export function BellLogo({ size = 26, idle = true }: { size?: number; idle?: boolean }) {
+  return (
+    <svg viewBox="0 0 80 84" style={{ width: size, height: "auto" }} aria-hidden>
+      <g className={idle ? "zj-bell-idle" : undefined} style={{ transformOrigin: "40px 16px" }}>
+        <path d="M40,12 L43,16 L40,20 L37,16 Z" fill="var(--color-ink)" />
+        <path d="M6,20 C18,24 28,26 40,26 C52,26 62,24 74,20" fill="none" stroke="var(--color-ink)" strokeWidth="5" strokeLinecap="round" />
+        <line x1="40" y1="26" x2="40" y2="40" stroke="var(--color-ink)" strokeWidth="1.4" />
+        <path d="M40,43 C35,43 32,48 32,55 C32,59 33,62 35,65 C37,63 39,62 40,62 C41,62 43,63 45,65 C47,62 48,59 48,55 C48,48 45,43 40,43 Z" fill="var(--color-cinnabar)" />
+        <path d="M40,70 L43,74 L40,79 L37,74 Z" fill="var(--color-cinnabar)" />
+      </g>
+    </svg>
+  );
+}
+
+// —— 命盘环（hero 背景，缓慢自转）——
+export function HeroWheel({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 320 320" className={className} style={style} aria-hidden>
+      <g className="zj-spin-slow" style={{ transformOrigin: "160px 160px" }}>
+        <circle cx="160" cy="160" r="150" fill="none" stroke="var(--color-ink)" strokeWidth="1.3" />
+        <circle cx="160" cy="160" r="118" fill="none" stroke="var(--color-ink)" strokeWidth="1" />
+        <circle cx="160" cy="160" r="64" fill="none" stroke="var(--color-ink)" strokeWidth="1" />
+        <g stroke="var(--color-ink)" strokeWidth=".9">
+          {Array.from({ length: 12 }, (_, i) => (
+            <line key={i} x1="160" y1="10" x2="160" y2="42" style={{ transform: `rotate(${i * 30}deg)`, transformOrigin: "160px 160px" }} />
+          ))}
+        </g>
+      </g>
+    </svg>
+  );
+}
+
 // —— 印章图标（朱红方章，单字成标）——
 export function SealIcon({
   char,
@@ -59,17 +92,17 @@ export function Button({
 }: {
   variant?: "primary" | "secondary" | "text";
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base = "inline-flex items-center justify-center gap-2 text-[15px] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
+  const base = "zj-btn inline-flex items-center justify-center gap-2 text-[15px] font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
   const styles =
     variant === "primary"
-      ? "px-6 py-3 text-[var(--color-on-ink)] bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)]"
+      ? "px-6 py-3 text-white bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)] hover:-translate-y-0.5"
       : variant === "secondary"
-        ? "px-6 py-3 text-[var(--color-ink)] bg-transparent border border-[var(--color-line)] hover:border-[var(--color-cinnabar)]"
+        ? "px-6 py-3 text-[var(--color-ink)] bg-transparent border border-[var(--color-line)] hover:border-[var(--color-cinnabar)] hover:-translate-y-0.5"
         : "text-[var(--color-gold)] underline underline-offset-[5px] hover:text-[var(--color-cinnabar)]";
   return (
     <button
       className={cn(base, styles, className)}
-      style={variant !== "text" ? { borderRadius: "var(--radius-button)" } : undefined}
+      style={variant === "primary" ? { borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" } : variant === "secondary" ? { borderRadius: "var(--radius-button)" } : undefined}
       {...rest}
     >
       {children}
@@ -97,7 +130,7 @@ export function Card({
         borderRadius: "var(--radius-card)",
         background: dark ? "var(--color-ink)" : "var(--color-surface)",
         color: dark ? "var(--color-on-ink)" : "var(--color-ink)",
-        border: dark ? "none" : "1px solid var(--color-line)",
+        boxShadow: dark ? "var(--shadow-panel)" : "var(--shadow-card)",
         borderTop: accentVar ? `3px solid ${accentVar}` : undefined,
       }}
     >
