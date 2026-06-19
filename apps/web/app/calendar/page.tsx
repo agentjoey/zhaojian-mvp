@@ -7,6 +7,7 @@ import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction, ziweiHorosc
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { Card, GanzhiBadge } from "@/components/ui";
 import { ScoreRing } from "@/components/ScoreRing";
+import { CastingOverlay } from "@/components/CastingOverlay";
 import type { DailyFortune, ZiweiHoroscope } from "@eamvp/core";
 
 // 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
@@ -61,10 +62,22 @@ export default function CalendarPage() {
   const [behavior, setBehavior] = useState<Behavior | null>(null);
   const [horoscope, setHoroscope] = useState<ZiweiHoroscope | null>(null);
   const [loading, setLoading] = useState(false);
+  const [casting, setCasting] = useState(false); // 进入运势的品牌化过场（每会话一次）
   const selYear = selected.slice(0, 4);
 
   useEffect(() => {
     getActiveProfile().then(setProfile).catch(() => setProfile(null));
+  }, []);
+
+  // 测算过场：每会话首次进入运势播 ~2.1s
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("zj.cast")) return;
+      sessionStorage.setItem("zj.cast", "1");
+    } catch { /* ignore */ }
+    setCasting(true);
+    const t = setTimeout(() => setCasting(false), 2100);
+    return () => clearTimeout(t);
   }, []);
 
   // 本年/本限 时序上下文（确定性，按年取）
@@ -119,6 +132,7 @@ export default function CalendarPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
+      {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" />}
       <header className="mb-6">
         <h1 className="font-serif text-[28px] font-black">运势日历</h1>
         <p className="mt-1 text-[13px] text-muted">{profile.nickname} · 命主 {profile.chart.bazi.dayMaster}（{profile.chart.bazi.dayMasterElement}）</p>

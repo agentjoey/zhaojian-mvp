@@ -13,7 +13,10 @@ export default function Home() {
     <main className="mx-auto w-full max-w-[480px] pb-16">
       {/* ===== Hero ===== */}
       <section className="relative overflow-hidden px-7 pb-2 pt-14" style={{ background: "linear-gradient(180deg,#F2F0EA 0%,#F6F5F1 70%)" }}>
-        <HeroWheel className="pointer-events-none absolute left-1/2 top-8 -ml-[230px] w-[460px]" style={{ opacity: 0.12 }} />
+        {/* 氛围大图 + 米白渐隐遮罩（让宋体标题仍是主角） */}
+        <img src="/hero/hero-bg.jpeg" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.55 }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(246,245,241,.25) 0%,rgba(246,245,241,.5) 42%,#F6F5F1 88%)" }} />
+        <HeroWheel className="pointer-events-none absolute left-1/2 top-8 -ml-[230px] w-[460px]" style={{ opacity: 0.1 }} />
         <span className="zj-pulse absolute left-12 top-24 h-[3px] w-[3px] rounded-full" style={{ background: "var(--color-cinnabar)" }} />
         <span className="zj-pulse absolute right-12 top-36 h-[2.5px] w-[2.5px] rounded-full" style={{ background: "var(--color-gold)", animationDelay: ".6s" }} />
         <span className="zj-pulse absolute left-10 top-56 h-[2px] w-[2px] rounded-full" style={{ background: "var(--color-water)", animationDelay: "1.1s" }} />
