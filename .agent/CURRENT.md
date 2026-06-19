@@ -47,6 +47,9 @@ Sprint 001（调研+设计+脚手架）三大任务 T1/T2/T3 **均 ✅ Done**：
 - [x] [EP-MODELS] ✅ 三模型对比（`docs/llm-model-comparison.md`）：M3 首字 2.4s 胜；m2.7-highspeed 31.7s 否决；deepseek-v4-flash 11.9s 合格备选。维持 M3。
 - [x] [EP-DB] [HIGH] ✅ 档案切 Supabase（项目 `zhaojian`/sxjcpoxhphlnwhpzachi，匿名登录+RLS）：`profiles` 表+RLS（select/insert/delete，无 update=冻结，user_id 默认 auth.uid()）、advisor 0 警告；`lib/supabase.ts`+`lib/profiles.ts`+4 调用点 await。匿名登录已开。**REST 实证**：A 见己 / B 见 `[]`（RLS 隔离）。
 - [x] [EP-DEPLOY] [HIGH] ✅ **上线 https://zhaojian-mvp.vercel.app**（GitHub 集成自动部署）。根因：Root Directory=apps/web ✓ 但 framework=null 致全 404 → token 设 framework=nextjs + 重部署修复。实证 `/reading` 200、`/api/reading` 400(key 已设)。详见长期记忆 deployment-infra。
+- [x] [EP-v2] [HIGH] ✅ 上线优化（commit f0c63a7，生产已验证）：① 自定义域名 `zhaojian.agentjoey.ai`(Vercel verified) ② 起盘 UX：地名→经纬度/时区(Nominatim+tz-lookup)、时辰实时显示+不知时辰开关 ③ 西方本命盘重绘(行星防撞/真实刻度/宫号/清爽中心)修复看不清 ④ 解读显眼 CTA + 一次生成后存档(Supabase reading 列)回访不重算(命盘冻结由触发器保) + 隐私文案如实化。Playwright 全验证。
+- [ ] [EP-cal-img] [MED] 运势日历配图（backlog）
+- [ ] [EP-profile-q] [MED] 建档交互式心理问卷（backlog）
 - [ ] [EP-cal-llm] [LOW] 运势日历可选轻 LLM 润色一句
 
 ## Version History（最近 5 版）

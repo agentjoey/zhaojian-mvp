@@ -7,10 +7,21 @@ import { hourToTimeIndex } from "./utils/elements";
  * 负责：农历→公历、真太阳时经度校准（含历史 DST，经 IANA 时区自动处理）、时辰索引。
  * 输出的 (year..minute) 即三引擎实际使用的「真太阳时」时刻，可审计。
  *
- * 局限（MVP，记入 EP-002）：
- *  - 经度校准只做平太阳时（mean solar time），未含均时差 EoT（±~16 分钟），可能影响临界时辰。
- *  - 早/晚子时归日交由各引擎默认处理，金标准用例待补。
+ * 真太阳时 = 钟表时 + 经度校正(平太阳时) + 均时差 EoT(±~16min)。EoT 近似公式精度约 ±10 秒，足够命理用。
+ * 晚子时归日由 BaZi 引擎按 ziHourConvention 设 lunar sect（见 bazi/index.ts）。
  */
+
+/** 当年第几天（1–366）。 */
+function dayOfYear(y: number, m: number, d: number): number {
+  return Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 86400000) + 1;
+}
+
+/** 均时差（分钟，apparent − mean）。常用近似式，输入当年第 N 天。 */
+function equationOfTimeMin(y: number, m: number, d: number): number {
+  const N = dayOfYear(y, m, d);
+  const B = (2 * Math.PI * (N - 81)) / 364;
+  return 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+}
 export type NormalizedBirth = {
   year: number;
   month: number; // 1–12（公历）
@@ -58,11 +69,13 @@ export function normalizeBirth(input: BirthInput): NormalizedBirth {
 
   let correctionMin = 0;
   if (input.trueSolarTime && input.longitude != null && hasTime) {
-    // 真太阳时（平太阳时近似）：标准经线由时区偏移推得；校正 = (经度 − 标准经线)×4 分钟
+    // 真太阳时 = 平太阳时(经度校正) + 均时差 EoT
     const ref = new Date(Date.UTC(year, month - 1, day, hour, minute));
     const offsetMin = tzOffsetMinutes(input.timezone, ref);
     const standardMeridian = (offsetMin / 60) * 15; // 东经为正
-    correctionMin = Math.round((input.longitude - standardMeridian) * 4);
+    const lonCorr = (input.longitude - standardMeridian) * 4; // 经度差 × 4 分钟
+    const eot = equationOfTimeMin(year, month, day);
+    correctionMin = Math.round(lonCorr + eot);
   }
 
   if (correctionMin !== 0) {

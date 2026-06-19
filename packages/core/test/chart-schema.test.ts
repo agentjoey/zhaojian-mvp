@@ -17,7 +17,7 @@ describe("BirthInputSchema", () => {
     });
     expect(parsed.timezone).toBe("Asia/Shanghai");
     expect(parsed.trueSolarTime).toBe(true);
-    expect(parsed.ziHourConvention).toBe("late");
+    expect(parsed.ziHourConvention).toBe("current");
   });
 
   it("允许时辰未知（time=null）", () => {

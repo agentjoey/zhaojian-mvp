@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { dailyFortuneAction } from "@/app/actions";
+import { dailyFortuneAction, dailyPolishAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import type { DailyFortune } from "@eamvp/core";
+
+// 轻润色按 (档案,日期) 缓存到 localStorage，避免重复调 LLM
+function polishCacheGet(pid: string, date: string): string | null {
+  try { return localStorage.getItem(`zhaojian.polish.${pid}.${date}`); } catch { return null; }
+}
+function polishCacheSet(pid: string, date: string, v: string): void {
+  try { localStorage.setItem(`zhaojian.polish.${pid}.${date}`, v); } catch { /* ignore */ }
+}
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -33,6 +41,7 @@ export default function CalendarPage() {
   const [today] = useState(() => new Date());
   const [selected, setSelected] = useState(() => ymd(new Date()));
   const [fortune, setFortune] = useState<DailyFortune | null>(null);
+  const [polish, setPolish] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -44,8 +53,18 @@ export default function CalendarPage() {
     if (!p) return;
     let alive = true;
     setLoading(true);
+    setPolish(polishCacheGet(p.id, selected)); // 命中缓存先显示
     dailyFortuneAction({ bazi: p.chart.bazi }, selected)
-      .then((f) => alive && setFortune(f))
+      .then((f) => {
+        if (!alive) return;
+        setFortune(f);
+        // 轻润色：缓存未命中才调 LLM
+        if (!polishCacheGet(p.id, selected)) {
+          dailyPolishAction(f, p.nickname).then((line) => {
+            if (alive && line) { setPolish(line); polishCacheSet(p.id, selected, line); }
+          });
+        }
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -112,6 +131,11 @@ export default function CalendarPage() {
               </div>
             </div>
             <p className="mt-3 text-[14px] leading-[1.8] text-on-ink-muted">{fortune.tone}</p>
+            {polish && (
+              <p className="mt-2 flex items-start gap-2 text-[14px] leading-[1.7]" style={{ color: "var(--color-on-ink-gold)" }}>
+                <span aria-hidden>✦</span><span>{polish}</span>
+              </p>
+            )}
           </Card>
 
           {/* 五维评分 */}

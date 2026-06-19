@@ -7,6 +7,7 @@ import {
   type UnifiedChart,
   type DailyFortune,
 } from "@eamvp/core";
+import { polishDailyFortune, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 
 /** 建档排盘：一次性算出完整命盘（EP-007 冻结存档用）。 */
 export async function computeChartAction(
@@ -29,6 +30,16 @@ export async function dailyFortuneAction(
   dateStr: string,
 ): Promise<DailyFortune> {
   return computeDailyFortune(chart, dateStr);
+}
+
+/** 运势日历轻润色：确定性流日 → 一句温和提点（EP-cal-llm）。无 key 时返回 null（静默降级）。 */
+export async function dailyPolishAction(fortune: DailyFortune, nickname?: string): Promise<string | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try {
+    return await polishDailyFortune(fortune, { nickname });
+  } catch {
+    return null;
+  }
 }
 
 /** 地名 → 经纬度 + 时区（OpenStreetMap Nominatim + tz-lookup）。用于出生地输入。 */

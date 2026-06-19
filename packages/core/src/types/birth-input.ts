@@ -20,10 +20,14 @@ export const BirthInputSchema = z.object({
   longitude: z.number().min(-180).max(180).optional(),
   /** 出生地纬度，西方本命盘宫位/上升点计算必需 */
   latitude: z.number().min(-90).max(90).optional(),
-  /** 是否启用真太阳时校准 */
+  /** 是否启用真太阳时校准（经度平太阳时 + 均时差 EoT） */
   trueSolarTime: z.boolean().default(true),
-  /** 子时归日约定：'late'=23:00 后算次日（传统）；'early'=当日 */
-  ziHourConvention: z.enum(["late", "early"]).default("late"),
+  /**
+   * 晚子时（23:00–23:59）归日约定 → lunar sect：
+   * 'current'=算当天（sect 2，默认，多数现代排盘）；'next'=算次日（sect 1，子平传统，新日始于子时）。
+   * 早子时（00:00–00:59）恒为当日，不受此影响。
+   */
+  ziHourConvention: z.enum(["current", "next"]).default("current"),
   nickname: z.string().max(24).optional(),
 });
 

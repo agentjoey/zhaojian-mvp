@@ -5,14 +5,47 @@ import type { NormalizedBirth } from "../normalize";
 import { normalizeBirth } from "../normalize";
 import { stemElement, branchElement, FIVE_ELEMENTS, genderToLunarInt } from "../utils/elements";
 
+const GENERATES: Record<string, string> = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
+/** 某五行 el 是否「帮扶」日主 dm（同党：比劫 el==dm 或 印 el 生 dm）。 */
+function supportsDM(el: string, dm: string): boolean {
+  return el === dm || GENERATES[el] === dm;
+}
+
+/**
+ * 日主旺衰（启发式估计，非用神级精算）：按位置加权统计同党(印+比)占比。
+ * 月支权重最高(得令)，日支次之(坐下通根)。≥0.52 强 / ≤0.38 弱 / 其间 中和。
+ */
+function assessStrength(
+  pillars: BaziChart["pillars"],
+  dm: string,
+): BaziChart["dayMasterStrength"] {
+  const items: { el: string; w: number }[] = [
+    { el: branchElement(pillars.month.branch), w: 3 }, // 得令
+    { el: branchElement(pillars.day.branch), w: 1.5 }, // 坐下
+    { el: branchElement(pillars.year.branch), w: 1 },
+    { el: stemElement(pillars.year.stem), w: 1 },
+    { el: stemElement(pillars.month.stem), w: 1 },
+  ];
+  if (pillars.hour) {
+    items.push({ el: branchElement(pillars.hour.branch), w: 1 });
+    items.push({ el: stemElement(pillars.hour.stem), w: 1 });
+  }
+  let support = 0, total = 0;
+  for (const it of items) { total += it.w; if (supportsDM(it.el, dm)) support += it.w; }
+  const ratio = total ? support / total : 0;
+  return ratio >= 0.52 ? "strong" : ratio <= 0.38 ? "weak" : "balanced";
+}
+
 /**
  * 八字排盘 —— 包装 lunar-typescript (6tail)。见 research/technical-research.md §2。
- * 输入须为已归一的真太阳时（normalizeBirth）；早晚子时归日采用 lunar 默认。
+ * 输入须为已归一的真太阳时（normalizeBirth）；晚子时归日按 ziHourConvention 设 lunar sect。
  */
 export function computeBaziChart(input: BirthInput, pre?: NormalizedBirth): BaziChart {
   const n = pre ?? normalizeBirth(input);
   const solar = Solar.fromYmdHms(n.year, n.month, n.day, n.hour, n.minute, 0);
   const ec = solar.getLunar().getEightChar();
+  // 晚子时(23:xx)归日：'next'→sect1(算次日/子平传统)，'current'→sect2(算当天/默认)
+  ec.setSect(input.ziHourConvention === "next" ? 1 : 2);
 
   const mkPillar = (
     gan: string,
@@ -54,11 +87,12 @@ export function computeBaziChart(input: BirthInput, pre?: NormalizedBirth): Bazi
     .reverse()
     .find((lp) => lp.startYear <= nowYear);
 
+  const pillars = { year, month, day, hour };
   return {
-    pillars: { year, month, day, hour },
+    pillars,
     dayMaster: ec.getDayGan(),
     dayMasterElement: stemElement(ec.getDayGan()),
-    dayMasterStrength: "unknown", // 旺衰判定（用神/调候）留待 EP-004
+    dayMasterStrength: assessStrength(pillars, stemElement(ec.getDayGan())),
     fiveElementCounts: counts,
     luckPillars,
     currentLuckPillar: current?.pillar,
