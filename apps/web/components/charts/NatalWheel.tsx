@@ -102,24 +102,30 @@ export function NatalWheel({ western }: { western: WesternChart | null }) {
           );
         })}
 
-        {/* 相位连线（真实角，半径 R_ASPECT 内） */}
-        {aspects.map((a, i) => {
+        {/* 相位连线（真实角，连真实位置点；排除合相零长线；硬/软着色，轻） */}
+        {aspects.filter((a) => a.type !== "conjunction").map((a, i) => {
           const f = trueAngle[a.from], t = trueAngle[a.to];
           if (f == null || t == null) return null;
           const p1 = polar(R_ASPECT, f), p2 = polar(R_ASPECT, t);
-          return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={ASPECT_COLOR[a.quality]} strokeWidth={1} opacity={0.5} />;
+          return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={ASPECT_COLOR[a.quality]} strokeWidth={0.9} opacity={0.4} />;
         })}
 
-        {/* 行星：真实刻度线 + 展开符号 */}
+        {/* 行星真实位置点（相位线由此发出） */}
         {planets.map((p) => {
-          const tickOuter = polar(R_ZODIAC_IN, trueAngle[p.name]!);
-          const tickInner = polar(R_GLYPH + 11, dispAngle[p.name]!);
+          const dot = polar(R_ASPECT, trueAngle[p.name]!);
+          return <circle key={p.name} cx={dot.x} cy={dot.y} r={1.8} fill="var(--color-ink)" opacity={0.7} />;
+        })}
+
+        {/* 行星：腿（展开符号 → 真实位置点）+ 符号 */}
+        {planets.map((p) => {
           const g = polar(R_GLYPH, dispAngle[p.name]!);
+          const legTop = polar(R_GLYPH - 9, dispAngle[p.name]!);
+          const dot = polar(R_ASPECT, trueAngle[p.name]!);
           return (
             <g key={p.name}>
-              <line x1={tickOuter.x} y1={tickOuter.y} x2={tickInner.x} y2={tickInner.y} stroke="var(--color-spoke)" strokeWidth={0.8} />
-              <text x={g.x} y={g.y} textAnchor="middle" dominantBaseline="central" fontSize={18} fontWeight={600} fill="var(--color-ink)">{(PLANET_GLYPH[p.name] ?? p.name) + VS}</text>
-              {p.retrograde && <text x={g.x + 11} y={g.y + 8} textAnchor="middle" dominantBaseline="central" className="font-latin" fontSize={9} fill="var(--color-fire)">℞</text>}
+              <line x1={legTop.x} y1={legTop.y} x2={dot.x} y2={dot.y} stroke="var(--color-spoke)" strokeWidth={0.7} opacity={0.55} />
+              <text x={g.x} y={g.y} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={600} fill="var(--color-ink)">{(PLANET_GLYPH[p.name] ?? p.name) + VS}</text>
+              {p.retrograde && <text x={g.x + 10} y={g.y + 8} textAnchor="middle" dominantBaseline="central" className="font-latin" fontSize={8} fill="var(--color-fire)">℞</text>}
             </g>
           );
         })}
