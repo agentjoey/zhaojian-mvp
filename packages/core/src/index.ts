@@ -10,6 +10,8 @@ export { deriveUsefulElements } from "./bazi/useful-elements";
 export type { UsefulElements } from "./bazi/useful-elements";
 export { deriveTriad } from "./ziwei/triad";
 export type { Triad } from "./ziwei/triad";
+export { computeZiweiHoroscope } from "./ziwei/horoscope";
+export type { ZiweiHoroscope, HoroscopePeriod } from "./ziwei/horoscope";
 export { deriveWesternProfile, MOON_PHASES } from "./western/profile";
 export type { WesternProfile } from "./western/profile";
 export { RESONANCE_ANCHORS, SYNTHESIS_GUARDRAILS } from "./synthesis/east-west-map";

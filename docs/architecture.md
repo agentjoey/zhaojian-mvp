@@ -90,24 +90,26 @@ UnifiedChart.bazi + date → computeDailyFortune(流日×命主十神 → 五维
 - **Swiss Ephemeris(AGPL) 规避**：用公有领域 circular-natal-horoscope-js（占星精度足够）。
 - **持久化**：Supabase 匿名登录 + RLS 按设备隔离；命盘建档即冻结（DB 触发器禁改 chart/birth_input）；解读一次生成后存 `reading` 列，回访不重算。
 
-## 7. 已知局限 / 优化方向（引擎评估，2026-06）
+## 7. 引擎深化 v2（✅ 已实施，2026-06，见 `specs/engine-v2-deepening.md`）
 
-**命理深度（产品价值最高）**
-- 旺衰仅用主气加权，未纳入藏干层次/会合冲刑/调候 → 深化，或改为「输出证据(得令/通根/印比/克泄耗计数) + 启发式判读」让 LLM 自行权衡。
-- 缺 **用神/喜忌**（八字解读的核心）→ 至少做扶抑用神，喂入 facts，支撑「宜近木/水」类接地建议。
-- 紫微 **三方四正(借星)** 未在 facts 计算，空宫解读目前靠提示词而无据 → 计算命宫三方四正供模型接地。
-- 每日运势分数按关系静态（同关系日恒同）→ 引入 **流日干支 × 本命四柱冲合刑害 + 用神**，做到千人千日。
-- 西方 facts 偏薄 → 补 元素/模式平衡、命主星(chart ruler)、月相、最紧相位簇(T三角/星群)。
+派生事实在 facts 层计算、不进冻结命盘（新旧命盘通吃、零迁移）。TDD 全程，core 45 + llm 30 测试。
+
+**命理深度**（接入 extractFacts + prompt，实跑验证落地无幻觉）
+- ✅ EP-502 `deriveStrength` 旺衰证据化（得令/通根藏干/同党异党/ratio），模型据证判断。
+- ✅ EP-501 `deriveUsefulElements` 用神喜忌（扶抑法）→ 成长段「宜近木/水、向东/北」接地建议。
+- ✅ EP-503 `deriveTriad` 紫微三方四正借星 → 空宫据实接地。
+- ✅ EP-504 `computeDailyFortune` 流日干支 × 本命四支冲合刑害 + 用神 → 千人千日 + 厚卦象。
+- ✅ EP-505 `deriveWesternProfile` 元素/模式平衡、命主星、月相、星群。
 
 **工程健壮性 / 成本**
-- prompt-cache「声称适合」但未真正接入（anthropic 线未发 `cache_control` 断点）→ 接入以省成本/延迟。
-- LLM 客户端无重试/超时 → 加退避重试 + 超时（曾见瞬时失败）。
-- 西方数据质量：行星 sign 为空串等静默兜底 → 加校验，异常即判失败。
-- 缺生产侧接地性观测 → 轻量记录解读长度/分节完整/接地标记，捕捉回归。
+- ✅ EP-511 prompt-cache：anthropic system 作 `cache_control` 块（实测 MiniMax-M3 支持）。
+- ✅ EP-512 `withRetry`：5xx/429/网络错误退避重试 + 非流式 60s 超时。
+- ✅ EP-513 `isWesternValid`：星座为空即降级 null。
+- ✅ EP-514 `logReadingMeta`：无 PII 接地观测（model/分节/字数）。
 
 **架构演进**
-- 紫微 **大限/流年四化** 未做（时序解读仅八字流日）→ 补，支撑时间线层。
-- whole-sign 宫制 → 可选 Placidus（格林学派常用）。
+- ✅ EP-521 `computeZiweiHoroscope` 大限/流年四化（引擎+单测就绪；时间线解读层待接入）。
+- ✅ EP-522 `computeWesternChart(…, houseSystem)` 可选 Placidus（默认 whole-sign）。
 
 ## 8. 非 MVP（后续评估）
 关系合盘(synastry×合婚)、规则引擎(YAML)+RAG 知识库、大限/流年时序解读、账号升级(跨设备同步)、建档心理问卷。详见 `.agent/BACKLOG.md`。

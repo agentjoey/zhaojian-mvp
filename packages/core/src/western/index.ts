@@ -32,7 +32,11 @@ function withinSign(body: { ChartPosition?: { Ecliptic?: { DecimalDegrees?: numb
  * 见 research/liz-greene-psychological-astrology.md。
  * 缺纬度或时辰未知 → 返回 null（统一盘降级为仅东方双盘）。
  */
-export function computeWesternChart(input: BirthInput, pre?: NormalizedBirth): WesternChart | null {
+export function computeWesternChart(
+  input: BirthInput,
+  pre?: NormalizedBirth,
+  houseSystem = "whole-sign",
+): WesternChart | null {
   const n = pre ?? normalizeBirth(input);
   if (!n.hasTime || input.latitude == null || input.longitude == null) return null;
 
@@ -47,7 +51,7 @@ export function computeWesternChart(input: BirthInput, pre?: NormalizedBirth): W
   });
   const h = new Horoscope({
     origin,
-    houseSystem: "whole-sign",
+    houseSystem,
     zodiac: "tropical",
     aspectTypes: ["major"],
     language: "en",
@@ -85,7 +89,7 @@ export function computeWesternChart(input: BirthInput, pre?: NormalizedBirth): W
     .filter((a): a is Aspect => a !== null);
 
   const chart: WesternChart = {
-    houseSystem: "whole-sign",
+    houseSystem,
     zodiac: "tropical",
     ascendant: { sign: h.Ascendant.Sign?.label ?? "", degree: withinSign(h.Ascendant) },
     midheaven: { sign: h.Midheaven.Sign?.label ?? "", degree: withinSign(h.Midheaven) },

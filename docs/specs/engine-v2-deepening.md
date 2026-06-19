@@ -1,6 +1,7 @@
 # Spec — 引擎深化 v2（命理深度 / 健壮性 / 演进）
 
-> 状态：Draft · 作者：claude · 日期：2026-06-19 · 关联：`architecture.md §7`、`.agent/BACKLOG.md`
+> 状态：✅ 全部实施（11/11，TDD，core 45 + llm 30 测试） · 作者：claude · 日期：2026-06-19 · 关联：`architecture.md §7`、`.agent/BACKLOG.md`
+> 实施说明：EP-501/502/503/505 已接入 extractFacts+prompt（实跑验证四类新事实落地、无幻觉）；EP-504 已接入 dailyPolish/dailyBehavior + 日历 UI；EP-511/512/513/514 已接入 LLM 客户端/解读层；EP-521(大限流年)/EP-522(Placidus) 为**引擎能力就绪 + 单测**，尚未接入解读/UI（时间线层为后续）。
 > 目标：在不破坏「计算确定性 / 反幻觉」前提下，补齐引擎的命理深度，强化工程健壮性，并为时序解读铺路。
 
 ## 0. 贯穿性设计原则（所有条目必须遵守）
