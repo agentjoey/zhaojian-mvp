@@ -80,4 +80,19 @@
   - 因解读 1 次/档案持久化、daily/timeline 已缓存，**稳态人均调用很低**；200 RPM 足以支撑相当数量的活跃用户，**MVP 阶段不会触顶**。
   - 触顶估算：若典型新会话 ~3–5 次 LLM 调用，200 RPM ≈ 可吸纳 **~40–60 新活跃用户/分钟**的突发；超此即需 Tier 1。
 - **Tier 1 全局信号量建议阈值**：以 **RPM 200 为闸**，留余量（如令牌桶 ~150 starts/min 或在途上限），配合退避重试 + 高峰动态限流感知；provider 故障转移目标 = DeepSeek（另算其自身限额）。
-- DeepSeek（openai 线备用）限额另查；AI Gateway 方案可统一管理两家配额。
+### DeepSeek 限额（官方查证，openai 线备用 provider）
+来源：[DeepSeek Rate Limit 文档](https://api-docs.deepseek.com/quick_start/rate_limit)。**模型完全不同：按「并发连接数」限，不发 RPM/TPM/TPS。**
+
+| 模型 | 并发上限（每 user_id） | RPM/TPM/TPS |
+|------|------------------------|-------------|
+| deepseek-v4-flash | **2500** | 不公布（不按速率限） |
+| deepseek-v4-pro | **500** | 不公布 |
+| deepseek-chat（我们配的默认，属 V4 族） | 未单列，大概率 flash 档高并发 | — |
+
+- 一个请求 = 从发出到响应完成期间占 **1 个并发槽**；我们流式解读 ~20s 占 1 槽。
+- 429 仅在超并发时触发；**可免费申请扩容**。
+
+### 两家限额「互补」——对故障转移/分流的关键洞察
+- **MiniMax-M3 = 限请求速率**（200 RPM ≈ 3.3 req/s，但 TPM 极宽松）。
+- **DeepSeek-V4 = 限并发**（flash ~2500 槽，无每分钟请求上限）。
+- 含义：**MiniMax 触 200 RPM 上限时，溢出转 DeepSeek**——后者的高并发能吸收突发峰值。两家限额维度互补，正适合 **AI Gateway 故障转移/分流**：默认 MiniMax(质量基线)，高峰溢出 DeepSeek(吞吐兜底)。Tier 1 因此优先评估 AI Gateway 统一管理两家配额。
