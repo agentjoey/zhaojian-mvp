@@ -38,6 +38,17 @@ export const FORTUNE_IMAGES: FortuneImage[] = [
   { file: "/fortune/cai-2.jpeg", moods: ["财"], caption: "长河一帆，今日宜务实、循势而动", alt: "水墨长河尽头远帆" },
   { file: "/fortune/guansha-1.jpeg", moods: ["官杀"], caption: "孤峰独峙，今日宜守静、克己自持", alt: "水墨孤峰独峙寒江" },
   { file: "/fortune/guansha-2.jpeg", moods: ["官杀"], caption: "寒江独钓，今日宜安住、以静制动", alt: "水墨寒江独钓" },
+  // —— 扩库 2026-06-19（curate-fortune-images，再 10 张，每情绪共 4 张）——
+  { file: "/fortune/bihe-3.jpeg", moods: ["比和"], caption: "群山相连，今日宜借众力、不必孤军", alt: "水墨群山连绵层叠" },
+  { file: "/fortune/bihe-4.jpeg", moods: ["比和"], caption: "双鹤齐飞，今日宜同心、并肩而进", alt: "水墨双鹤并翼同飞" },
+  { file: "/fortune/yin-3.jpeg", moods: ["印"], caption: "古松独立，今日宜守拙、沉静自养", alt: "水墨崖畔古松" },
+  { file: "/fortune/yin-4.jpeg", moods: ["印"], caption: "云深藏寺，今日宜内省、远嚣养神", alt: "水墨云深处山寺" },
+  { file: "/fortune/shishang-3.jpeg", moods: ["食伤"], caption: "雁字横空，今日宜舒展、顺势抒怀", alt: "水墨远雁斜过长空" },
+  { file: "/fortune/shishang-4.jpeg", moods: ["食伤"], caption: "飞瀑入涧，今日宜倾吐、让郁气流动", alt: "水墨飞瀑落涧" },
+  { file: "/fortune/cai-3.jpeg", moods: ["财"], caption: "策杖登高，今日宜进取、循径而上", alt: "水墨策杖独行登山" },
+  { file: "/fortune/cai-4.jpeg", moods: ["财"], caption: "大江扬帆，今日宜乘势、放眼远处", alt: "水墨大江千帆过尽" },
+  { file: "/fortune/guansha-3.jpeg", moods: ["官杀"], caption: "雪覆寒山，今日宜潜藏、静待时机", alt: "水墨深雪寒山一径" },
+  { file: "/fortune/guansha-4.jpeg", moods: ["官杀"], caption: "雪亭独对，今日宜安守、不妄动", alt: "水墨雪中孤亭" },
 ];
 
 function hashStr(s: string): number {
