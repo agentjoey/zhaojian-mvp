@@ -1,0 +1,19 @@
+{
+  "name": "eastern-astrology-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "东方命理（八字+紫微斗数）× 西方心理占星（利兹·格林）双引擎个人成长 App",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "tsc -b",
+    "release": "./scripts/release.sh"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

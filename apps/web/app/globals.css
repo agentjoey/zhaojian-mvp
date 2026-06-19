@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/* ============================================================
+   照见 Zhaojian · Design Tokens（令牌即单一事实源，勿写裸十六进制）
+   ============================================================ */
+@theme inline {
+  /* —— 纸 / 墨阶（中性） —— */
+  --color-paper: #f3f1ea;
+  --color-surface: #fbfaf5;
+  --color-float: #ffffff;
+  --color-tint: #eceae1;
+  --color-line: #e6e2d6;
+  --color-divider: #e1dcce;
+  --color-spoke: #d9d3c4;
+
+  --color-ink: #2b2823;
+  --color-ink-2: #655e50;
+  --color-muted: #9a9182;
+
+  /* 深色锚点上的文字 */
+  --color-on-ink: #f3f1ea;
+  --color-on-ink-gold: #c7a878;
+  --color-on-ink-muted: #a79e8c;
+  --color-on-ink-faint: #827a68;
+
+  /* —— 强调色 —— */
+  --color-cinnabar: #cb4636;
+  --color-cinnabar-press: #b43a2c;
+  --color-seal: #c0392b;
+  --color-bell-red: #e0694f;
+  --color-gold: #b89a63;
+
+  /* —— 五行五色（命理语义色，固定不变） —— */
+  --color-wood: #5c9a77;
+  --color-fire: #d35f47;
+  --color-earth: #ce9a4a;
+  --color-metal: #b6a079;
+  --color-water: #3e83a0;
+  --color-on-wood: #f1f7f2;
+  --color-on-fire: #fff1eb;
+  --color-on-earth: #fff8ec;
+  --color-on-metal: #fcfaf4;
+  --color-on-water: #edf4f8;
+
+  /* —— 圆角 —— */
+  --radius-chip: 3px;
+  --radius-button: 4px;
+  --radius-card: 5px;
+  --radius-panel: 8px;
+  --radius-seal: 11px;
+}
+
+/* 字体变量由 next/font 在 <html> 上注入（--font-serif / --font-latin），见 fonts.ts */
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 拉丁/数字/度数/星盘标签 */
+.font-latin {
+  font-family: var(--font-latin);
+}
+
+/* 拉丁小标：letter-spacing .3em + uppercase */
+.latin-label {
+  font-family: var(--font-latin);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+/* 解读正文排版（markdown） */
+.reading-prose {
+  line-height: 1.9;
+  font-size: 15.5px;
+}
+.reading-prose h2 {
+  font-weight: 600;
+  font-size: 19px;
+  margin: 1.4em 0 0.5em;
+}
+.reading-prose p {
+  margin: 0.7em 0;
+}
+.reading-prose strong {
+  color: var(--color-cinnabar);
+  font-weight: 600;
+}
+.reading-prose ul,
+.reading-prose ol {
+  margin: 0.6em 0;
+  padding-left: 1.3em;
+}
+.reading-prose li {
+  margin: 0.35em 0;
+}
+.reading-prose em {
+  color: var(--color-ink-2);
+}

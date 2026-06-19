@@ -1,0 +1,7 @@
+project: eastern-astrology-mvp
+working_tree_holder: null
+agents:
+  - { id: claude, roles: [orchestrator, reviewer, worker] }
+  - { id: kimi, roles: [worker] }
+  - { id: opencode, roles: [worker] }
+features:
