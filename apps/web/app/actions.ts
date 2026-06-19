@@ -3,11 +3,13 @@
 import {
   computeUnifiedChart,
   computeDailyFortune,
+  computeZiweiHoroscope,
   BirthInputSchema,
+  type BirthInput,
   type UnifiedChart,
   type DailyFortune,
 } from "@eamvp/core";
-import { polishDailyFortune, dailyBehaviorAdvice, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 
 /** 建档排盘：一次性算出完整命盘（EP-007 冻结存档用）。 */
 export async function computeChartAction(
@@ -48,6 +50,17 @@ export async function dailyBehaviorAction(fortune: DailyFortune, nickname?: stri
   try {
     const r = await dailyBehaviorAdvice(fortune, { nickname });
     return r.do.length && r.dont.length ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 当下时序（EP-521 接入）：大限/流年四化 + 八字大运 → 本年内在主题（非预测）。按年缓存。 */
+export async function timelineAction(birthInput: BirthInput, chart: UnifiedChart, dateStr: string): Promise<string | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try {
+    const horoscope = computeZiweiHoroscope(birthInput, dateStr);
+    return await generateTimeline(chart, horoscope, { nickname: birthInput.nickname });
   } catch {
     return null;
   }

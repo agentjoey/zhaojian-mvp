@@ -11,6 +11,8 @@ export type { ChatMessage } from "./client";
 export { generateReading, streamReading, buildMessages } from "./reading";
 export type { ReadingOptions } from "./reading";
 export { polishDailyFortune, dailyBehaviorAdvice } from "./daily";
+export { extractTimelineFacts, generateTimeline } from "./timeline";
+export type { TimelineFacts } from "./timeline";
 export { scoreReading } from "./eval/score";
 export type { Verdict } from "./eval/score";
 export { runEval } from "./eval/run";

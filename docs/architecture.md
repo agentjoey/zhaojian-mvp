@@ -108,7 +108,7 @@ UnifiedChart.bazi + date → computeDailyFortune(流日×命主十神 → 五维
 - ✅ EP-514 `logReadingMeta`：无 PII 接地观测（model/分节/字数）。
 
 **架构演进**
-- ✅ EP-521 `computeZiweiHoroscope` 大限/流年四化（引擎+单测就绪；时间线解读层待接入）。
+- ✅ EP-521 `computeZiweiHoroscope` 大限/流年四化 → **时序声部** `generateTimeline`，已接入 /chart「当下时序」卡（按年缓存、非事件预测、东西时序共振）。
 - ✅ EP-522 `computeWesternChart(…, houseSystem)` 可选 Placidus（默认 whole-sign）。
 
 ## 8. 非 MVP（后续评估）

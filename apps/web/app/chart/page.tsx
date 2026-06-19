@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
+import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
@@ -22,20 +23,39 @@ function splitSections(md: string): Section[] {
   });
 }
 
+const YEAR = new Date().getFullYear();
+const todayYmd = `${YEAR}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+
 export default function ChartPage() {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [reading, setReading] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<string | null>(null);
 
   useEffect(() => {
     getActiveProfile()
       .then((p) => {
         setProfile(p);
         if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
+        if (p) loadTimeline(p);
       })
       .catch(() => setProfile(null));
   }, []);
+
+  // 当下时序：按 (档案,年份) 缓存，避免重复调 LLM
+  async function loadTimeline(p: Profile) {
+    const key = `zhaojian.timeline.${p.id}.${YEAR}`;
+    try {
+      const cached = localStorage.getItem(key);
+      if (cached) { setTimeline(cached); return; }
+    } catch { /* ignore */ }
+    const md = await timelineAction(p.birthInput, p.chart, todayYmd);
+    if (md) {
+      setTimeline(md);
+      try { localStorage.setItem(key, md); } catch { /* ignore */ }
+    }
+  }
 
   async function generate() {
     if (!profile) return;
@@ -163,6 +183,15 @@ export default function ChartPage() {
           </div>
         )}
       </Section>
+
+      {timeline && (
+        <Section title="当下时序">
+          <Card topAccent="metal">
+            <div className="reading-prose whitespace-pre-wrap">{timeline.replace(/^##\s*本年时序\s*/, "")}</div>
+            <p className="mt-3 text-[11px] text-muted">时序按当前年份（{YEAR}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。</p>
+          </Card>
+        </Section>
+      )}
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">
         命盘为建档时一次推算并冻结。所有解读仅供自我观照，不构成医疗、法律、财务或心理诊断建议。
