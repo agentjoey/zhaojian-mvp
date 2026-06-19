@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
+import { Markdown } from "@/components/Markdown";
 import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
@@ -172,7 +173,7 @@ export default function ChartPage() {
             {sections.map((s) => (
               <Card key={s.key} topAccent={s.accent} dark={s.accent === "metal"}>
                 <h3 className="text-[17px] font-semibold">{s.title}</h3>
-                <div className="reading-prose mt-2 whitespace-pre-wrap">{s.body}</div>
+                <div className="reading-prose mt-2"><Markdown text={s.body} /></div>
               </Card>
             ))}
             {streaming ? (
@@ -187,7 +188,7 @@ export default function ChartPage() {
       {timeline && (
         <Section title="当下时序">
           <Card topAccent="metal">
-            <div className="reading-prose whitespace-pre-wrap">{timeline.replace(/^##\s*本年时序\s*/, "")}</div>
+            <div className="reading-prose"><Markdown text={timeline.replace(/^##\s*本年时序\s*/, "")} /></div>
             <p className="mt-3 text-[11px] text-muted">时序按当前年份（{YEAR}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。</p>
           </Card>
         </Section>

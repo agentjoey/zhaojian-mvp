@@ -8,6 +8,7 @@ import {
   type BirthInput,
   type UnifiedChart,
   type DailyFortune,
+  type ZiweiHoroscope,
 } from "@eamvp/core";
 import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 
@@ -50,6 +51,15 @@ export async function dailyBehaviorAction(fortune: DailyFortune, nickname?: stri
   try {
     const r = await dailyBehaviorAdvice(fortune, { nickname });
     return r.do.length && r.dont.length ? r : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 紫微大限/流年四化（确定性，无 LLM）：日历「本年/本限」上下文用。 */
+export async function ziweiHoroscopeAction(birthInput: BirthInput, dateStr: string): Promise<ZiweiHoroscope | null> {
+  try {
+    return computeZiweiHoroscope(birthInput, dateStr);
   } catch {
     return null;
   }

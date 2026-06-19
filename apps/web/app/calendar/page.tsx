@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction } from "@/app/actions";
+import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction, ziweiHoroscopeAction } from "@/app/actions";
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { FortuneFrame } from "@/components/FortuneFrame";
 import { Card } from "@/components/ui";
-import type { DailyFortune } from "@eamvp/core";
+import type { DailyFortune, ZiweiHoroscope } from "@eamvp/core";
 
 // 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
 function cacheGet(kind: string, pid: string, date: string): string | null {
@@ -59,11 +59,22 @@ export default function CalendarPage() {
   const [fortune, setFortune] = useState<DailyFortune | null>(null);
   const [polish, setPolish] = useState<string | null>(null);
   const [behavior, setBehavior] = useState<Behavior | null>(null);
+  const [horoscope, setHoroscope] = useState<ZiweiHoroscope | null>(null);
   const [loading, setLoading] = useState(false);
+  const selYear = selected.slice(0, 4);
 
   useEffect(() => {
     getActiveProfile().then(setProfile).catch(() => setProfile(null));
   }, []);
+
+  // 本年/本限 时序上下文（确定性，按年取）
+  useEffect(() => {
+    const p = profile;
+    if (!p) return;
+    let alive = true;
+    ziweiHoroscopeAction(p.birthInput, selected).then((h) => { if (alive) setHoroscope(h); });
+    return () => { alive = false; };
+  }, [profile, selYear]);
 
   useEffect(() => {
     const p = profile;
@@ -112,6 +123,16 @@ export default function CalendarPage() {
         <h1 className="text-[26px] font-semibold">运势日历</h1>
         <p className="mt-1 text-[13px] text-muted">{profile.nickname} · 命主 {profile.chart.bazi.dayMaster}（{profile.chart.bazi.dayMasterElement}）</p>
       </header>
+
+      {/* 本年/本限 时序上下文（大背景 → 今日） */}
+      {horoscope && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[var(--radius-card)] px-4 py-3" style={{ background: "var(--color-surface)", border: "1px solid var(--color-line)" }}>
+          <span className="text-[13px] text-ink-2">本限 <b className="font-semibold">{horoscope.decadal.stem}{horoscope.decadal.branch}</b></span>
+          <span className="text-[13px] text-ink-2">{selYear} 流年 <b className="font-semibold">{horoscope.yearly.stem}{horoscope.yearly.branch}</b></span>
+          <span className="text-[12px] text-muted">流年化忌 <b className="text-cinnabar">{horoscope.yearly.mutagens.忌}</b>（今年功课）· 化禄 <b className="text-wood">{horoscope.yearly.mutagens.禄}</b>（顺势）</span>
+          <Link href="/chart" className="ml-auto shrink-0 text-[12px] text-gold underline underline-offset-4">本年时序 →</Link>
+        </div>
+      )}
 
       {/* 本周日历条 */}
       <div className="mb-6 grid grid-cols-7 gap-1.5">
