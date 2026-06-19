@@ -10,9 +10,9 @@ const ENTRIES = [
 
 export default function Home() {
   return (
-    <main className="mx-auto w-full max-w-[480px] pb-16">
+    <main className="mx-auto w-full max-w-[480px] pb-16 lg:max-w-5xl">
       {/* ===== Hero ===== */}
-      <section className="relative overflow-hidden px-7 pb-2 pt-14" style={{ background: "linear-gradient(180deg,#F2F0EA 0%,#F6F5F1 70%)" }}>
+      <section className="relative overflow-hidden px-7 pb-2 pt-14 lg:pb-10 lg:pt-24 lg:text-center" style={{ background: "linear-gradient(180deg,#F2F0EA 0%,#F6F5F1 70%)" }}>
         {/* 氛围大图 + 米白渐隐遮罩（让宋体标题仍是主角） */}
         <img src="/hero/hero-bg.jpeg" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.55 }} />
         <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(246,245,241,.25) 0%,rgba(246,245,241,.5) 42%,#F6F5F1 88%)" }} />
@@ -21,34 +21,34 @@ export default function Home() {
         <span className="zj-pulse absolute right-12 top-36 h-[2.5px] w-[2.5px] rounded-full" style={{ background: "var(--color-gold)", animationDelay: ".6s" }} />
         <span className="zj-pulse absolute left-10 top-56 h-[2px] w-[2px] rounded-full" style={{ background: "var(--color-water)", animationDelay: "1.1s" }} />
 
-        <div className="zj-rise relative flex items-center gap-2.5">
+        <div className="zj-rise relative flex items-center gap-2.5 lg:justify-center">
           <BellLogo size={26} />
           <span className="font-serif text-[17px] font-bold tracking-[0.14em]">照见</span>
         </div>
 
-        <div className="relative mt-28">
+        <div className="relative mt-28 lg:mt-16">
           <div className="zj-rise latin-label text-[12px] text-cinnabar" style={{ animationDelay: ".08s" }}>Mirror, not fate</div>
-          <h1 className="zj-rise mt-2.5 font-serif text-[46px] font-black leading-[1.08]" style={{ animationDelay: ".16s" }}>
-            你的命盘，<br />是一面镜子
+          <h1 className="zj-rise mt-2.5 font-serif text-[46px] font-black leading-[1.08] lg:text-[68px]" style={{ animationDelay: ".16s" }}>
+            你的命盘，<br className="lg:hidden" />是一面镜子
           </h1>
-          <p className="zj-rise mt-3.5 max-w-[290px] text-[13.5px] leading-[1.8] text-ink-2" style={{ animationDelay: ".26s" }}>
+          <p className="zj-rise mt-3.5 max-w-[290px] text-[13.5px] leading-[1.8] text-ink-2 lg:mx-auto lg:max-w-[420px] lg:text-[15px]" style={{ animationDelay: ".26s" }}>
             紫微 · 八字 × 深层心理。观照自身，而非预言吉凶。
           </p>
         </div>
       </section>
 
       {/* ===== 下沉内容 ===== */}
-      <div className="relative -mt-3 px-5">
+      <div className="relative -mt-3 px-5 lg:mx-auto lg:mt-2 lg:max-w-4xl lg:px-0">
         <Link
           href="/reading"
-          className="zj-rise zj-btn flex w-full items-center justify-center py-[17px] text-[16px] font-medium text-white transition-transform duration-200 hover:-translate-y-0.5"
+          className="zj-rise zj-btn mx-auto flex w-full items-center justify-center py-[17px] text-[16px] font-medium text-white transition-transform duration-200 hover:-translate-y-0.5 lg:max-w-md"
           style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)", animationDelay: ".34s" }}
         >
           为我起盘 · 即时生成
         </Link>
 
         {/* 高频入口网格 */}
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:mt-6 lg:grid-cols-4">
           {ENTRIES.map((e, i) => (
             <Link
               key={e.title}
@@ -72,7 +72,7 @@ export default function Home() {
         </div>
 
         {/* 三段式说明 */}
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-3">
           {[
             { el: "var(--color-fire)", k: "East · 命理结构", t: "紫微十二宫、八字四柱、生年四化——开源引擎精确计算，可审计、不臆造。" },
             { el: "var(--color-water)", k: "West · 心理映照", t: "太阳月亮上升、土星课题、内在张力——以荣格原型读命盘为心象。" },

@@ -25,7 +25,7 @@ export default function ProfilesPage() {
   useEffect(refresh, []);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
+    <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="font-serif text-[28px] font-black">我的档案</h1>
         <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>新建档案</Link>

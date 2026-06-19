@@ -131,7 +131,7 @@ export default function CalendarPage() {
   const days = weekDays(today);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
+    <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
       {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" />}
       <header className="mb-6">
         <h1 className="font-serif text-[28px] font-black">运势日历</h1>
@@ -176,7 +176,7 @@ export default function CalendarPage() {
       {loading || !fortune ? (
         <Card><p className="text-[14px] text-muted">正在推算当日流日…</p></Card>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {/* 今日运势 hero（每日配图作背景 + 评分环） */}
           {(() => {
             const img = matchFortuneImage(fortune.relation, selected);
@@ -184,7 +184,7 @@ export default function CalendarPage() {
             const yi = behavior?.do[0] ?? fortune.auspicious[0] ?? "顺势而为";
             const ji = behavior?.dont[0] ?? fortune.caution[0] ?? "勿强求";
             return (
-              <div className="zj-rise relative overflow-hidden" style={{ borderRadius: "var(--radius-panel)", background: "var(--color-ink)", boxShadow: "var(--shadow-panel)" }}>
+              <div className="zj-rise relative overflow-hidden lg:col-span-2" style={{ borderRadius: "var(--radius-panel)", background: "var(--color-ink)", boxShadow: "var(--shadow-panel)" }}>
                 {img && <img src={img.file} alt={img.alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,rgba(20,18,16,.72),rgba(20,18,16,.82) 55%,rgba(20,18,16,.93))" }} />
                 <div className="relative p-6 text-on-ink">
