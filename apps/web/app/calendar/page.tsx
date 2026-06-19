@@ -184,6 +184,18 @@ export default function CalendarPage() {
                 <span aria-hidden>✦</span><span>{polish}</span>
               </p>
             )}
+            {(fortune.favorableToday || fortune.interactions.length > 0) && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {fortune.favorableToday && (
+                  <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(199,168,120,.2)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>
+                )}
+                {fortune.interactions.map((it, i) => (
+                  <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(255,255,255,.08)", color: "var(--color-on-ink-muted)" }} title={it.note}>
+                    流日{it.kind}命{it.withPillar}支
+                  </span>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* 五维评分 */}

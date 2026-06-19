@@ -18,11 +18,13 @@ export async function polishDailyFortune(
     "给出温和、反思性、成长导向的当日提点。措辞如「今日宜…」「不妨…」「可留意…」，" +
     "贴合给定的关系/宜忌/总评。禁忌：不预言吉凶、不谈医疗/财务/生死、不用「一定/必然/注定/务必」。" +
     "只输出这一句本身，无引号、无前后缀、不换行。";
+  const inter = f.interactions.length ? `\n流日×命局：${f.interactions.map((i) => i.note).join("；")}` : "";
+  const fav = f.favorableToday ? "（今日五行为命主喜用，整体偏顺）" : "";
   const user =
     `称呼：${opts?.nickname ?? "你"}\n` +
     `日期：${f.date}（农历${f.lunarDate}）\n` +
-    `流日：${f.dayGanZhi}（${f.dayElement}），对命主（${f.masterElement}）为「${f.relation}」\n` +
-    `总评：${f.tone}\n` +
+    `流日：${f.dayGanZhi}（${f.dayElement}），对命主（${f.masterElement}）为「${f.relation}」${fav}\n` +
+    `总评：${f.tone}${inter}\n` +
     `宜：${f.auspicious.slice(0, 3).join("、")}\n` +
     `忌：${f.caution.slice(0, 3).join("、")}`;
 
@@ -51,10 +53,11 @@ export async function dailyBehaviorAdvice(
     "每条不超过 14 字，口语自然，与当日能量呼应。" +
     "禁忌：不用黄历术语（祭祀/嫁娶/动土/破屋等）、不预言吉凶、不谈医疗/财务/投资具体标的、不用「一定/必然/注定」。" +
     "严格只输出两行，格式：\n宜｜第一条｜第二条｜第三条\n忌｜第一条｜第二条｜第三条";
+  const inter = f.interactions.length ? `\n流日×命局：${f.interactions.map((i) => i.note).join("；")}` : "";
   const user =
     `日期：${f.date}\n` +
-    `今日能量：${f.dayGanZhi}（对你为「${f.relation}」）\n` +
-    `基调：${f.tone}`;
+    `今日能量：${f.dayGanZhi}（对你为「${f.relation}」${f.favorableToday ? "，属命主喜用、偏顺" : ""}）\n` +
+    `基调：${f.tone}${inter}`;
 
   const raw = await chat(cfg, [
     { role: "system", content: sys },
