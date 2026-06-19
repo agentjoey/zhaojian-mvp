@@ -14,17 +14,19 @@ export type Profile = {
   birthInput: BirthInput;
   chart: UnifiedChart;
   createdAt: string;
+  reading: string | null; // 已生成的解读 markdown（一次生成后保存）
 };
 
 const ACTIVE_KEY = "zhaojian.activeProfileId";
 
-type Row = { id: string; nickname: string; birth_input: BirthInput; chart: UnifiedChart; created_at: string };
+type Row = { id: string; nickname: string; birth_input: BirthInput; chart: UnifiedChart; created_at: string; reading: string | null };
 const toProfile = (r: Row): Profile => ({
   id: r.id,
   nickname: r.nickname,
   birthInput: r.birth_input,
   chart: r.chart,
   createdAt: r.created_at,
+  reading: r.reading ?? null,
 });
 
 export async function listProfiles(): Promise<Profile[]> {
@@ -77,6 +79,16 @@ export async function createProfile(input: {
   const profile = toProfile(data as Row);
   setActiveProfile(profile.id);
   return profile;
+}
+
+/** 保存生成好的解读（命盘冻结，仅写 reading*）。一次生成后即持久化。 */
+export async function saveReading(profileId: string, markdown: string, model?: string): Promise<void> {
+  await ensureSession();
+  const { error } = await supabase()
+    .from("profiles")
+    .update({ reading: markdown, reading_model: model ?? null, reading_at: new Date().toISOString() })
+    .eq("id", profileId);
+  if (error) throw error;
 }
 
 export async function deleteProfile(id: string): Promise<void> {

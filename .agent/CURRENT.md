@@ -45,8 +45,8 @@ Sprint 001（调研+设计+脚手架）三大任务 T1/T2/T3 **均 ✅ Done**：
   - 单测 21/21；scorer 已能稳定检出四化错配/越界/幻觉/违规/缺段（确定性）。
 - [x] [EP-004c] [HIGH] ✅ 四化确定性后置纠正 `correctMutagens`（删错误「X化{禄/权/科/忌}」断言、留星名，只删不替）：非流式全文纠 + 流式按行纠（保首字速度）+ western 净化。实跑 6/6 通过、四化错配=0。单测 26/26。引擎四化已验证 20/20 与标准表一致（错配纯模型问题，非引擎）。
 - [x] [EP-MODELS] ✅ 三模型对比（`docs/llm-model-comparison.md`）：M3 首字 2.4s 胜；m2.7-highspeed 31.7s 否决；deepseek-v4-flash 11.9s 合格备选。维持 M3。
-- [~] [EP-DB] [HIGH] 档案切 Supabase（项目 `zhaojian`/sxjcpoxhphlnwhpzachi，匿名登录+RLS）：✅ `profiles` 表+RLS（select/insert/delete，无 update=冻结）、安全 advisor 0 警告；✅ `lib/supabase.ts`+`lib/profiles.ts`（异步 DB CRUD，API 面不变）+4 调用点改 await+env；web build ✓。⏳ **待用户启用「匿名登录」**（控制台，本机无 mgmt token）。
-- [ ] [EP-DEPLOY] [HIGH] 发布 Vercel：CLI v52 已装、未登录/未 link、repo 0 commit。待用户 `vercel login`；随后 link(root=apps/web)+设 3 env+deploy。
+- [x] [EP-DB] [HIGH] ✅ 档案切 Supabase（项目 `zhaojian`/sxjcpoxhphlnwhpzachi，匿名登录+RLS）：`profiles` 表+RLS（select/insert/delete，无 update=冻结，user_id 默认 auth.uid()）、advisor 0 警告；`lib/supabase.ts`+`lib/profiles.ts`+4 调用点 await。匿名登录已开。**REST 实证**：A 见己 / B 见 `[]`（RLS 隔离）。
+- [x] [EP-DEPLOY] [HIGH] ✅ **上线 https://zhaojian-mvp.vercel.app**（GitHub 集成自动部署）。根因：Root Directory=apps/web ✓ 但 framework=null 致全 404 → token 设 framework=nextjs + 重部署修复。实证 `/reading` 200、`/api/reading` 400(key 已设)。详见长期记忆 deployment-infra。
 - [ ] [EP-cal-llm] [LOW] 运势日历可选轻 LLM 润色一句
 
 ## Version History（最近 5 版）

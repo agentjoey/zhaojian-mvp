@@ -14,7 +14,7 @@ cat .agent/CURRENT.md                             # 版本 / Sprint / Open Bugs
 
 **Location:** ~/AgentWorks/CodeSpace/eastern-astrology-mvp
 **Obsidian:** Brain#2/10_Projects/Active/P028-EasternAstrology（PRD / research / design / ADR）
-**GitHub:**   agentjoey/eastern-astrology-mvp（待建）
+**GitHub:**   agentjoey/zhaojian-mvp · **线上:** https://zhaojian-mvp.vercel.app
 **Version:**  v0.1.0            ← release.sh 自动更新
 
 **Technical docs:** [Architecture](docs/architecture.md) · [Deployment](docs/deployment.md) · [Operations](docs/operations.md)

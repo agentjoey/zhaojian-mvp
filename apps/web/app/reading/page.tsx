@@ -19,7 +19,7 @@ export default function ReadingPage() {
       <ReadingForm />
 
       <p className="text-[12px] leading-relaxed text-muted">
-        出生信息属敏感个人信息。本产品<strong className="text-ink-2">不存储</strong>——命盘即时计算。仅供自我观照。
+        出生信息属敏感个人信息。命盘<strong className="text-ink-2">存于你的私人档案</strong>（匿名、按设备隔离，仅你可见），可随时在「档案」中删除。仅供自我观照。
       </p>
     </main>
   );

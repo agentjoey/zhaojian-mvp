@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { Card, Button } from "@/components/ui";
+import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
+import { Card } from "@/components/ui";
 import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
@@ -29,7 +29,12 @@ export default function ChartPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    getActiveProfile().then(setProfile).catch(() => setProfile(null));
+    getActiveProfile()
+      .then((p) => {
+        setProfile(p);
+        if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
+      })
+      .catch(() => setProfile(null));
   }, []);
 
   async function generate() {
@@ -37,6 +42,7 @@ export default function ChartPage() {
     setStreaming(true);
     setReading("");
     setErr(null);
+    let full = "";
     try {
       const res = await fetch("/api/reading", {
         method: "POST",
@@ -52,7 +58,18 @@ export default function ChartPage() {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        setReading((p) => p + dec.decode(value, { stream: true }));
+        const t = dec.decode(value, { stream: true });
+        full += t;
+        setReading((p) => p + t);
+      }
+      // 生成完毕 → 保存到档案（一次生成，之后不再重算）
+      if (full.trim()) {
+        try {
+          await saveReading(profile.id, full);
+        } catch (e) {
+          console.error("saveReading failed:", e);
+        }
+        setProfile({ ...profile, reading: full });
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -112,7 +129,20 @@ export default function ChartPage() {
       {/* 三段式解读 */}
       <Section title="三段式解读">
         {!reading && !streaming && (
-          <Button variant="secondary" onClick={generate}>生成完整 命理 + 心理 解读</Button>
+          <button
+            onClick={generate}
+            className="group flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-all duration-200 hover:bg-cinnabar-press"
+            style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-card)", color: "var(--color-on-ink)" }}
+          >
+            <span>
+              <span className="block text-[17px] font-semibold">为我照见 · 生成完整解读</span>
+              <span className="mt-1 block text-[13px] opacity-85">命盘已就位 —— 用命理结构 + 深层心理，读出你的核心自我、成长课题与一句此刻之言</span>
+            </span>
+            <span className="text-[22px] transition-transform duration-200 group-hover:translate-x-1">✦</span>
+          </button>
+        )}
+        {streaming && !reading && (
+          <Card><p className="text-[14px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p></Card>
         )}
         {err && (
           <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "#FBEEEC", color: "var(--color-seal)", border: "1px solid #EFD6D2" }}>{err}</div>
@@ -125,7 +155,11 @@ export default function ChartPage() {
                 <div className="reading-prose mt-2 whitespace-pre-wrap">{s.body}</div>
               </Card>
             ))}
-            {streaming && <p className="text-[12px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p>}
+            {streaming ? (
+              <p className="text-[12px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p>
+            ) : (
+              <p className="text-[12px] text-muted">此解读已为你保存，下次回到命盘可直接查看。</p>
+            )}
           </div>
         )}
       </Section>
