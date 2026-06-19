@@ -19,8 +19,8 @@ export type ChartFacts = {
     fiveElementCounts: Record<string, number>;
     tenGods: string[]; // 年/月/时柱十神（日柱为日主）
     currentLuckPillar: string | null;
-    /** 旺衰判据（EP-502）：据证判断身强身弱，勿臆断 */
-    strength: { verdict: string; 得令: boolean; roots: { branch: string; via: string }[]; 同党: number; 异党: number; ratio: number };
+    /** 旺衰判据（EP-502）：内部权衡用，勿照搬入文。仅留定性证据，不含原始数值（防泄漏）。 */
+    strength: { verdict: string; 得令: boolean; roots: { branch: string; via: string }[] };
     /** 用神/喜忌（EP-501，扶抑法）：成长建议据此接地 */
     favorableElements: string[];
     unfavorableElements: string[];
@@ -105,9 +105,6 @@ export function extractFacts(chart: UnifiedChart): ChartFacts {
         verdict: strength.verdict,
         得令: strength.得令,
         roots: strength.roots.map((r) => ({ branch: r.branch, via: r.via })),
-        同党: strength.同党,
-        异党: strength.异党,
-        ratio: strength.ratio,
       },
       favorableElements: useful.favorable,
       unfavorableElements: useful.unfavorable,

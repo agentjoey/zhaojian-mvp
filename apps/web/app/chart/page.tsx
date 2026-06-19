@@ -63,7 +63,39 @@ export default function ChartPage() {
     setStreaming(true);
     setReading("");
     setErr(null);
-    let full = "";
+    // 打字机：把（按行到达的）文本逐字铺出，标点处自然停顿——书写感，而非整段刷新
+    let target = "";
+    let shown = 0;
+    let streamDone = false;
+    let pause = 0;
+    let rafId = 0;
+
+    const finalize = async () => {
+      setReading(target);
+      if (target.trim()) {
+        try { await saveReading(profile.id, target); } catch (e) { console.error("saveReading failed:", e); }
+        setProfile({ ...profile, reading: target });
+      }
+      setStreaming(false);
+    };
+    const tick = () => {
+      if (pause > 0) {
+        pause--;
+      } else if (shown < target.length) {
+        const remaining = target.length - shown;
+        // 接近书写速度：通常 1–2 字/帧(~60–120cps)，落后太多时追赶，临近收尾放慢
+        const step = remaining > 500 ? 5 : remaining > 120 ? 2 : 1;
+        const last = target[shown + step - 1] ?? "";
+        shown += step;
+        setReading(target.slice(0, shown));
+        if (/[。！？\n]/.test(last)) pause = 7;        // 句末停顿 ~115ms
+        else if (/[，、；：]/.test(last)) pause = 3;   // 读断停顿 ~50ms
+      }
+      if (shown < target.length || !streamDone) rafId = requestAnimationFrame(tick);
+      else void finalize();
+    };
+    rafId = requestAnimationFrame(tick);
+
     try {
       const res = await fetch("/api/reading", {
         method: "POST",
@@ -71,7 +103,9 @@ export default function ChartPage() {
         body: JSON.stringify(profile.birthInput),
       });
       if (!res.ok || !res.body) {
+        cancelAnimationFrame(rafId);
         setErr(await res.text());
+        setStreaming(false);
         return;
       }
       const reader = res.body.getReader();
@@ -79,22 +113,12 @@ export default function ChartPage() {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        const t = dec.decode(value, { stream: true });
-        full += t;
-        setReading((p) => p + t);
+        target += dec.decode(value, { stream: true });
       }
-      // 生成完毕 → 保存到档案（一次生成，之后不再重算）
-      if (full.trim()) {
-        try {
-          await saveReading(profile.id, full);
-        } catch (e) {
-          console.error("saveReading failed:", e);
-        }
-        setProfile({ ...profile, reading: full });
-      }
+      streamDone = true; // tick 追平后自行 finalize（保存+收尾）
     } catch (e) {
+      cancelAnimationFrame(rafId);
       setErr(e instanceof Error ? e.message : String(e));
-    } finally {
       setStreaming(false);
     }
   }

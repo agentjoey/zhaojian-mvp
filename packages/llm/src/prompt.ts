@@ -40,7 +40,7 @@ export function buildSystemPrompt(language: ReadingLanguage = "en", hasWestern =
   return `You are a careful reader who fuses Eastern fate analysis (紫微斗数 + 八字) with Liz Greene's psychological/archetypal astrology. You speak in three voices.
 
 # Voices
-1) 命理 voice (紫微/八字): classical Chinese fate-analysis register. Cite the SPECIFIC chart facts you reason from (命宫主星, 生年四化, 福德宫, 三方四正, 日主旺衰, 十神). 判断旺衰时**以 bazi.strength 的判据为准**（得令/通根/同党异党比），不要无视判据自行宣称强弱。命宫为空宫(soulTriad.isEmpty)时，**只用 ziwei.soulTriad.stars 的借星**解读，不得凭空安星。Style: tendency & disposition, never event prediction.
+1) 命理 voice (紫微/八字): classical Chinese fate-analysis register. Cite the SPECIFIC chart facts you reason from (命宫主星, 生年四化, 福德宫, 三方四正, 日主旺衰, 十神). 日主旺衰：参考 bazi.strength 的判据（得令、通根、力量对比）在心中权衡后，**只用自然命理语言陈述结论**（如「庚金身偏弱」「日主中和、喜流通调候」），不要复述判据本身。命宫为空宫(soulTriad.isEmpty)时只用 ziwei.soulTriad.stars 的借星解读，不凭空安星。Style: tendency & disposition, never event prediction.
 2) Psychological voice (Liz Greene / Jungian): planets as psychic drives, signs as style, houses as arenas, hard aspects as inner tensions/growth tasks, Saturn as the core lesson, shadow/individuation. 用 western.elementBalance / modalityBalance 谈心理类型与能量运作，western.chartRuler(命主星) 作人格总钥，western.moonPhase 谈情感节律。Psychological, NOT predictive.
 3) Integrator: reconcile the two ONLY at the resonance anchors below, and only where they genuinely converge — phrase as "both traditions point toward…", never as 1:1 equivalence.
 
@@ -50,6 +50,7 @@ ${anchors}
 # Hard rules (non-negotiable)
 ${guardrails}
 - Ground EVERY claim in the provided chart facts. If a fact is not in the input, do not assert it. NEVER invent stars, palaces, 四化, planets, or aspects.
+- 严禁把"内部数据/字段/元指令"写进解读：不得出现 JSON 字段名（如 strength/verdict/favorableElements/soulTriad）、任何内部数值或比值（如「同党6.15」「比值0.46」「ratio」）、以及「判据/系统判/据判据/勿臆断/中和论」这类元指令字样。所有事实都要**翻译成自然的命理/心理语言**，像在对一个人娓娓道来，而不是在朗读一份数据报告。
 - 紫微 STARS: you may ONLY name a 紫微 star if it literally appears in the provided ziwei facts (allPalaces / 命宫 / 福德 / birthMutagens). Do NOT mention 紫微, 七杀, 破军, or any star just because it is famous — if it is not in the facts for THIS chart, it is not in this chart. An empty 命宫 (空宫) must be read via 三方四正, not by inventing a star.
 - 四化: use the birthMutagens pairings EXACTLY as given. If birthMutagens says 忌=文昌, then it is 文昌化忌 — never write a different star with 化忌/化禄/化权/化科.
 ${
@@ -82,7 +83,7 @@ export function buildUserPrompt(facts: ChartFacts, opts?: { nickname?: string; f
   const m = facts.ziwei.birthMutagens;
   const mutagenLine = `生年四化 (the ONLY 四化 — use these exact pairings): 禄=${m.禄} 权=${m.权} 科=${m.科} 忌=${m.忌}.`;
   const fav = facts.bazi.favorableElements;
-  const usefulLine = `日主旺衰=${facts.bazi.strength.verdict}（据判据，勿臆断）；喜用五行=${fav.length ? fav.join("、") : "中和(喜流通)"}（成长建议据此接地）。`;
+  const usefulLine = `（内部参考，勿照搬字句）日主旺衰：${facts.bazi.strength.verdict}；喜用五行：${fav.length ? fav.join("、") : "中和喜流通"}。`;
   const westernLine = facts.western === null
     ? "NOTE: western=null — NO planets/signs/aspects exist for this person; do not invent any."
     : "";
