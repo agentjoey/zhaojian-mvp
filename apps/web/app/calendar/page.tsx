@@ -3,18 +3,33 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { dailyFortuneAction, dailyPolishAction } from "@/app/actions";
+import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction } from "@/app/actions";
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
+import { FortuneFrame } from "@/components/FortuneFrame";
 import { Card } from "@/components/ui";
 import type { DailyFortune } from "@eamvp/core";
 
-// 轻润色按 (档案,日期) 缓存到 localStorage，避免重复调 LLM
-function polishCacheGet(pid: string, date: string): string | null {
-  try { return localStorage.getItem(`zhaojian.polish.${pid}.${date}`); } catch { return null; }
+// 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
+function cacheGet(kind: string, pid: string, date: string): string | null {
+  try { return localStorage.getItem(`zhaojian.${kind}.${pid}.${date}`); } catch { return null; }
 }
-function polishCacheSet(pid: string, date: string, v: string): void {
-  try { localStorage.setItem(`zhaojian.polish.${pid}.${date}`, v); } catch { /* ignore */ }
+function cacheSet(kind: string, pid: string, date: string, v: string): void {
+  try { localStorage.setItem(`zhaojian.${kind}.${pid}.${date}`, v); } catch { /* ignore */ }
 }
+
+// 五行配色（与 design token 一致）
+const ELEMENT_COLOR: Record<string, string> = {
+  木: "var(--color-wood)", 火: "var(--color-fire)", 土: "var(--color-earth)", 金: "var(--color-metal)", 水: "var(--color-water)",
+};
+// 综合分 → 大字总评
+function gradeOf(overall: number): { glyph: string; label: string } {
+  if (overall >= 8) return { glyph: "吉", label: "宜进取" };
+  if (overall >= 6) return { glyph: "顺", label: "可推进" };
+  if (overall >= 4) return { glyph: "平", label: "守稳健" };
+  return { glyph: "谨", label: "宜守静" };
+}
+
+type Behavior = { do: string[]; dont: string[] };
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -43,6 +58,7 @@ export default function CalendarPage() {
   const [selected, setSelected] = useState(() => ymd(new Date()));
   const [fortune, setFortune] = useState<DailyFortune | null>(null);
   const [polish, setPolish] = useState<string | null>(null);
+  const [behavior, setBehavior] = useState<Behavior | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -54,15 +70,22 @@ export default function CalendarPage() {
     if (!p) return;
     let alive = true;
     setLoading(true);
-    setPolish(polishCacheGet(p.id, selected)); // 命中缓存先显示
+    setPolish(cacheGet("polish", p.id, selected)); // 命中缓存先显示
+    const bCache = cacheGet("behavior", p.id, selected);
+    setBehavior(bCache ? (JSON.parse(bCache) as Behavior) : null);
     dailyFortuneAction({ bazi: p.chart.bazi }, selected)
       .then((f) => {
         if (!alive) return;
         setFortune(f);
-        // 轻润色：缓存未命中才调 LLM
-        if (!polishCacheGet(p.id, selected)) {
+        // 轻润色 + 心理行为宜忌：各自缓存未命中才调 LLM
+        if (!cacheGet("polish", p.id, selected)) {
           dailyPolishAction(f, p.nickname).then((line) => {
-            if (alive && line) { setPolish(line); polishCacheSet(p.id, selected, line); }
+            if (alive && line) { setPolish(line); cacheSet("polish", p.id, selected, line); }
+          });
+        }
+        if (!cacheGet("behavior", p.id, selected)) {
+          dailyBehaviorAction(f, p.nickname).then((b) => {
+            if (alive && b) { setBehavior(b); cacheSet("behavior", p.id, selected, JSON.stringify(b)); }
           });
         }
       })
@@ -123,9 +146,9 @@ export default function CalendarPage() {
           {(() => {
             const img = matchFortuneImage(fortune.relation, selected);
             return img ? (
-              <figure className="overflow-hidden" style={{ borderRadius: "var(--radius-card)", border: "1px solid var(--color-line)" }}>
-                <img src={img.file} alt={img.alt} className="block w-full" style={{ aspectRatio: "3 / 2", objectFit: "cover" }} loading="lazy" />
-                <figcaption className="px-4 py-2.5 text-[13px] text-ink-2" style={{ background: "var(--color-surface)" }}>
+              <figure className="text-center">
+                <FortuneFrame src={img.file} alt={img.alt} seed={selected} />
+                <figcaption className="mx-auto mt-3 max-w-[340px] text-[13px] text-ink-2">
                   <span className="text-gold">{MOOD_LABEL[fortune.relation]}</span> · {img.caption}
                 </figcaption>
               </figure>
@@ -134,15 +157,26 @@ export default function CalendarPage() {
 
           {/* 总览 */}
           <Card dark>
-            <div className="flex items-end justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[13px] text-on-ink-muted">{fortune.date} · 农历{fortune.lunarDate}</div>
-                <div className="mt-1 text-[20px] font-semibold">{fortune.dayGanZhi} 日 <span className="text-on-ink-gold text-[14px]">（{fortune.dayElement}）· {fortune.relation}</span></div>
+                {/* 五行配色干支 chip */}
+                <div className="mt-2 flex items-center gap-1.5">
+                  {([[fortune.dayGanZhi[0]!, fortune.dayElement], [fortune.dayGanZhi[1]!, fortune.dayBranchElement]] as const).map(([ch, el], i) => (
+                    <span key={i} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[19px] font-semibold text-white" style={{ background: ELEMENT_COLOR[el] ?? "var(--color-earth)" }}>{ch}</span>
+                  ))}
+                  <span className="ml-1.5 text-[14px] text-on-ink-gold">{fortune.relation}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="font-latin text-[40px] leading-none text-on-ink">{fortune.scores.overall}</div>
-                <div className="text-[11px] text-on-ink-faint">综合 / 10</div>
-              </div>
+              {(() => {
+                const g = gradeOf(fortune.scores.overall);
+                return (
+                  <div className="shrink-0 text-center">
+                    <div className="text-[36px] leading-none font-semibold text-on-ink">{g.glyph}</div>
+                    <div className="mt-1.5 text-[11px] text-on-ink-faint">{g.label} · <span className="font-latin">{fortune.scores.overall}</span>/10</div>
+                  </div>
+                );
+              })()}
             </div>
             <p className="mt-3 text-[14px] leading-[1.8] text-on-ink-muted">{fortune.tone}</p>
             {polish && (
@@ -167,18 +201,18 @@ export default function CalendarPage() {
             </div>
           </Card>
 
-          {/* 趋吉 / 避祸 */}
+          {/* 今日宜忌：优先心理行为版（LLM，现代可执行），降级用确定性趋吉避祸 */}
           <div className="grid gap-4 sm:grid-cols-2">
             <Card topAccent="wood">
-              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-wood)" }}>趋吉 · 宜</h3>
+              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-wood)" }}>{behavior ? "今日宜" : "趋吉 · 宜"}</h3>
               <ul className="mt-2 space-y-1.5 text-[14px] text-ink-2">
-                {fortune.auspicious.map((t, i) => <li key={i}>· {t}</li>)}
+                {(behavior?.do ?? fortune.auspicious).map((t, i) => <li key={i} className="flex gap-1.5"><span className="text-wood">·</span><span>{t}</span></li>)}
               </ul>
             </Card>
             <Card topAccent="fire">
-              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-fire)" }}>避祸 · 忌</h3>
+              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-fire)" }}>{behavior ? "今日忌" : "避祸 · 忌"}</h3>
               <ul className="mt-2 space-y-1.5 text-[14px] text-ink-2">
-                {fortune.caution.map((t, i) => <li key={i}>· {t}</li>)}
+                {(behavior?.dont ?? fortune.caution).map((t, i) => <li key={i} className="flex gap-1.5"><span className="text-fire">·</span><span>{t}</span></li>)}
               </ul>
             </Card>
           </div>

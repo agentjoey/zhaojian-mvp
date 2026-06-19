@@ -1,5 +1,5 @@
 import { Solar } from "lunar-typescript";
-import { stemElement } from "../utils/elements";
+import { stemElement, branchElement } from "../utils/elements";
 import type { UnifiedChart } from "../types/chart";
 
 /**
@@ -62,6 +62,7 @@ export type DailyFortune = {
   date: string; // YYYY-MM-DD
   dayGanZhi: string; // 今日干支
   dayElement: string; // 今日五行（日干）
+  dayBranchElement: string; // 今日地支五行（用于干支配色）
   masterElement: string; // 命主五行
   relation: Relation;
   scores: DimScores;
@@ -93,6 +94,7 @@ export function computeDailyFortune(chart: Pick<UnifiedChart, "bazi">, dateStr: 
     date: dateStr,
     dayGanZhi: dayGan + dayZhi,
     dayElement,
+    dayBranchElement: branchElement(dayZhi),
     masterElement,
     relation: rel,
     scores: prof.base,

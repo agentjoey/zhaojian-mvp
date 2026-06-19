@@ -7,7 +7,7 @@ import {
   type UnifiedChart,
   type DailyFortune,
 } from "@eamvp/core";
-import { polishDailyFortune, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { polishDailyFortune, dailyBehaviorAdvice, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 
 /** 建档排盘：一次性算出完整命盘（EP-007 冻结存档用）。 */
 export async function computeChartAction(
@@ -37,6 +37,17 @@ export async function dailyPolishAction(fortune: DailyFortune, nickname?: string
   if (!isLlmConfigured(resolveLlmConfig())) return null;
   try {
     return await polishDailyFortune(fortune, { nickname });
+  } catch {
+    return null;
+  }
+}
+
+/** 当日心理行为宜忌：3 宜 3 忌、现代可执行、成长向。无 key 返回 null（降级用确定性趋吉避祸）。 */
+export async function dailyBehaviorAction(fortune: DailyFortune, nickname?: string): Promise<{ do: string[]; dont: string[] } | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try {
+    const r = await dailyBehaviorAdvice(fortune, { nickname });
+    return r.do.length && r.dont.length ? r : null;
   } catch {
     return null;
   }

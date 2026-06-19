@@ -10,7 +10,7 @@ export { chat, chatStream } from "./client";
 export type { ChatMessage } from "./client";
 export { generateReading, streamReading, buildMessages } from "./reading";
 export type { ReadingOptions } from "./reading";
-export { polishDailyFortune } from "./daily";
+export { polishDailyFortune, dailyBehaviorAdvice } from "./daily";
 export { scoreReading } from "./eval/score";
 export type { Verdict } from "./eval/score";
 export { runEval } from "./eval/run";

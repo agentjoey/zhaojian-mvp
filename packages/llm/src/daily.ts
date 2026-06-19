@@ -33,3 +33,43 @@ export async function polishDailyFortune(
 
   return raw.trim().split("\n")[0]!.replace(/^[「『"']+|[」』"'。]+$/g, "").slice(0, 50);
 }
+
+/**
+ * 当日「心理行为宜忌」（EP-cal-img/竞品参考）：在黄历宜忌之外，给出 3 宜 3 忌的
+ * **现代、具体、可执行、成长向**行为建议，贴合当日命理能量。短句、低成本，调用方缓存。
+ */
+export async function dailyBehaviorAdvice(
+  f: DailyFortune,
+  opts?: { nickname?: string; config?: LlmConfig },
+): Promise<{ do: string[]; dont: string[] }> {
+  const cfg = opts?.config ?? resolveLlmConfig();
+  if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置");
+
+  const sys =
+    "你是「照见」的每日生活提点写作者。依据当日命理能量，写**今日宜 3 条 + 今日忌 3 条**：" +
+    "现代、具体、可立刻执行、贴近生活与心理成长（如「给久未联系的人发条消息」「把今天最重要的一件事先做完」「在疲惫时别做重大决定」）。" +
+    "每条不超过 14 字，口语自然，与当日能量呼应。" +
+    "禁忌：不用黄历术语（祭祀/嫁娶/动土/破屋等）、不预言吉凶、不谈医疗/财务/投资具体标的、不用「一定/必然/注定」。" +
+    "严格只输出两行，格式：\n宜｜第一条｜第二条｜第三条\n忌｜第一条｜第二条｜第三条";
+  const user =
+    `日期：${f.date}\n` +
+    `今日能量：${f.dayGanZhi}（对你为「${f.relation}」）\n` +
+    `基调：${f.tone}`;
+
+  const raw = await chat(cfg, [
+    { role: "system", content: sys },
+    { role: "user", content: user },
+  ], { maxTokens: 260, temperature: 0.8 });
+
+  const pick = (label: string): string[] => {
+    const line = raw.split("\n").find((l) => l.trim().startsWith(label));
+    if (!line) return [];
+    return line
+      .split(/[｜|]/)
+      .slice(1)
+      .map((s) => s.trim().replace(/^[、，。\s]+|[、，。\s]+$/g, ""))
+      .filter(Boolean)
+      .slice(0, 3);
+  };
+  return { do: pick("宜"), dont: pick("忌") };
+}
