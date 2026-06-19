@@ -41,7 +41,10 @@ cat .agent/CURRENT.md                             # 版本 / Sprint / Open Bugs
 - **核心库零数据重叠**：lunar-typescript（八字）与 iztro（紫微）数据层互补，已建统一 `UnifiedChart` Schema（`packages/core/src/types/chart.ts`）。
 - **iztro v2.5.8 配置 API**：`astro.config({ algorithm: 'default'|'zhongzhou' })`（**非** 旧版 `configure({mutagen})`，research 笔记里的旧 API 已失效）；默认 `zhongzhou`。
 - **iztro `timeIndex` 0–12**：00–00:59=子(0)…14:30=未(7)…23:xx=晚子(12)；用 `hourToTimeIndex()`，勿传小时。
-- **三引擎共用 `normalizeBirth()`**：真太阳时（经 IANA 时区自动含历史 DST）+ 农历转换 + 时辰索引，保证四柱/星盘时刻一致。真太阳时仅平太阳时近似（未含均时差 EoT，记入 EP-002）。
+- **三引擎共用 `normalizeBirth()`**：真太阳时（经 IANA 时区自动含历史 DST）+ **均时差 EoT** + 农历转换 + 时辰索引，保证四柱/星盘时刻一致。晚子时归日由 BaZi `ziHourConvention`→lunar `setSect`。
+- **引擎深化派生事实在 facts 层算、不进冻结命盘**：旺衰证据(`deriveStrength`)/用神(`deriveUsefulElements`)/紫微三方四正(`deriveTriad`)/西方画像(`deriveWesternProfile`) 均由核心纯函数从既有 `UnifiedChart` 派生，`extractFacts` 时调用 → 新旧冻结命盘通吃、零迁移。旺衰/用神是扶抑启发式（prompt 标「据证判断」）。
+- **时序层按年现算、不进冻结**：`computeZiweiHoroscope`(大限/流年四化) → `generateTimeline` 时序声部（非事件预测）；/chart 当下时序卡 + /calendar 本年上下文，按 (档案,年) 缓存。
+- **MiniMax-M3 支持 prompt cache_control**（anthropic 线，`LLM_CACHE` 默认开）；LLM 客户端含退避重试(`withRetry`)+非流式 60s 超时（见 `docs/specs/engine-v2-deepening.md`）。
 
 ## Dev Commands
 ```bash
