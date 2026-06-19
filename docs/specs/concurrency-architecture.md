@@ -1,6 +1,8 @@
 # Spec — 并发架构（多用户 & LLM 并发调用）
 
-> 状态：Draft（设计，未实施） · 作者：claude · 日期：2026-06-19 · 关联：`architecture.md`
+> 状态：✅ 设计完成 · ⏸️ **MVP 后再实施**（决议 2026-06-19）· 作者：claude · 关联：`architecture.md`
+> 触发条件：接近 MiniMax 并发/速率上限、或预期峰值并发上升时，从 Tier 0 起逐层实施。
+> MiniMax 限额（查证见下「附录」）即 Tier 1 全局信号量阈值。
 
 ## 0. 问题
 多用户并发，尤其**同时生成解读（流式调 LLM）**时，如何不崩、不超 provider 限额、不爆成本、且体验可接受。
@@ -61,3 +63,21 @@
 - MiniMax Coding/Token Plan 的**并发数 / RPM / TPM** = 全局信号量大小。
 - 预期**峰值并发用户数**。
 - 是否接受**异步生成（非实时流式）**以换规模稳定性（Tier 2 关键取舍）。
+
+## 附录 — MiniMax 限额（官方查证，2026-06-19）
+来源：[MiniMax Rate Limits 文档](https://platform.minimax.io/docs/guides/rate-limits)。限额**按模型**定（非按订阅档），对 Token/Coding Plan 的 `sk-cp` key 同样适用。
+
+| 模型 | RPM | TPM | TPS | 并发 |
+|------|-----|-----|-----|------|
+| **MiniMax-M3（我们默认）** | **200** | **10,000,000** | 未公布 | 未公布 |
+| MiniMax-M2.x（含 highspeed） | 500 | 20,000,000 | 未公布 | 未公布 |
+
+- **TPS / 并发数官方未单列**：实际并发受 **RPM + TPM + 动态高峰限流**共同约束（高峰期会临时收紧，超限约 1 分钟恢复）。
+- **对我们的含义（M3）**：
+  - 单次解读 ≈ 输入(facts+system)~3–4K + 输出 ~2–2.5K ≈ **~6K tokens/次**。
+  - TPM 10M ÷ 6K ≈ **~1600 解读/分钟**（token 维度很宽松）→ **不是瓶颈**。
+  - **RPM 200 才是硬约束** = 每分钟最多 200 次 LLM 调用（解读 + polish/behavior/timeline 各算 1 次）。
+  - 因解读 1 次/档案持久化、daily/timeline 已缓存，**稳态人均调用很低**；200 RPM 足以支撑相当数量的活跃用户，**MVP 阶段不会触顶**。
+  - 触顶估算：若典型新会话 ~3–5 次 LLM 调用，200 RPM ≈ 可吸纳 **~40–60 新活跃用户/分钟**的突发；超此即需 Tier 1。
+- **Tier 1 全局信号量建议阈值**：以 **RPM 200 为闸**，留余量（如令牌桶 ~150 starts/min 或在途上限），配合退避重试 + 高峰动态限流感知；provider 故障转移目标 = DeepSeek（另算其自身限额）。
+- DeepSeek（openai 线备用）限额另查；AI Gateway 方案可统一管理两家配额。
