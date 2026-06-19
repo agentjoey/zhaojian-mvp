@@ -120,7 +120,7 @@ export default function CalendarPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
       <header className="mb-6">
-        <h1 className="text-[26px] font-semibold">运势日历</h1>
+        <h1 className="font-serif text-[28px] font-black">运势日历</h1>
         <p className="mt-1 text-[13px] text-muted">{profile.nickname} · 命主 {profile.chart.bazi.dayMaster}（{profile.chart.bazi.dayMasterElement}）</p>
       </header>
 

@@ -27,7 +27,7 @@ export default function ProfilesPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-[26px] font-semibold">我的档案</h1>
+        <h1 className="font-serif text-[28px] font-black">我的档案</h1>
         <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>新建档案</Link>
       </header>
 
@@ -77,7 +77,7 @@ export default function ProfilesPage() {
       )}
 
       <p className="mt-8 text-[12px] leading-relaxed text-muted">
-        档案当前仅存于本机浏览器（localStorage），不上传服务器。清除浏览器数据将一并删除。
+        档案存于你的私人空间（匿名、按设备隔离，仅你可见），可随时删除。命盘建档时一次推算并冻结，不再更改。
       </p>
     </main>
   );

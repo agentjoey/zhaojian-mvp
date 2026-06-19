@@ -7,7 +7,7 @@ import { createProfile } from "@/lib/profiles";
 import type { BirthInput } from "@eamvp/core";
 
 const field = "w-full px-3 py-2.5 text-[14px] text-ink outline-none transition-colors";
-const fieldStyle: React.CSSProperties = { background: "var(--color-float)", border: "1px solid #DBD4C3", borderRadius: "var(--radius-button)" };
+const fieldStyle: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-card)" };
 
 const SHICHEN = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
 function shichenOf(hhmm: string): string {
@@ -156,8 +156,8 @@ export function ReadingForm() {
         </select>
       </Field>
 
-      <button type="submit" disabled={pending} className="w-full px-6 py-3 text-[15px] text-on-ink transition-all duration-200 hover:bg-cinnabar-press disabled:opacity-50" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>
-        {pending ? "正在为你起盘…" : "为我起盘"}
+      <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium text-white transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" }}>
+        {pending ? "正在为你起盘…" : "为我起盘 · 即时生成"}
       </button>
 
       {error && (

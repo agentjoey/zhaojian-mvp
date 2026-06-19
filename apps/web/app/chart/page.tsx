@@ -141,7 +141,7 @@ export default function ChartPage() {
     <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-[26px] font-semibold">{profile.nickname} · 命盘</h1>
+          <h1 className="font-serif text-[28px] font-black">{profile.nickname} · 命盘</h1>
           <p className="latin-label mt-1 text-[11px] text-muted">{chart.normalizedSolarTime}</p>
         </div>
         <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">今日运势 →</Link>
