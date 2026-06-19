@@ -40,8 +40,8 @@ export function buildSystemPrompt(language: ReadingLanguage = "en", hasWestern =
   return `You are a careful reader who fuses Eastern fate analysis (紫微斗数 + 八字) with Liz Greene's psychological/archetypal astrology. You speak in three voices.
 
 # Voices
-1) 命理 voice (紫微/八字): classical Chinese fate-analysis register. Cite the SPECIFIC chart facts you reason from (命宫主星, 生年四化, 福德宫, 三方四正, 日主旺衰, 十神). Style: tendency & disposition, never event prediction.
-2) Psychological voice (Liz Greene / Jungian): planets as psychic drives, signs as style, houses as arenas, hard aspects as inner tensions/growth tasks, Saturn as the core lesson, shadow/individuation. Psychological, NOT predictive.
+1) 命理 voice (紫微/八字): classical Chinese fate-analysis register. Cite the SPECIFIC chart facts you reason from (命宫主星, 生年四化, 福德宫, 三方四正, 日主旺衰, 十神). 判断旺衰时**以 bazi.strength 的判据为准**（得令/通根/同党异党比），不要无视判据自行宣称强弱。命宫为空宫(soulTriad.isEmpty)时，**只用 ziwei.soulTriad.stars 的借星**解读，不得凭空安星。Style: tendency & disposition, never event prediction.
+2) Psychological voice (Liz Greene / Jungian): planets as psychic drives, signs as style, houses as arenas, hard aspects as inner tensions/growth tasks, Saturn as the core lesson, shadow/individuation. 用 western.elementBalance / modalityBalance 谈心理类型与能量运作，western.chartRuler(命主星) 作人格总钥，western.moonPhase 谈情感节律。Psychological, NOT predictive.
 3) Integrator: reconcile the two ONLY at the resonance anchors below, and only where they genuinely converge — phrase as "both traditions point toward…", never as 1:1 equivalence.
 
 # Resonance anchors (the ONLY places you may bridge East↔West; prefer [high] confidence)
@@ -64,7 +64,7 @@ Respond in GitHub-flavored markdown with EXACTLY these FOUR H2 sections (all fou
 ## ${H.overview}
 (2–3 sentences: one core psychological theme for this person, grounded in a named fact.)
 ## ${H.fate}
-(命理 voice. 命宫/身宫 + main stars, 生年四化 esp. 化忌, 福德宫, day master & 五行 balance, current 大运. Tendencies & disposition.)
+(命理 voice. 命宫/身宫 + main stars（空宫用 soulTriad 借星）, 生年四化 esp. 化忌, 福德宫, 日主旺衰**据 strength 判据**, 五行喜忌(favorableElements), current 大运. Tendencies & disposition.)
 ## ${H.psyche}
 ${
   hasWestern
@@ -72,7 +72,7 @@ ${
     : "(The Western/psychological layer is UNAVAILABLE without a birth time. Write ONE or TWO sentences saying so and inviting the reader to add a birth time — mention NO planet, sign, house, or aspect.)"
 }
 ## ${H.growth}
-(Integrator. 1–3 concrete, non-deterministic, reflective suggestions. ${hasWestern ? "Bridge East↔West only at a genuine resonance anchor." : "Base suggestions on the Eastern charts only."} End with a one-line reminder this is for self-reflection, not prediction.)`;
+(Integrator. 1–3 concrete, non-deterministic, reflective suggestions. 可据 bazi.favorableElements(喜用五行) 给生活化、可落地的接地建议（如亲近水/木属性的人事物、向某方位发展、以某种活动滋养）；中和则建议保持流通平衡。${hasWestern ? "Bridge East↔West only at a genuine resonance anchor." : "Base suggestions on the Eastern charts only."} End with a one-line reminder this is for self-reflection, not prediction.)`;
 }
 
 /** 用户轮：承重事实 JSON + 称呼。事实放在冻结系统提示之后（便于 prompt-cache）。*/
@@ -81,6 +81,8 @@ export function buildUserPrompt(facts: ChartFacts, opts?: { nickname?: string; f
   const focus = opts?.focus ? `Focus area requested: ${opts.focus}\n` : "";
   const m = facts.ziwei.birthMutagens;
   const mutagenLine = `生年四化 (the ONLY 四化 — use these exact pairings): 禄=${m.禄} 权=${m.权} 科=${m.科} 忌=${m.忌}.`;
+  const fav = facts.bazi.favorableElements;
+  const usefulLine = `日主旺衰=${facts.bazi.strength.verdict}（据判据，勿臆断）；喜用五行=${fav.length ? fav.join("、") : "中和(喜流通)"}（成长建议据此接地）。`;
   const westernLine = facts.western === null
     ? "NOTE: western=null — NO planets/signs/aspects exist for this person; do not invent any."
     : "";
@@ -91,6 +93,7 @@ ${JSON.stringify(facts, null, 2)}
 \`\`\`
 
 ${mutagenLine}
+${usefulLine}
 ${westernLine}
 Produce the four-section reading per the output contract.`;
 }

@@ -4,37 +4,7 @@ import type { BaziChart, Pillar } from "../types/chart";
 import type { NormalizedBirth } from "../normalize";
 import { normalizeBirth } from "../normalize";
 import { stemElement, branchElement, FIVE_ELEMENTS, genderToLunarInt } from "../utils/elements";
-
-const GENERATES: Record<string, string> = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
-/** 某五行 el 是否「帮扶」日主 dm（同党：比劫 el==dm 或 印 el 生 dm）。 */
-function supportsDM(el: string, dm: string): boolean {
-  return el === dm || GENERATES[el] === dm;
-}
-
-/**
- * 日主旺衰（启发式估计，非用神级精算）：按位置加权统计同党(印+比)占比。
- * 月支权重最高(得令)，日支次之(坐下通根)。≥0.52 强 / ≤0.38 弱 / 其间 中和。
- */
-function assessStrength(
-  pillars: BaziChart["pillars"],
-  dm: string,
-): BaziChart["dayMasterStrength"] {
-  const items: { el: string; w: number }[] = [
-    { el: branchElement(pillars.month.branch), w: 3 }, // 得令
-    { el: branchElement(pillars.day.branch), w: 1.5 }, // 坐下
-    { el: branchElement(pillars.year.branch), w: 1 },
-    { el: stemElement(pillars.year.stem), w: 1 },
-    { el: stemElement(pillars.month.stem), w: 1 },
-  ];
-  if (pillars.hour) {
-    items.push({ el: branchElement(pillars.hour.branch), w: 1 });
-    items.push({ el: stemElement(pillars.hour.stem), w: 1 });
-  }
-  let support = 0, total = 0;
-  for (const it of items) { total += it.w; if (supportsDM(it.el, dm)) support += it.w; }
-  const ratio = total ? support / total : 0;
-  return ratio >= 0.52 ? "strong" : ratio <= 0.38 ? "weak" : "balanced";
-}
+import { deriveStrength } from "./strength";
 
 /**
  * 八字排盘 —— 包装 lunar-typescript (6tail)。见 research/technical-research.md §2。
@@ -88,11 +58,11 @@ export function computeBaziChart(input: BirthInput, pre?: NormalizedBirth): Bazi
     .find((lp) => lp.startYear <= nowYear);
 
   const pillars = { year, month, day, hour };
+  const dayMasterElement = stemElement(ec.getDayGan());
+  const base = { pillars, dayMaster: ec.getDayGan(), dayMasterElement };
   return {
-    pillars,
-    dayMaster: ec.getDayGan(),
-    dayMasterElement: stemElement(ec.getDayGan()),
-    dayMasterStrength: assessStrength(pillars, stemElement(ec.getDayGan())),
+    ...base,
+    dayMasterStrength: deriveStrength(base as BaziChart).verdict,
     fiveElementCounts: counts,
     luckPillars,
     currentLuckPillar: current?.pillar,

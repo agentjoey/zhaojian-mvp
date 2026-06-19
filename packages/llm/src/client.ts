@@ -1,4 +1,5 @@
 import type { LlmConfig } from "./provider";
+import { withRetry, isRetryableError } from "./retry";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 export type ChatOptions = { temperature?: number; maxTokens?: number; signal?: AbortSignal };
@@ -37,10 +38,25 @@ function body(cfg: LlmConfig, messages: ChatMessage[], opts: ChatOptions, stream
   return JSON.stringify({ model: cfg.model, messages, temperature, max_tokens, stream });
 }
 
+const TIMEOUT_MS = 60_000;
+
 async function post(cfg: LlmConfig, messages: ChatMessage[], opts: ChatOptions, stream: boolean): Promise<Response> {
-  const res = await fetch(endpoint(cfg), { method: "POST", headers: headers(cfg), signal: opts.signal, body: body(cfg, messages, opts, stream) });
-  if (!res.ok) throw new Error(`LLM ${cfg.provider}/${cfg.wire} HTTP ${res.status}: ${await res.text().catch(() => "")}`);
-  return res;
+  const payload = body(cfg, messages, opts, stream);
+  return withRetry(
+    async () => {
+      // 超时仅对非流式生效（流式 abort 会中断 body 读取）
+      const signals = [opts.signal, stream ? undefined : AbortSignal.timeout(TIMEOUT_MS)].filter(Boolean) as AbortSignal[];
+      const signal = signals.length ? AbortSignal.any(signals) : undefined;
+      const res = await fetch(endpoint(cfg), { method: "POST", headers: headers(cfg), signal, body: payload });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw Object.assign(new Error(`LLM ${cfg.provider}/${cfg.wire} HTTP ${res.status}: ${text}`), { status: res.status });
+      }
+      return res;
+    },
+    // 调用方主动取消则不重试；否则按 5xx/429/网络错误重试
+    { retryable: (e) => !opts.signal?.aborted && isRetryableError(e) },
+  );
 }
 
 // ── 非流式 ───────────────────────────────────────────────

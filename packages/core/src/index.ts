@@ -4,6 +4,14 @@ export * from "./types/chart";
 export { computeBaziChart } from "./bazi/index";
 export { computeZiweiChart } from "./ziwei/index";
 export { computeWesternChart } from "./western/index";
+export { deriveStrength } from "./bazi/strength";
+export type { StrengthEvidence } from "./bazi/strength";
+export { deriveUsefulElements } from "./bazi/useful-elements";
+export type { UsefulElements } from "./bazi/useful-elements";
+export { deriveTriad } from "./ziwei/triad";
+export type { Triad } from "./ziwei/triad";
+export { deriveWesternProfile, MOON_PHASES } from "./western/profile";
+export type { WesternProfile } from "./western/profile";
 export { RESONANCE_ANCHORS, SYNTHESIS_GUARDRAILS } from "./synthesis/east-west-map";
 export type { ResonanceAnchor } from "./synthesis/east-west-map";
 

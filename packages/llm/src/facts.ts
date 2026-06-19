@@ -1,4 +1,5 @@
 import type { UnifiedChart, Palace } from "@eamvp/core";
+import { deriveStrength, deriveUsefulElements, deriveTriad, deriveWesternProfile } from "@eamvp/core";
 
 /**
  * 把 UnifiedChart 压成「带标签的承重事实」喂给 LLM。
@@ -18,6 +19,12 @@ export type ChartFacts = {
     fiveElementCounts: Record<string, number>;
     tenGods: string[]; // 年/月/时柱十神（日柱为日主）
     currentLuckPillar: string | null;
+    /** 旺衰判据（EP-502）：据证判断身强身弱，勿臆断 */
+    strength: { verdict: string; 得令: boolean; roots: { branch: string; via: string }[]; 同党: number; 异党: number; ratio: number };
+    /** 用神/喜忌（EP-501，扶抑法）：成长建议据此接地 */
+    favorableElements: string[];
+    unfavorableElements: string[];
+    usefulNote: string;
   };
   ziwei: {
     school: string;
@@ -31,6 +38,8 @@ export type ChartFacts = {
     allPalaces: { name: string; branch: string; majorStars: string[] }[];
     birthMutagens: Record<string, string>; // 禄/权/科/忌 → 星
     jiPalace: string | null; // 生年化忌所落宫位（最具解读价值）
+    /** 命宫三方四正借星（EP-503）：空宫据此解读，勿臆造 */
+    soulTriad: { stars: string[]; borrowedFrom: string[]; isEmpty: boolean };
   };
   western: {
     sun: string | null;
@@ -39,6 +48,12 @@ export type ChartFacts = {
     saturn: string | null; // 格林招牌：核心课题
     hardAspects: string[]; // 内在张力/成长课题
     softAspects: string[];
+    /** 心理画像增强（EP-505） */
+    elementBalance: Record<string, number>;
+    modalityBalance: Record<string, number>;
+    chartRuler: string; // 命主星 + 落点
+    moonPhase: string;
+    patterns: string[]; // 星群/相位簇
   } | null;
 };
 
@@ -65,6 +80,10 @@ export function extractFacts(chart: UnifiedChart): ChartFacts {
   const jiPalace = z.palaces.find((p) => [...p.majorStars, ...p.minorStars].some((s) => s.name === jiStar && s.mutagen === "忌"));
 
   const w = chart.western;
+  const strength = deriveStrength(chart.bazi);
+  const useful = deriveUsefulElements(chart.bazi);
+  const triad = deriveTriad(z.palaces, "命");
+  const wp = w ? deriveWesternProfile(w) : null;
 
   return {
     normalizedSolarTime: chart.normalizedSolarTime,
@@ -82,6 +101,17 @@ export function extractFacts(chart: UnifiedChart): ChartFacts {
         chart.bazi.pillars.hour?.tenGodStem,
       ].filter((x): x is string => Boolean(x)),
       currentLuckPillar: chart.bazi.currentLuckPillar ?? null,
+      strength: {
+        verdict: strength.verdict,
+        得令: strength.得令,
+        roots: strength.roots.map((r) => ({ branch: r.branch, via: r.via })),
+        同党: strength.同党,
+        异党: strength.异党,
+        ratio: strength.ratio,
+      },
+      favorableElements: useful.favorable,
+      unfavorableElements: useful.unfavorable,
+      usefulNote: useful.note,
     },
     ziwei: {
       school: z.school,
@@ -98,8 +128,9 @@ export function extractFacts(chart: UnifiedChart): ChartFacts {
       })),
       birthMutagens: z.birthMutagens,
       jiPalace: jiPalace?.name ?? null,
+      soulTriad: { stars: triad.stars, borrowedFrom: triad.borrowedFrom, isEmpty: triad.isEmpty },
     },
-    western: w
+    western: w && wp
       ? {
           sun: planet(w, "sun"),
           moon: planet(w, "moon"),
@@ -107,6 +138,11 @@ export function extractFacts(chart: UnifiedChart): ChartFacts {
           saturn: planet(w, "saturn"),
           hardAspects: w.aspects.filter((a) => a.quality === "hard").map((a) => `${a.from} ${a.type} ${a.to} (orb ${a.orb}°)`),
           softAspects: w.aspects.filter((a) => a.quality === "soft").map((a) => `${a.from} ${a.type} ${a.to}`),
+          elementBalance: wp.elementBalance,
+          modalityBalance: wp.modalityBalance,
+          chartRuler: `${wp.chartRuler.planet} ${wp.chartRuler.placement}`,
+          moonPhase: wp.moonPhase,
+          patterns: wp.patterns,
         }
       : null,
   };
