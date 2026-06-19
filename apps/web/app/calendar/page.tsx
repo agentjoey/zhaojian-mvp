@@ -5,8 +5,8 @@ import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
 import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction, ziweiHoroscopeAction } from "@/app/actions";
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
-import { FortuneFrame } from "@/components/FortuneFrame";
-import { Card } from "@/components/ui";
+import { Card, GanzhiBadge } from "@/components/ui";
+import { ScoreRing } from "@/components/ScoreRing";
 import type { DailyFortune, ZiweiHoroscope } from "@eamvp/core";
 
 // 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
@@ -162,62 +162,49 @@ export default function CalendarPage() {
       {loading || !fortune ? (
         <Card><p className="text-[14px] text-muted">正在推算当日流日…</p></Card>
       ) : (
-        <div className="space-y-5">
-          {/* 配图（意境与当日情绪一致，作心理暗示） */}
+        <div className="space-y-4">
+          {/* 今日运势 hero（每日配图作背景 + 评分环） */}
           {(() => {
             const img = matchFortuneImage(fortune.relation, selected);
-            return img ? (
-              <figure className="text-center">
-                <FortuneFrame src={img.file} alt={img.alt} seed={selected} />
-                <figcaption className="mx-auto mt-3 max-w-[340px] text-[13px] text-ink-2">
-                  <span className="text-gold">{MOOD_LABEL[fortune.relation]}</span> · {img.caption}
-                </figcaption>
-              </figure>
-            ) : null;
-          })()}
-
-          {/* 总览 */}
-          <Card dark>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[13px] text-on-ink-muted">{fortune.date} · 农历{fortune.lunarDate}</div>
-                {/* 五行配色干支 chip */}
-                <div className="mt-2 flex items-center gap-1.5">
-                  {([[fortune.dayGanZhi[0]!, fortune.dayElement], [fortune.dayGanZhi[1]!, fortune.dayBranchElement]] as const).map(([ch, el], i) => (
-                    <span key={i} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[19px] font-semibold text-white" style={{ background: ELEMENT_COLOR[el] ?? "var(--color-earth)" }}>{ch}</span>
-                  ))}
-                  <span className="ml-1.5 text-[14px] text-on-ink-gold">{fortune.relation}</span>
+            const g = gradeOf(fortune.scores.overall);
+            const yi = behavior?.do[0] ?? fortune.auspicious[0] ?? "顺势而为";
+            const ji = behavior?.dont[0] ?? fortune.caution[0] ?? "勿强求";
+            return (
+              <div className="zj-rise relative overflow-hidden" style={{ borderRadius: "var(--radius-panel)", background: "var(--color-ink)", boxShadow: "var(--shadow-panel)" }}>
+                {img && <img src={img.file} alt={img.alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
+                <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,rgba(20,18,16,.72),rgba(20,18,16,.82) 55%,rgba(20,18,16,.93))" }} />
+                <div className="relative p-6 text-on-ink">
+                  <div className="flex items-center gap-5">
+                    <ScoreRing score={fortune.scores.overall} max={10} size={104} label={g.glyph + " · 今日"} />
+                    <div className="min-w-0 flex-1">
+                      <div className="latin-label text-[11px] text-on-ink-gold">Today · {MOOD_LABEL[fortune.relation]}</div>
+                      <div className="my-2.5 flex gap-2">
+                        <GanzhiBadge char={fortune.dayGanZhi[0]!} size={40} />
+                        <GanzhiBadge char={fortune.dayGanZhi[1]!} size={40} />
+                      </div>
+                      <div className="text-[13px] leading-[1.6] text-on-ink-muted">{fortune.tone}</div>
+                    </div>
+                  </div>
+                  <div className="my-4 h-px" style={{ background: "rgba(255,255,255,.16)" }} />
+                  {polish && (
+                    <p className="flex items-start gap-2 text-[13.5px] leading-[1.9]" style={{ color: "var(--color-on-ink-gold)" }}><span aria-hidden>✦</span><span>{polish}</span></p>
+                  )}
+                  <div className="mt-4 flex gap-2">
+                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", border: "1px solid #4A463B", borderRadius: "var(--radius-chip)", color: "#9FCBB4" }}>宜 · {yi}</span>
+                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", background: "var(--color-cinnabar)", borderRadius: "var(--radius-chip)", color: "#fff" }}>忌 · {ji}</span>
+                  </div>
+                  {(fortune.favorableToday || fortune.interactions.length > 0) && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {fortune.favorableToday && <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(199,168,120,.2)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>}
+                      {fortune.interactions.map((it, i) => (
+                        <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(255,255,255,.08)", color: "var(--color-on-ink-muted)" }} title={it.note}>流日{it.kind}命{it.withPillar}支</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-              {(() => {
-                const g = gradeOf(fortune.scores.overall);
-                return (
-                  <div className="shrink-0 text-center">
-                    <div className="text-[36px] leading-none font-semibold text-on-ink">{g.glyph}</div>
-                    <div className="mt-1.5 text-[11px] text-on-ink-faint">{g.label} · <span className="font-latin">{fortune.scores.overall}</span>/10</div>
-                  </div>
-                );
-              })()}
-            </div>
-            <p className="mt-3 text-[14px] leading-[1.8] text-on-ink-muted">{fortune.tone}</p>
-            {polish && (
-              <p className="mt-2 flex items-start gap-2 text-[14px] leading-[1.7]" style={{ color: "var(--color-on-ink-gold)" }}>
-                <span aria-hidden>✦</span><span>{polish}</span>
-              </p>
-            )}
-            {(fortune.favorableToday || fortune.interactions.length > 0) && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {fortune.favorableToday && (
-                  <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(199,168,120,.2)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>
-                )}
-                {fortune.interactions.map((it, i) => (
-                  <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(255,255,255,.08)", color: "var(--color-on-ink-muted)" }} title={it.note}>
-                    流日{it.kind}命{it.withPillar}支
-                  </span>
-                ))}
-              </div>
-            )}
-          </Card>
+            );
+          })()}
 
           {/* 五维评分 */}
           <Card>
