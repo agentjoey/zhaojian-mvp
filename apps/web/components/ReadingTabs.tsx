@@ -47,6 +47,52 @@ function xinChips(c: UnifiedChart): string[] {
   return out.slice(0, 3);
 }
 
+// 高亮标签（随 Tab 指向命盘对应处）
+function hlLabelOf(tab: "命理" | "心理" | "共振", c: UnifiedChart): string {
+  if (tab === "命理") {
+    const star = c.ziwei.palaces.find((p) => p.name.includes("命"))?.majorStars[0];
+    return star ? `命宫 · ${star.name}${star.mutagen ? `化${star.mutagen}` : ""}` : "命宫 · 空宫借星";
+  }
+  if (tab === "心理") {
+    const sat = c.western?.planets.find((p) => p.name.toLowerCase() === "saturn");
+    return sat ? `土星 · 第${sat.house}宫` : "月亮 · 土星";
+  }
+  return "内在世界轴 · 福德宫";
+}
+// 弧线偏移/旋转（随 Tab；与设计稿一致）
+const ARC: Record<"命理" | "心理" | "共振", { off: number; rot: number }> = {
+  命理: { off: 547, rot: -10 },
+  心理: { off: 547, rot: 110 },
+  共振: { off: 430, rot: 200 },
+};
+
+/** 命盘 hero：缓慢自转环 + 随 Tab 旋转定位的朱色高亮弧。 */
+function ChartHero({ tab, chart }: { tab: "命理" | "心理" | "共振"; chart: UnifiedChart }) {
+  const arc = ARC[tab];
+  const dayPillar = chart.bazi.pillars.day.stem + chart.bazi.pillars.day.branch;
+  return (
+    <div className="text-center">
+      <svg viewBox="0 0 280 280" style={{ width: 210, height: 210 }} aria-hidden>
+        <circle cx="140" cy="140" r="128" fill="var(--color-surface)" stroke="var(--color-ink)" strokeWidth="1.4" />
+        <circle cx="140" cy="140" r="104" fill="none" stroke="var(--color-spoke)" strokeWidth="1" />
+        <circle cx="140" cy="140" r="46" fill="var(--color-paper)" stroke="var(--color-ink)" strokeWidth="1" />
+        {/* 高亮弧（随 Tab 旋转） */}
+        <circle cx="140" cy="140" r="116" fill="none" stroke="var(--color-cinnabar)" strokeWidth="3" strokeLinecap="round"
+          strokeDasharray="729" strokeDashoffset={arc.off} transform={`rotate(${arc.rot} 140 140)`}
+          style={{ transition: "stroke-dashoffset .6s ease, transform .6s var(--ease-rise)" }} />
+        <g stroke="var(--color-spoke)" strokeWidth=".9">
+          {Array.from({ length: 12 }, (_, i) => (
+            <line key={i} x1="140" y1="12" x2="140" y2="60" style={{ transform: `rotate(${i * 30}deg)`, transformOrigin: "140px 140px" }} />
+          ))}
+        </g>
+        <text x="140" y="135" textAnchor="middle" fontFamily="var(--font-serif)" fontSize="15" fontWeight="700" fill="var(--color-ink)">{dayPillar}</text>
+        <text x="140" y="153" textAnchor="middle" fontFamily="var(--font-sans)" fontSize="9" fill="var(--color-muted)">{chart.ziwei.fiveElementBureau}</text>
+      </svg>
+      <div className="-mt-1 text-[12px] text-muted">高亮：{hlLabelOf(tab, chart)}</div>
+    </div>
+  );
+}
+
 export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingSection[]; chart: UnifiedChart; streaming: boolean }) {
   const [tab, setTab] = useState<"命理" | "心理" | "共振">("命理");
   const byAccent = (a: string) => sections.find((s) => s.accent === a);
@@ -68,9 +114,14 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
         <div className="h-full transition-[width] duration-500" style={{ width: progress, background: "var(--color-cinnabar)", transitionTimingFunction: "var(--ease-rise)" }} />
       </div>
 
+      {/* 命盘 hero（高亮弧随 Tab 旋转） */}
+      <div className="mt-4">
+        <ChartHero tab={tab} chart={chart} />
+      </div>
+
       {/* 概览引言 */}
       {overview?.body && (
-        <p className="mt-4 font-serif text-[16px] leading-[1.7] text-ink-2">{overview.body.replace(/[*#>]/g, "")}</p>
+        <p className="mt-3 font-serif text-[15px] leading-[1.7] text-ink-2">{overview.body.replace(/[*#>]/g, "")}</p>
       )}
 
       {/* sticky Tab */}
