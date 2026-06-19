@@ -31,7 +31,11 @@ function body(cfg: LlmConfig, messages: ChatMessage[], opts: ChatOptions, stream
   const max_tokens = opts.maxTokens ?? 4096;
   if (cfg.wire === "anthropic") {
     const { system, messages: msgs } = splitForAnthropic(messages);
-    const body: Record<string, unknown> = { model: cfg.model, system, messages: msgs, max_tokens, temperature, stream };
+    // EP-511：冻结 system 作 cache_control 块（MiniMax-M3 支持，命中走 cache_read）
+    const sys = cfg.cache !== false && system
+      ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+      : system;
+    const body: Record<string, unknown> = { model: cfg.model, system: sys, messages: msgs, max_tokens, temperature, stream };
     if (cfg.thinking) body.thinking = { type: cfg.thinking };
     return JSON.stringify(body);
   }

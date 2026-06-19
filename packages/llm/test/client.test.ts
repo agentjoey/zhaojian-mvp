@@ -67,7 +67,8 @@ describe("Anthropic 兼容（MiniMax Coding Plan 路径）", () => {
     expect(last.path).toBe("/anthropic/v1/messages");
     expect(last.auth).toBe("Bearer sk-cp-test");
     expect(last.anthropicVersion).toBe("2023-06-01");
-    expect(last.body.system).toBe("you are a reader"); // system 提到顶层
+    // EP-511：system 提到顶层，且作 cache_control 块（prompt caching，默认开）
+    expect(last.body.system).toEqual([{ type: "text", text: "you are a reader", cache_control: { type: "ephemeral" } }]);
     expect(last.body.messages.every((m: any) => m.role !== "system")).toBe(true);
     expect(last.body.max_tokens).toBeGreaterThan(0);
   });

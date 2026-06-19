@@ -15,6 +15,13 @@ const PLANETS = [
 const HARD = new Set(["square", "opposition"]);
 const SOFT = new Set(["trine", "sextile"]);
 
+/** 数据质量校验（EP-513）：行星/上升星座不得为空，否则视为排盘失败、降级为 null。 */
+export function isWesternValid(chart: WesternChart): boolean {
+  if (!chart.ascendant.sign || !chart.midheaven.sign) return false;
+  if (chart.planets.length === 0) return false;
+  return chart.planets.every((p) => Boolean(p.sign));
+}
+
 function withinSign(body: { ChartPosition?: { Ecliptic?: { DecimalDegrees?: number; ArcDegrees?: { degrees: number } } } }): number {
   const deg = body.ChartPosition?.Ecliptic?.DecimalDegrees ?? body.ChartPosition?.Ecliptic?.ArcDegrees?.degrees ?? 0;
   return Math.round((((deg % 30) + 30) % 30) * 100) / 100;
@@ -77,7 +84,7 @@ export function computeWesternChart(input: BirthInput, pre?: NormalizedBirth): W
     })
     .filter((a): a is Aspect => a !== null);
 
-  return {
+  const chart: WesternChart = {
     houseSystem: "whole-sign",
     zodiac: "tropical",
     ascendant: { sign: h.Ascendant.Sign?.label ?? "", degree: withinSign(h.Ascendant) },
@@ -85,4 +92,9 @@ export function computeWesternChart(input: BirthInput, pre?: NormalizedBirth): W
     planets,
     aspects,
   };
+  if (!isWesternValid(chart)) {
+    console.warn("[western] 排盘数据不完整（星座为空），降级为 null");
+    return null;
+  }
+  return chart;
 }

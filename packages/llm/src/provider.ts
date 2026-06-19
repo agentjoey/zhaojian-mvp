@@ -24,6 +24,8 @@ export type LlmConfig = {
   supportsJsonSchema: boolean;
   /** MiniMax 思考开关（anthropic 线）：'adaptive'=开，'disabled'=关。M3 默认关；M2.x 恒开（设了也无效）。*/
   thinking?: "adaptive" | "disabled";
+  /** prompt 缓存（anthropic 线）：把冻结 system 作 cache_control 块。默认开，env LLM_CACHE=false 关。*/
+  cache?: boolean;
 };
 
 type Preset = Omit<LlmConfig, "apiKey" | "provider">;
@@ -45,7 +47,8 @@ export function resolveLlmConfig(env: Record<string, string | undefined> = proce
     env.LLM_BASE_URL ?? (wire === "anthropic" ? env.ANTHROPIC_BASE_URL : undefined) ?? preset.baseUrl;
   const apiKey = env.LLM_API_KEY ?? env.ANTHROPIC_AUTH_TOKEN ?? env.ANTHROPIC_API_KEY ?? "";
   const thinking = env.LLM_THINKING === "adaptive" || env.LLM_THINKING === "disabled" ? env.LLM_THINKING : undefined;
-  return { provider, wire, baseUrl, model: env.LLM_MODEL ?? preset.model, apiKey, supportsJsonSchema: preset.supportsJsonSchema, thinking };
+  const cache = env.LLM_CACHE !== "false";
+  return { provider, wire, baseUrl, model: env.LLM_MODEL ?? preset.model, apiKey, supportsJsonSchema: preset.supportsJsonSchema, thinking, cache };
 }
 
 export function isLlmConfigured(cfg: LlmConfig): boolean {

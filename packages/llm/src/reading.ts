@@ -13,6 +13,12 @@ export type ReadingOptions = {
   signal?: AbortSignal;
 };
 
+/** 生产侧接地观测（EP-514）：仅记录元信息，无任何出生信息/昵称（无 PII）。 */
+function logReadingMeta(markdown: string, model: string, hasWestern: boolean, stream: boolean): void {
+  const sections = (markdown.match(/^##\s+/gm) ?? []).length;
+  console.info(`[reading] model=${model} stream=${stream} western=${hasWestern} sections=${sections}/4 chars=${markdown.length}`);
+}
+
 function buildMessages(chart: UnifiedChart, opts: ReadingOptions): ChatMessage[] {
   const language = opts.language ?? "en";
   const facts = extractFacts(chart);
@@ -33,6 +39,7 @@ export async function generateReading(
   const raw = await chat(cfg, buildMessages(chart, opts), { signal: opts.signal, maxTokens: 4096 });
   const sanitized = sanitizeReading(raw, language, chart.western !== null);
   const markdown = correctMutagens(sanitized, chart.ziwei.birthMutagens).text;
+  logReadingMeta(markdown, cfg.model, chart.western !== null, false);
   return { markdown, sections: parseSections(markdown, language), model: cfg.model };
 }
 
@@ -52,21 +59,31 @@ export async function* streamReading(chart: UnifiedChart, opts: ReadingOptions =
     // 降级路径：全缓冲 → 净化（删西方杜撰）+ 四化纠正
     let all = "";
     for await (const chunk of stream) all += chunk;
-    yield correctMutagens(sanitizeReading(all, language, false), mut).text;
+    const out = correctMutagens(sanitizeReading(all, language, false), mut).text;
+    logReadingMeta(out, cfg.model, false, true);
+    yield out;
     return;
   }
 
   // 正常流式：按行缓冲，整行纠正四化后再吐（四化断言在行内，仅增约一行延迟，保留首字速度）
   let line = "";
+  let full = "";
   for await (const chunk of stream) {
     line += chunk;
     let nl: number;
     while ((nl = line.indexOf("\n")) >= 0) {
-      yield correctMutagens(line.slice(0, nl + 1), mut).text;
+      const out = correctMutagens(line.slice(0, nl + 1), mut).text;
+      full += out;
+      yield out;
       line = line.slice(nl + 1);
     }
   }
-  if (line) yield correctMutagens(line, mut).text;
+  if (line) {
+    const out = correctMutagens(line, mut).text;
+    full += out;
+    yield out;
+  }
+  logReadingMeta(full, cfg.model, true, true);
 }
 
 export { buildMessages };
