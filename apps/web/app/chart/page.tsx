@@ -139,7 +139,7 @@ export default function ChartPage() {
   const sections = reading ? splitSections(reading) : [];
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
+    <main className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="font-serif text-[28px] font-black">{profile.nickname} · 命盘</h1>
@@ -148,9 +148,6 @@ export default function ChartPage() {
         <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">今日运势 →</Link>
       </header>
 
-      {/* 桌面双栏：命盘图谱 | 解读 */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.04fr)] lg:items-start lg:gap-9">
-      <div>
       {/* 八字 + 五行 */}
       <Section title="八字四柱">
         <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
@@ -174,10 +171,7 @@ export default function ChartPage() {
           <Card><p className="text-[14px] text-muted">缺出生时辰或出生地，已略去西方星盘与心理层。补全后可解锁。</p></Card>
         </Section>
       )}
-      </div>
 
-      {/* 右栏：解读 + 时序 */}
-      <div>
       {/* 三段式解读 */}
       <Section title="三段式解读">
         {!reading && !streaming && (
@@ -210,8 +204,6 @@ export default function ChartPage() {
           </Card>
         </Section>
       )}
-      </div>
-      </div>
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">
         命盘为建档时一次推算并冻结。所有解读仅供自我观照，不构成医疗、法律、财务或心理诊断建议。
