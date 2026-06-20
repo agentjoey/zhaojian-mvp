@@ -1,11 +1,13 @@
 # Current Status — 照见 Zhaojian
 
-Version:        v0.1.0（线上 MVP + 引擎深化 v2；未走 release.sh，号未升）
-Sprint:         001 → 引擎深化 v2（已完成）
-Sprint Status:  ✅ MVP 上线 + 引擎深化完成
-Last Updated:   2026-06-19 by claude-opus-4-8
-线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai
+Version:        v0.1.0（线上 MVP + 引擎深化 v2 + 时序层 + UI v2 素白；未走 release.sh）
+Sprint:         001
+Sprint Status:  🔒 **MVP 冻结**（2026-06-20，决议：稳定当前版本，先收集初期用户反馈再迭代）
+Last Updated:   2026-06-20 by claude-opus-4-8
+线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai（最新部署 75da4b0）
 测试:           core 45 · llm 32（全绿）
+
+> ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 
 ## 产品现状（一句话）
 东方命理（八字+紫微）× 西方心理占星（利兹·格林）双引擎，已上线完整闭环：
@@ -50,4 +52,7 @@ Last Updated:   2026-06-19 by claude-opus-4-8
 | 上线 | 2026-06-18 | EP-DB(Supabase) + EP-DEPLOY(Vercel) + EP-MODELS(维持 M3) |
 | v2 上线优化 | 2026-06-19 | 起盘 UX + 西方盘重绘 + 解读持久化 + 自定义域名 |
 | 运势日历升级 | 2026-06-19 | 排盘精度(EoT/子时) + 轻润色 + 水墨配图(框景) + 大字总评/五行chip/心理宜忌 |
-| 引擎深化 v2 | 2026-06-19 | 11 项：命理深度(用神/旺衰/三方四正/流日互动) + 工程(重试/缓存/校验/观测) + 时序层 |
+| 引擎深化 v2 | 2026-06-19 | 11 项：命理深度(用神/旺衰/三方四正/流日互动) + 工程(重试/缓存/校验/观测) |
+| 时序层 + 修复 | 2026-06-19 | 当下时序卡 + 本年上下文；markdown 渲染 / 西方盘连线重绘 / 解读泄漏修复 / 流式书写感 |
+| UI v2 素白 | 2026-06-20 | 全站现代化：令牌/动效/导航/首页氛围大图/评分环/测算过场/解读 Tab 化/响应式桌面布局 |
+| 🔒 MVP 冻结 | 2026-06-20 | 稳定当前版本，进入初期用户反馈收集阶段 |
