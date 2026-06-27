@@ -33,7 +33,7 @@ features:
         evidence: actions(memory/daily) + profiles(r/w) + route 注入；real-LLM 验证接地无 PII
       - id: spirit-2.4-frontend-asktoday
         owner: kimi
-        status: assigned
+        status: awaiting_review
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-28-natal-spirit-companion.md
-        evidence: null
+        evidence: SpiritPanel 记忆集成 + AskToday + 日历接线；build(flag=1) 通过
