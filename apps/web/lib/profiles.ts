@@ -1,6 +1,6 @@
 "use client";
 
-import type { UnifiedChart, BirthInput } from "@eamvp/core";
+import type { UnifiedChart, BirthInput, QuestionnaireAnswers } from "@eamvp/core";
 import { supabase, ensureSession } from "./supabase";
 
 /**
@@ -109,5 +109,19 @@ export async function getSpiritMemory(profileId: string): Promise<string | null>
 export async function saveSpiritMemory(profileId: string, memory: string): Promise<void> {
   await ensureSession();
   const { error } = await supabase().from("profiles").update({ spirit_memory: memory }).eq("id", profileId);
+  if (error) throw error;
+}
+
+/** 心理问卷读写（EP-profile-q）。questionnaire 为 jsonb，存答案对象 {questionId: optionValue}。 */
+export async function getQuestionnaire(profileId: string): Promise<QuestionnaireAnswers | null> {
+  await ensureSession();
+  const { data, error } = await supabase().from("profiles").select("questionnaire").eq("id", profileId).maybeSingle();
+  if (error) throw error;
+  return (data?.questionnaire as QuestionnaireAnswers | null) ?? null;
+}
+
+export async function saveQuestionnaire(profileId: string, answers: QuestionnaireAnswers): Promise<void> {
+  await ensureSession();
+  const { error } = await supabase().from("profiles").update({ questionnaire: answers }).eq("id", profileId);
   if (error) throw error;
 }
