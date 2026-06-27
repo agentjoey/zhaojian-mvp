@@ -11,6 +11,7 @@ import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
 import { NatalWheel } from "@/components/charts/NatalWheel";
+import { SpiritPanel } from "./SpiritPanel";
 
 type Section = { key: string; title: string; body: string; accent?: "fire" | "water" | "metal" };
 
@@ -203,6 +204,10 @@ export default function ChartPage() {
             <p className="mt-3 text-[11px] text-muted">时序按当前年份（{YEAR}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。</p>
           </Card>
         </Section>
+      )}
+
+      {process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1" && (
+        <Section title="本命之灵"><SpiritPanel profile={profile} /></Section>
       )}
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">

@@ -1,0 +1,223 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { deriveSpirit } from "@eamvp/core";
+import type { Profile } from "@/lib/profiles";
+import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
+import { Card } from "@/components/ui";
+import { Markdown } from "@/components/Markdown";
+import { SpiritSigil } from "./SpiritSigil";
+
+export function SpiritPanel({ profile }: { profile: Profile }) {
+  const spirit = deriveSpirit(profile.chart);
+  const [messages, setMessages] = useState<SpiritMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const sendToSpirit = useCallback(
+    async (historyForApi: { role: "user" | "spirit"; content: string }[]): Promise<string> => {
+      const res = await fetch("/api/spirit/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chart: profile.chart, messages: historyForApi }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(await res.text() || "本命之灵暂时无法回应");
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let full = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += dec.decode(value, { stream: true });
+      }
+      return full;
+    },
+    [profile.chart],
+  );
+
+  // 初始化：读取历史；若为空则向后端索取开场白并持久化
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ms = await listMessages(profile.id);
+        if (cancelled) return;
+        if (ms.length > 0) {
+          setMessages(ms);
+        } else {
+          const greeting = await sendToSpirit([]);
+          if (cancelled) return;
+          await appendMessage(profile.id, "spirit", greeting);
+          setMessages([{ id: `intro-${Date.now()}`, role: "spirit", content: greeting, createdAt: new Date().toISOString() }]);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.id, sendToSpirit]);
+
+  // 新消息到达时滚动到底部
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, streaming]);
+
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    const text = input.trim();
+    if (!text || streaming) return;
+
+    setError(null);
+    const userMsg: SpiritMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    setInput("");
+
+    try {
+      await appendMessage(profile.id, "user", text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+
+    setStreaming(true);
+    const historyForApi = nextMessages.map((m) => ({ role: m.role, content: m.content }));
+
+    try {
+      let full = "";
+      const res = await fetch("/api/spirit/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chart: profile.chart, messages: historyForApi }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(await res.text() || "本命之灵暂时无法回应");
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+
+      // 临时 spirit 气泡，边流边更新
+      const tempId = `spirit-${Date.now()}`;
+      setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += dec.decode(value, { stream: true });
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)),
+        );
+      }
+
+      await appendMessage(profile.id, "spirit", full);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStreaming(false);
+    }
+  }
+
+  const cinnabar = "var(--color-cinnabar)";
+
+  return (
+    <Card className="flex flex-col" topAccent={spirit.dominantElement}>
+      {/* Header */}
+      <div className="mb-4 flex items-center gap-3 border-b border-[var(--color-line)] pb-4">
+        <SpiritSigil element={spirit.dominantElement} size={44} />
+        <div className="min-w-0">
+          <h3 className="font-serif text-[17px] font-semibold leading-tight">{spirit.archetype}</h3>
+          <p className="mt-0.5 text-[12px] text-muted">本命之灵 · Natal Spirit</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className="mb-4 flex max-h-[420px] min-h-[180px] flex-col gap-3 overflow-y-auto pr-1"
+      >
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`max-w-[82%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed ${
+                m.role === "user"
+                  ? "text-white"
+                  : "bg-[var(--color-paper)] text-ink-2"
+              }`}
+              style={
+                m.role === "user"
+                  ? { background: cinnabar }
+                  : { border: "1px solid var(--color-line)" }
+              }
+            >
+              {m.role === "user" ? (
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              ) : m.content ? (
+                <div className="reading-prose"><Markdown text={m.content} /></div>
+              ) : streaming ? (
+                <span className="inline-block animate-pulse text-cinnabar">▋</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div
+          className="mb-3 px-3 py-2 text-[12px]"
+          style={{
+            borderRadius: "var(--radius-card)",
+            background: "#FBEEEC",
+            color: "var(--color-seal)",
+            border: "1px solid #EFD6D2",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Input */}
+      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleSubmit();
+            }
+          }}
+          placeholder="与本命之灵对话…"
+          rows={1}
+          disabled={streaming}
+          className="flex-1 resize-none rounded-[var(--radius-button)] border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2.5 text-[14px] text-ink placeholder:text-muted focus:border-[var(--color-cinnabar)] focus:outline-none disabled:opacity-60"
+          style={{ minHeight: 44, maxHeight: 120 }}
+        />
+        <button
+          type="submit"
+          disabled={streaming || !input.trim()}
+          className="inline-flex h-[44px] shrink-0 items-center justify-center px-4 text-[14px] font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: cinnabar, borderRadius: "var(--radius-button)" }}
+        >
+          发送
+        </button>
+      </form>
+    </Card>
+  );
+}
