@@ -16,6 +16,8 @@ export { deriveWesternProfile, MOON_PHASES } from "./western/profile";
 export type { WesternProfile } from "./western/profile";
 export { RESONANCE_ANCHORS, SYNTHESIS_GUARDRAILS } from "./synthesis/east-west-map";
 export type { ResonanceAnchor } from "./synthesis/east-west-map";
+export { deriveSpirit } from "./spirit/index";
+export type { SpiritPersona, SpiritElement } from "./spirit/index";
 
 export { normalizeBirth } from "./normalize";
 export type { NormalizedBirth } from "./normalize";
