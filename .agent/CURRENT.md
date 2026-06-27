@@ -38,7 +38,8 @@ Last Updated:   2026-06-20 by claude-opus-4-8
 🔭 未接入产品：EP-521 大限/流年已就绪，时间线「年→限→日」已贯通；EP-522 Placidus 仅引擎+单测。
 
 ## Next Sprint Candidates
-- [ ] [EP-profile-q] [MED] 建档交互式心理问卷：主观自陈并入解读上下文（命盘客观 + 自我认知，差异化最后一块）。
+- [ ] [EP-spirit] [HIGH] **本命之灵·陪伴层**（竞品「万象有灵」启示，spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md`）：单一从命盘派生的陪伴人格，附加层不改解读。Phase1 灵开场白+常驻对话(EP-spirit-01~04)→ Phase2 关系记忆+每日问今(05~06)→ Phase3 自我画像演化(07~08，依赖 EP-profile-q)。建议为反馈收集后首个迭代候选。
+- [ ] [EP-profile-q] [MED] 建档交互式心理问卷：主观自陈并入解读上下文（命盘客观 + 自我认知，差异化最后一块）。【EP-spirit Phase3 依赖此】
 - [ ] [EP-cal-img-2] [MED] 配图扩库 + 筛图从人工转 agent reviewer（skill `curate-fortune-images` 已就绪）。
 - [ ] [EP-timeline-2] [MED] 时间线深化：大限/流年四化叠西方行运、时序声部更厚。
 - [ ] [EP-theme] [MED] 三套基调皮肤切换；[EP-auth] 账号升级跨设备同步。
