@@ -39,7 +39,7 @@ features:
         evidence: SpiritPanel 记忆集成 + AskToday + 日历接线；build(flag=1) 通过
   - id: spirit-p3
     branch: main
-    status: in_progress
+    status: shipped
     tasks:
       - id: spirit-3-backend-questionnaire
         owner: opencode
