@@ -12,6 +12,10 @@ import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
 import { NatalWheel } from "@/components/charts/NatalWheel";
 import { SpiritPanel } from "./SpiritPanel";
+import { Questionnaire } from "./Questionnaire";
+import { SelfPortrait } from "./SelfPortrait";
+import { getQuestionnaire } from "@/lib/profiles";
+import type { QuestionnaireAnswers } from "@eamvp/core";
 
 type Section = { key: string; title: string; body: string; accent?: "fire" | "water" | "metal" };
 
@@ -35,13 +39,17 @@ export default function ChartPage() {
   const [streaming, setStreaming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<string | null>(null);
+  const [qAnswers, setQAnswers] = useState<QuestionnaireAnswers | null | undefined>(undefined);
 
   useEffect(() => {
     getActiveProfile()
       .then((p) => {
         setProfile(p);
         if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
-        if (p) loadTimeline(p);
+        if (p) {
+          loadTimeline(p);
+          getQuestionnaire(p.id).then(setQAnswers).catch(() => setQAnswers(null));
+        }
       })
       .catch(() => setProfile(null));
   }, []);
@@ -207,7 +215,11 @@ export default function ChartPage() {
       )}
 
       {process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1" && (
-        <Section title="本命之灵"><SpiritPanel profile={profile} /></Section>
+        <Section title="本命之灵">
+          {qAnswers === null && <Questionnaire profile={profile} onDone={setQAnswers} />}
+          {qAnswers && <SelfPortrait chart={profile.chart} questionnaire={qAnswers} />}
+          <SpiritPanel profile={profile} />
+        </Section>
       )}
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">
