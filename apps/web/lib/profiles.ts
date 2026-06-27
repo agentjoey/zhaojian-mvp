@@ -97,3 +97,17 @@ export async function deleteProfile(id: string): Promise<void> {
   if (error) throw error;
   if (getActiveProfileId() === id) localStorage.removeItem(ACTIVE_KEY);
 }
+
+/** 关系记忆读（EP-spirit-05）。spirit_memory 为 jsonb，存的是一段摘要字符串。 */
+export async function getSpiritMemory(profileId: string): Promise<string | null> {
+  await ensureSession();
+  const { data, error } = await supabase().from("profiles").select("spirit_memory").eq("id", profileId).maybeSingle();
+  if (error) throw error;
+  return (data?.spirit_memory as string | null) ?? null;
+}
+
+export async function saveSpiritMemory(profileId: string, memory: string): Promise<void> {
+  await ensureSession();
+  const { error } = await supabase().from("profiles").update({ spirit_memory: memory }).eq("id", profileId);
+  if (error) throw error;
+}

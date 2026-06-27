@@ -10,7 +10,7 @@ import {
   type DailyFortune,
   type ZiweiHoroscope,
 } from "@eamvp/core";
-import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, summarizeSpiritMemory, generateDailySpiritGreeting, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 
 /** 建档排盘：一次性算出完整命盘（EP-007 冻结存档用）。 */
 export async function computeChartAction(
@@ -74,6 +74,18 @@ export async function timelineAction(birthInput: BirthInput, chart: UnifiedChart
   } catch {
     return null;
   }
+}
+
+/** 关系记忆摘要（EP-spirit-05）：把一段对话提炼为灵记住的关切。无 key/失败返回 null。 */
+export async function spiritMemoryAction(history: { role: "user" | "spirit"; content: string }[], prior?: string): Promise<string | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try { return await summarizeSpiritMemory(history, prior); } catch { return null; }
+}
+
+/** 每日问今（EP-spirit-06）：灵据确定性五维+干支+记忆的第一人称问候。无 key/失败返回 null。 */
+export async function dailySpiritGreetingAction(chart: UnifiedChart, daily: DailyFortune, dateStr: string, memory?: string): Promise<string | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try { const { text } = await generateDailySpiritGreeting(chart, daily, dateStr, { memory }); return text; } catch { return null; }
 }
 
 /** 地名 → 经纬度 + 时区（OpenStreetMap Nominatim + tz-lookup）。用于出生地输入。 */

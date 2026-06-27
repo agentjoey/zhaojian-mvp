@@ -20,6 +20,7 @@ export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
   const chart = body?.chart as UnifiedChart | undefined;
   const messages: { role: "user" | "spirit"; content: string }[] = Array.isArray(body?.messages) ? body.messages : [];
+  const memory = typeof body?.memory === "string" ? body.memory : undefined;
   if (!chart) {
     return new Response("缺少命盘 chart", { status: 400 });
   }
@@ -29,10 +30,10 @@ export async function POST(req: Request): Promise<Response> {
     async start(controller) {
       try {
         if (messages.length === 0) {
-          const { text } = await generateSpiritIntro(chart, { language: "en" });
+          const { text } = await generateSpiritIntro(chart, { language: "en", memory });
           controller.enqueue(encoder.encode(text));
         } else {
-          for await (const chunk of streamSpiritChat(chart, messages, { language: "en" })) {
+          for await (const chunk of streamSpiritChat(chart, messages, { language: "en", memory })) {
             controller.enqueue(encoder.encode(chunk));
           }
         }
