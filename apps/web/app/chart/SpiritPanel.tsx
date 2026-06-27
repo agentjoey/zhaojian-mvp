@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deriveSpirit } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
+import { getSpiritMemory, saveSpiritMemory } from "@/lib/profiles";
 import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { SpiritSigil } from "./SpiritSigil";
+import { spiritMemoryAction } from "@/app/actions";
 
 export function SpiritPanel({ profile }: { profile: Profile }) {
   const spirit = deriveSpirit(profile.chart);
@@ -14,6 +16,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [memory, setMemory] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sendToSpirit = useCallback(
@@ -21,7 +24,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chart: profile.chart, messages: historyForApi }),
+        body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory }),
       });
       if (!res.ok || !res.body) {
         throw new Error(await res.text() || "本命之灵暂时无法回应");
@@ -36,7 +39,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       }
       return full;
     },
-    [profile.chart],
+    [profile.chart, memory],
   );
 
   // 初始化：读取历史；若为空则向后端索取开场白并持久化
@@ -44,8 +47,12 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     let cancelled = false;
     (async () => {
       try {
-        const ms = await listMessages(profile.id);
+        const [mem, ms] = await Promise.all([
+          getSpiritMemory(profile.id),
+          listMessages(profile.id),
+        ]);
         if (cancelled) return;
+        setMemory(mem);
         if (ms.length > 0) {
           setMessages(ms);
         } else {
@@ -98,7 +105,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chart: profile.chart, messages: historyForApi }),
+        body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory }),
       });
       if (!res.ok || !res.body) {
         throw new Error(await res.text() || "本命之灵暂时无法回应");
@@ -120,6 +127,10 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       }
 
       await appendMessage(profile.id, "spirit", full);
+      const fullHistory = [...historyForApi, { role: "spirit" as const, content: full }];
+      spiritMemoryAction(fullHistory, memory ?? undefined)
+        .then((m) => { if (m) { setMemory(m); void saveSpiritMemory(profile.id, m); } })
+        .catch(() => {});
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
       );

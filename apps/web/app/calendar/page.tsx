@@ -8,6 +8,7 @@ import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { Card, GanzhiBadge } from "@/components/ui";
 import { ScoreRing } from "@/components/ScoreRing";
 import { CastingOverlay } from "@/components/CastingOverlay";
+import { AskToday } from "./AskToday";
 import type { DailyFortune, ZiweiHoroscope } from "@eamvp/core";
 
 // 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
@@ -219,6 +220,10 @@ export default function CalendarPage() {
               </div>
             );
           })()}
+
+          {process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1" && profile && fortune && (
+            <AskToday profile={profile} fortune={fortune} dateStr={selected} />
+          )}
 
           {/* 五维评分 */}
           <Card>
