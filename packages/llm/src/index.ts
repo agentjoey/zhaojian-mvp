@@ -3,6 +3,8 @@ export { resolveLlmConfig, isLlmConfigured } from "./provider";
 export type { LlmConfig, LlmProvider, LlmWire } from "./provider";
 export { extractFacts } from "./facts";
 export type { ChartFacts } from "./facts";
+export { buildSpiritSystemPrompt, generateSpiritIntro, streamSpiritChat } from "./spirit";
+export type { SpiritOptions, SpiritTurn } from "./spirit";
 export { buildSystemPrompt, buildUserPrompt, parseSections, sanitizeReading, SECTION_KEYS } from "./prompt";
 export { correctMutagens } from "./correct";
 export type { ReadingLanguage, SectionKey } from "./prompt";
