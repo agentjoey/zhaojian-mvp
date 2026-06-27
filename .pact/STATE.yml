@@ -23,7 +23,7 @@ features:
         evidence: SpiritPanel + SpiritSigil + page 门控接线；build(flag=1) 通过；reviewer 修 TDZ 序
   - id: spirit-p2
     branch: main
-    status: in_progress
+    status: shipped
     tasks:
       - id: spirit-2.3-backend-memory
         owner: opencode
