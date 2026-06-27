@@ -18,6 +18,10 @@ export { RESONANCE_ANCHORS, SYNTHESIS_GUARDRAILS } from "./synthesis/east-west-m
 export type { ResonanceAnchor } from "./synthesis/east-west-map";
 export { deriveSpirit } from "./spirit/index";
 export type { SpiritPersona, SpiritElement } from "./spirit/index";
+export { PROFILE_QUESTIONNAIRE, formatQuestionnaire } from "./spirit/questionnaire";
+export type { QuestionnaireItem, QuestionnaireAnswers } from "./spirit/questionnaire";
+export { deriveSelfPortrait } from "./spirit/portrait";
+export type { SelfPortrait, SelfPortraitDimension } from "./spirit/portrait";
 
 export { normalizeBirth } from "./normalize";
 export type { NormalizedBirth } from "./normalize";
