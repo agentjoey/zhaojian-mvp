@@ -8,8 +8,11 @@ const NAV = [
   { href: "/", char: "照", label: "首页" },
   { href: "/calendar", char: "运", label: "运势" },
   { href: "/chart", char: "盘", label: "解读" },
+  ...(process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1"
+    ? [{ href: "/spirit", char: "灵", label: "本命" }]
+    : []),
   { href: "/profiles", char: "我", label: "档案" },
-] as const;
+];
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);

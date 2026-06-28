@@ -11,11 +11,6 @@ import { BaziPillars } from "@/components/charts/BaziPillars";
 import { ZiweiBoard } from "@/components/charts/ZiweiBoard";
 import { WuxingRadar } from "@/components/charts/WuxingRadar";
 import { NatalWheel } from "@/components/charts/NatalWheel";
-import { SpiritPanel } from "./SpiritPanel";
-import { Questionnaire } from "./Questionnaire";
-import { SelfPortrait } from "./SelfPortrait";
-import { getQuestionnaire } from "@/lib/profiles";
-import type { QuestionnaireAnswers } from "@eamvp/core";
 
 type Section = { key: string; title: string; body: string; accent?: "fire" | "water" | "metal" };
 
@@ -39,7 +34,6 @@ export default function ChartPage() {
   const [streaming, setStreaming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<string | null>(null);
-  const [qAnswers, setQAnswers] = useState<QuestionnaireAnswers | null | undefined>(undefined);
 
   useEffect(() => {
     getActiveProfile()
@@ -48,7 +42,6 @@ export default function ChartPage() {
         if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
         if (p) {
           loadTimeline(p);
-          getQuestionnaire(p.id).then(setQAnswers).catch(() => setQAnswers(null));
         }
       })
       .catch(() => setProfile(null));
@@ -211,14 +204,6 @@ export default function ChartPage() {
             <div className="reading-prose"><Markdown text={timeline.replace(/^##\s*本年时序\s*/, "")} /></div>
             <p className="mt-3 text-[11px] text-muted">时序按当前年份（{YEAR}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。</p>
           </Card>
-        </Section>
-      )}
-
-      {process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1" && (
-        <Section title="本命之灵">
-          {qAnswers === null && <Questionnaire profile={profile} onDone={setQAnswers} />}
-          {qAnswers && <SelfPortrait chart={profile.chart} questionnaire={qAnswers} />}
-          <SpiritPanel profile={profile} />
         </Section>
       )}
 

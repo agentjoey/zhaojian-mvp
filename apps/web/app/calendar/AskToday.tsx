@@ -56,7 +56,7 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
             <Markdown text={greeting ?? ""} />
           </div>
           <Link
-            href="/chart"
+            href="/spirit"
             className="mt-3 inline-block text-[12px] text-cinnabar underline underline-offset-4"
           >
             与本命之灵详谈 →
