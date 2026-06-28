@@ -40,6 +40,7 @@ spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md` · pla
 - **Phase2** 关系记忆+每日问今：`profiles.spirit_memory` 列 + `summarizeSpiritMemory`(满窗摘要,无 PII) + 记忆注入对话 + /calendar 每日问今卡(`generateDailySpiritGreeting` 接确定性五维/干支)。
 - **Phase3** 问卷+画像：`profiles.questionnaire` 列 + `PROFILE_QUESTIONNAIRE`(最小5题) UI + 问卷注入灵上下文(EP-spirit-07,东西互证实跑验证) + `deriveSelfPortrait` 自我画像可视化(EP-spirit-08)。
 - 开关：`NEXT_PUBLIC_SPIRIT_ENABLED=1` 开启（默认未设=关，生产不可见）。Supabase 三迁移 `0002~0004` 已对线上 apply。
+- **反馈迭代(2026-06-28)**：①全面中文化（LLM 输出 zh + 原型名/画像维度/问卷题库）；②独立入口 `/spirit` 页 + 导航「灵」(flag 门控)，从 /chart 移出，日历问今详谈链接指 /spirit。
 
 ## Open Bugs / 已知限制
 🟢 无 P0/P1。
