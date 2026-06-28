@@ -50,7 +50,7 @@ export function buildSpiritSystemPrompt(
   const langLine =
     language === "en"
       ? "Speak in English. Keep Chinese 命理 terms in 中文 with a brief English gloss on first use (e.g. 福德宫 (Fortune Palace))."
-      : "用中文书写。";
+      : "全程用简体中文书写——包括开场白与每一句回应。即使本提示与所给事实是英文，你的输出也必须是中文。占星/命理术语一律用中文：太阳、月亮、水星、金星、火星、木星、土星、上升、本命主星、刑/冲/合/拱（相位），星座用中文名（白羊…双鱼）。除专有名词外不要夹杂英文句子或词组。";
 
   const memoryBlock = opts?.memory
     ? `\n# What you already know about this person (from past conversations — reference it naturally, never recite it verbatim)\n${opts.memory}\n`
@@ -97,20 +97,20 @@ export async function generateSpiritIntro(
   const language = opts.language ?? "en";
   const persona = deriveSpirit(chart);
   const facts = extractFacts(chart);
-  const who = opts.nickname ? `The person you are speaking to goes by: ${opts.nickname}.\n` : "";
+  const zh = language === "zh";
+  const who = opts.nickname
+    ? zh
+      ? `对方称呼自己为：${opts.nickname}。\n`
+      : `The person you are speaking to goes by: ${opts.nickname}.\n`
+    : "";
+  const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
+  const introInstruction = zh
+    ? `${who}以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n这是你与这个人初次相见。请用简体中文、第一人称、2–3 句：认领这张命盘是 ta 的，点出你已经看见的一处确凿之处，并温暖地邀请 ta 与你交谈。不要标题、不要列表——只是你的声音。`
+    : `${who}Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nThis is the very first moment you meet this person. In 2–3 sentences, first person, claim this chart as theirs, name ONE grounded thing you already see in them, and warmly invite them to talk with you. No headers, no lists — just your voice.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSpiritSystemPrompt(persona, chart, language, opts) },
-    {
-      role: "user",
-      content: `${who}Here are the deterministically computed chart facts (the ONLY facts you may use):
-
-\`\`\`json
-${JSON.stringify(facts, null, 2)}
-\`\`\`
-
-This is the very first moment you meet this person. In 2–3 sentences, first person, claim this chart as theirs, name ONE grounded thing you already see in them, and warmly invite them to talk with you. No headers, no lists — just your voice.`,
-    },
+    { role: "user", content: introInstruction },
   ];
 
   const raw = await chat(cfg, messages, { signal: opts.signal, maxTokens: 600 });
@@ -141,19 +141,19 @@ export async function* streamSpiritChat(
   const facts = extractFacts(chart);
   const mut = chart.ziwei.birthMutagens;
 
+  const zh = language === "zh";
+  const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
+  const seedUser = zh
+    ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n请全程以「本命之灵」的身份、用简体中文应答；只依据以上事实，不臆造。`
+    : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nStay in character as 本命之灵 across the whole conversation. Answer the person's messages grounded ONLY in these facts.`;
+  const seedAssistant = zh
+    ? "我在你身边——你的本命之灵。想从哪里说起，都可以。"
+    : "I am here with you — your 本命之灵. Ask me what you wish to understand.";
+
   const messages: ChatMessage[] = [
     { role: "system", content: buildSpiritSystemPrompt(persona, chart, language, opts) },
-    {
-      role: "user",
-      content: `Here are the deterministically computed chart facts (the ONLY facts you may use):
-
-\`\`\`json
-${JSON.stringify(facts, null, 2)}
-\`\`\`
-
-Stay in character as 本命之灵 across the whole conversation. Answer the person's messages grounded ONLY in these facts.`,
-    },
-    { role: "assistant", content: "I am here with you — your 本命之灵. Ask me what you wish to understand." },
+    { role: "user", content: seedUser },
+    { role: "assistant", content: seedAssistant },
     ...toChatHistory(history),
   ];
 
@@ -247,18 +247,15 @@ export async function generateDailySpiritGreeting(
     interactions: daily.interactions.map((i) => `${i.kind}·${i.withPillar}(${i.note})`),
   };
 
+  const zh = language === "zh";
+  const factsBlock = `\`\`\`json\n${JSON.stringify(todayFacts, null, 2)}\n\`\`\``;
+  const dailyInstruction = zh
+    ? `今日确定性算出的事实（今天你只能引用这些，绝不臆造分数、运气或事件）：\n\n${factsBlock}\n\n请用简体中文、第一人称、2–3 句，以「本命之灵」的身份为 ta 道一声今日的问候。把今天的气息说成一种倾向、一个值得留意的邀请——绝不作吉凶或事件的预测。不要标题、不要列表。`
+    : `Today's deterministically computed daily facts (the ONLY facts for today — never invent scores, luck, or events):\n\n${factsBlock}\n\nGreet this person for today in 2–3 sentences, first person, as their 本命之灵. Reflect today's energy as tendency and an invitation to notice something — NEVER as a prediction of fortune or events. No headers, no lists.`;
+
   const messages: ChatMessage[] = [
     { role: "system", content: buildSpiritSystemPrompt(persona, chart, language, opts) },
-    {
-      role: "user",
-      content: `Today's deterministically computed daily facts (the ONLY facts for today — never invent scores, luck, or events):
-
-\`\`\`json
-${JSON.stringify(todayFacts, null, 2)}
-\`\`\`
-
-Greet this person for today in 2–3 sentences, first person, as their 本命之灵. Reflect today's energy as tendency and an invitation to notice something — NEVER as a prediction of fortune or events. No headers, no lists.`,
-    },
+    { role: "user", content: dailyInstruction },
   ];
 
   const raw = await chat(cfg, messages, { signal: opts.signal, maxTokens: 400 });

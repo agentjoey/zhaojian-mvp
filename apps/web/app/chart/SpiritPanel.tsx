@@ -43,7 +43,8 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     [profile.chart, memory, questionnaire],
   );
 
-  // 初始化：读取历史；若为空则向后端索取开场白并持久化
+  // 初始化：读取历史。开场白是「临时的」——每次按当前语言重新生成、不持久化，
+  // 故避免被旧语言冻结（旧版曾把开场白存库，这里剥离首条 spirit 消息以兼容）。
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -56,12 +57,14 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         if (cancelled) return;
         setMemory(mem);
         setQuestionnaire(qa ? formatQuestionnaire(qa) : undefined);
-        if (ms.length > 0) {
-          setMessages(ms);
+        // 真实对话从首条「用户消息」起算；开场白（首条 spirit 消息）一律丢弃、按当前语言重生成
+        const convo = ms[0]?.role === "spirit" ? ms.slice(1) : ms;
+        if (convo.length > 0) {
+          setMessages(convo);
         } else {
           const greeting = await sendToSpirit([]);
           if (cancelled) return;
-          await appendMessage(profile.id, "spirit", greeting);
+          // 不持久化：仅作当次展示，确保始终是当前语言
           setMessages([{ id: `intro-${Date.now()}`, role: "spirit", content: greeting, createdAt: new Date().toISOString() }]);
         }
       } catch (e) {
