@@ -23,8 +23,8 @@ describe("PROFILE_QUESTIONNAIRE", () => {
   });
   it("formatQuestionnaire 只渲染已答项", () => {
     const out = formatQuestionnaire({ energy: "solitude", stress: "withdraw" });
-    expect(out).toMatch(/Solitude/);
-    expect(out).toMatch(/Withdraw|withdraw|think/i);
+    expect(out).toMatch(/独处/);
+    expect(out).toMatch(/退回内在思考/);
     expect(out.split("\n").length).toBe(2);
   });
 });

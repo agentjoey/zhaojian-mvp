@@ -31,10 +31,10 @@ export async function POST(req: Request): Promise<Response> {
     async start(controller) {
       try {
         if (messages.length === 0) {
-          const { text } = await generateSpiritIntro(chart, { language: "en", memory, questionnaire });
+          const { text } = await generateSpiritIntro(chart, { language: "zh", memory, questionnaire });
           controller.enqueue(encoder.encode(text));
         } else {
-          for await (const chunk of streamSpiritChat(chart, messages, { language: "en", memory, questionnaire })) {
+          for await (const chunk of streamSpiritChat(chart, messages, { language: "zh", memory, questionnaire })) {
             controller.enqueue(encoder.encode(chunk));
           }
         }

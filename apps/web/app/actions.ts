@@ -85,7 +85,7 @@ export async function spiritMemoryAction(history: { role: "user" | "spirit"; con
 /** 每日问今（EP-spirit-06）：灵据确定性五维+干支+记忆的第一人称问候。无 key/失败返回 null。 */
 export async function dailySpiritGreetingAction(chart: UnifiedChart, daily: DailyFortune, dateStr: string, memory?: string, questionnaire?: string): Promise<string | null> {
   if (!isLlmConfigured(resolveLlmConfig())) return null;
-  try { const { text } = await generateDailySpiritGreeting(chart, daily, dateStr, { memory, questionnaire }); return text; } catch { return null; }
+  try { const { text } = await generateDailySpiritGreeting(chart, daily, dateStr, { language: "zh", memory, questionnaire }); return text; } catch { return null; }
 }
 
 /** 地名 → 经纬度 + 时区（OpenStreetMap Nominatim + tz-lookup）。用于出生地输入。 */

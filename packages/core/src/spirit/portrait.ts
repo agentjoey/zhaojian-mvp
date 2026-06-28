@@ -17,19 +17,19 @@ export type SelfPortrait = {
 };
 
 const DIM_LABELS: Record<string, string> = {
-  grounding: "Grounding",
-  drive: "Drive",
-  reflection: "Reflection",
-  connection: "Connection",
-  openness: "Openness",
+  grounding: "沉稳",
+  drive: "行动",
+  reflection: "内省",
+  connection: "联结",
+  openness: "开阔",
 };
 
 const ELEMENT_NOTE: Record<string, string> = {
-  wood: "You grow toward what is possible; tend the patience that lets growth root.",
-  fire: "You move by warmth and conviction; tend the steadiness that keeps the flame kind.",
-  earth: "You hold and steady what matters; tend the openness that keeps ground from becoming wall.",
-  metal: "You refine and discern; tend the softness that keeps clarity from cutting.",
-  water: "You feel and flow beneath the surface; tend the form that gives depth a shore.",
+  wood: "你向着可能生长；守住让根扎深的那份耐心。",
+  fire: "你以热与信念前行；守住让火光保持温柔的稳定。",
+  earth: "你稳住并守护所珍视的；守住那份开放，别让厚土筑成围墙。",
+  metal: "你善于淬炼与明辨；守住那份柔软，别让清明伤人。",
+  water: "你在深处感受、随之流动；守住一处河岸，给深渊以形。",
 };
 
 const clamp = (n: number) => Math.max(1, Math.min(10, Math.round(n)));

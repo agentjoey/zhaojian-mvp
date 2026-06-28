@@ -42,19 +42,19 @@ const CN_TO_EN: Record<string, SpiritElement> = {
 const ELEMENT_ORDER: string[] = ["木", "火", "土", "金", "水"];
 
 const ELEMENT_ARCHETYPE: Record<SpiritElement, string> = {
-  wood: "The Cultivator",
-  fire: "The Kindler",
-  earth: "The Warden",
-  metal: "The Refiner",
-  water: "The Wayfinder",
+  wood: "生发者",
+  fire: "燃灯者",
+  earth: "守界者",
+  metal: "淬炼者",
+  water: "映渊者",
 };
 
 const ELEMENT_TONE: Record<SpiritElement, string[]> = {
-  wood: ["nurturing", "forward-looking"],
-  fire: ["warm", "candid"],
-  earth: ["grounded", "steady"],
-  metal: ["clear", "incisive"],
-  water: ["reflective", "fluid"],
+  wood: ["温润", "前瞻"],
+  fire: ["热忱", "直率"],
+  earth: ["沉稳", "务实"],
+  metal: ["清明", "锐利"],
+  water: ["内省", "流动"],
 };
 
 function dominantElement(counts: Record<string, number>): SpiritElement {
@@ -85,8 +85,8 @@ export function deriveSpirit(chart: UnifiedChart): SpiritPersona {
 
   // 口吻：主导五行基调 + 旺衰微调
   const toneHints = [...ELEMENT_TONE[el]];
-  if (verdict === "strong") toneHints.push("assured");
-  else if (verdict === "weak") toneHints.push("gentle");
+  if (verdict === "strong") toneHints.push("笃定");
+  else if (verdict === "weak") toneHints.push("温和");
 
   const anchorFacts: string[] = [];
 
