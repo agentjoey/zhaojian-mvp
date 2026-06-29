@@ -151,7 +151,25 @@ export default function ChartPage() {
           <h1 className="font-serif text-[28px] font-black">{profile.nickname} · 命盘</h1>
           <p className="latin-label mt-1 text-[11px] text-muted">{chart.normalizedSolarTime}</p>
         </div>
-        <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">今日运势 →</Link>
+        <div className="flex items-center gap-4">
+          {isTelegram() && (
+            <button
+              onClick={() => {
+                const username = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || "analyst_helen_bot";
+                (window as any).Telegram?.WebApp?.openTelegramLink?.(
+                  "https://t.me/share/url?url=" +
+                    encodeURIComponent(`https://t.me/${username}?startapp=zhaojian`) +
+                    "&text=" +
+                    encodeURIComponent("照见 · 东方命理 × 西方心理的自我观照")
+                );
+              }}
+              className="text-[13px] text-cinnabar underline underline-offset-4"
+            >
+              分享 →
+            </button>
+          )}
+          <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">今日运势 →</Link>
+        </div>
       </header>
 
       {/* 八字 + 五行 */}
