@@ -4,6 +4,7 @@ import { streamSpiritChat, generateDailySpiritGreeting, summarizeSpiritMemory } 
 import { resolveOrCreateTgUser, getProfileForUser } from "./identity";
 import { listMessages, appendMessage, getMemory, saveMemory, getQuestionnaire } from "./data";
 import { consumeQuota } from "./quota";
+import { supabaseAdmin } from "./admin";
 
 let _bot: Bot | null = null;
 const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://zhaojian-mvp.vercel.app";
@@ -79,6 +80,35 @@ export function getBot(): Bot {
         if (m) void saveMemory(profile.id, m);
       })
       .catch(() => {});
+  });
+  bot.command("subscribe", async (ctx) => {
+    const u = ctx.from!;
+    await resolveOrCreateTgUser({ id: u.id, username: u.username, lang: u.language_code }, ctx.chat.id);
+    await supabaseAdmin().from("tg_users").update({ daily_push: true, tg_chat_id: ctx.chat.id }).eq("tg_user_id", u.id);
+    await ctx.reply("已订阅每日运势 —— 默认每天早 8 点推送。可用 /settings 9 调整时刻，/unsubscribe 取消。");
+  });
+  bot.command("unsubscribe", async (ctx) => {
+    const u = ctx.from!;
+    await supabaseAdmin().from("tg_users").update({ daily_push: false }).eq("tg_user_id", u.id);
+    await ctx.reply("已取消每日推送。想再开随时 /subscribe。");
+  });
+  bot.command("settings", async (ctx) => {
+    const u = ctx.from!;
+    const arg = (ctx.match || "").trim().split(/\s+/).filter(Boolean);
+    if (arg.length === 0) {
+      const { data } = await supabaseAdmin().from("tg_users").select("daily_push,push_hour,tz").eq("tg_user_id", u.id).maybeSingle();
+      await ctx.reply(`当前设置：每日推送 ${data?.daily_push ? "开" : "关"}，时刻 ${data?.push_hour ?? 8} 点，时区 ${data?.tz ?? "Asia/Shanghai"}。\n用法：/settings <0-23小时> [时区]，例：/settings 9 Asia/Shanghai`);
+      return;
+    }
+    const hour = parseInt(arg[0], 10);
+    if (isNaN(hour) || hour < 0 || hour > 23) {
+      await ctx.reply("小时需为 0-23。");
+      return;
+    }
+    const upd: any = { push_hour: hour };
+    if (arg[1]) upd.tz = arg[1];
+    await supabaseAdmin().from("tg_users").update(upd).eq("tg_user_id", u.id);
+    await ctx.reply(`已更新：推送时刻 ${hour} 点${arg[1] ? ("，时区 " + arg[1]) : ""}。`);
   });
   _bot = bot; return bot;
 }
