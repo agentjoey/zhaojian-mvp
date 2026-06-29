@@ -24,14 +24,8 @@ export async function dueUsers(now: Date): Promise<DueUser[]> {
   const out: DueUser[] = [];
   for (const u of data ?? []) {
     const tz = u.tz || "Asia/Shanghai";
-    const hour =
-      Number(
-        new Intl.DateTimeFormat("en-US", {
-          timeZone: tz,
-          hour: "numeric",
-          hour12: false,
-        }).format(now),
-      ) % 24;
+    // 每日单次调度（Hobby cron 限每天一次）：按用户本地日期去重，每个本地日最多推一次，
+    // 不再按 push_hour 卡小时（push_hour 列保留，升级 Pro 后可恢复按时区每小时推）。
     const localDate = new Intl.DateTimeFormat("en-CA", {
       timeZone: tz,
       year: "numeric",
@@ -39,7 +33,7 @@ export async function dueUsers(now: Date): Promise<DueUser[]> {
       day: "2-digit",
     }).format(now);
 
-    if (hour === (u.push_hour ?? 8) && u.last_push_date !== localDate) {
+    if (u.last_push_date !== localDate) {
       out.push({
         tg_user_id: u.tg_user_id,
         tg_chat_id: u.tg_chat_id,
