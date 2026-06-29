@@ -27,7 +27,7 @@ export function ReadingForm() {
 
   // 受控字段（用于派生 canSubmit 与 TG MainButton）
   const [date, setDate] = useState("");
-  const [gender, setGender] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | "">("");
 
   // 出生时辰
   const [time, setTime] = useState("");
@@ -116,11 +116,11 @@ export function ReadingForm() {
   return (
     <form ref={formRef} action={onSubmit} className="space-y-5">
       <Field label="称呼（选填）">
-        <input name="nickname" className={field} style={fieldStyle} placeholder="希望我如何称呼你？" />
+        <input name="nickname" className={`${field} placeholder:text-muted`} style={fieldStyle} placeholder="希望我如何称呼你？" />
       </Field>
 
       <Field label="出生日期">
-        <input name="date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={field} style={fieldStyle} />
+        <input name="date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${field} placeholder:text-muted`} style={fieldStyle} />
         <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
           <input name="isLunar" type="checkbox" className="accent-[var(--color-cinnabar)]" /> 我填的是农历
         </label>
@@ -134,7 +134,7 @@ export function ReadingForm() {
             value={time}
             onChange={(e) => setTime(e.target.value)}
             disabled={timeUnknown}
-            className={field}
+            className={`${field} placeholder:text-muted`}
             style={{ ...fieldStyle, opacity: timeUnknown ? 0.5 : 1 }}
           />
           {time && !timeUnknown && (
@@ -167,7 +167,7 @@ export function ReadingForm() {
                 value={placeQuery}
                 onChange={(e) => setPlaceQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); doGeocode(); } }}
-                className={field}
+                className={`${field} placeholder:text-muted`}
                 style={fieldStyle}
                 placeholder="输入城市/地名，如 上海、北京朝阳、New York"
               />
@@ -177,10 +177,14 @@ export function ReadingForm() {
             </div>
             {geoError && <p className="mt-1.5 text-[12px] text-seal">{geoError}</p>}
             {candidates.length > 0 && (
-              <ul className="mt-2 overflow-hidden" style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius-card)" }}>
+              <ul className="mt-2 space-y-2">
                 {candidates.map((c, i) => (
                   <li key={i}>
-                    <button type="button" onClick={() => { setGeo(c); setCandidates([]); }} className="block w-full px-3 py-2 text-left text-[13px] text-ink-2 hover:bg-tint" style={{ borderTop: i ? "1px solid var(--color-line)" : undefined }}>
+                    <button
+                      type="button"
+                      onClick={() => { setGeo(c); setCandidates([]); }}
+                      className="block w-full rounded-[var(--radius-button)] px-3 py-2.5 text-left text-[13px] text-ink bg-surface border border-line transition-colors hover:bg-tint"
+                    >
                       {c.label.split(",").slice(0, 4).join("、")}
                     </button>
                   </li>
@@ -193,11 +197,32 @@ export function ReadingForm() {
       </Field>
 
       <Field label="性别">
-        <select name="gender" required value={gender} onChange={(e) => setGender(e.target.value)} className={field} style={fieldStyle}>
-          <option value="">请选择…</option>
-          <option value="male">男</option>
-          <option value="female">女</option>
-        </select>
+        <div className="flex gap-2">
+          {(
+            [
+              { value: "male", label: "男" },
+              { value: "female", label: "女" },
+            ] as const
+          ).map((opt) => {
+            const selected = gender === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setGender(opt.value)}
+                className="flex-1 px-3 py-2.5 text-[14px] font-medium rounded-[var(--radius-button)] transition-colors"
+                style={{
+                  background: selected ? "var(--color-cinnabar)" : "var(--color-tint)",
+                  color: selected ? "#fff" : "var(--color-ink)",
+                  border: selected ? "none" : "1px solid var(--color-line)",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <input type="hidden" name="gender" value={gender} />
       </Field>
 
       {!inTg && (
