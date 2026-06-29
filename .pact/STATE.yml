@@ -93,7 +93,7 @@ features:
         evidence: session 200+cookie+hasProfile；端到端验证
       - id: tg-6-profile-route
         owner: kimi
-        status: assigned
+        status: awaiting_review
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p1.md
-        evidence: null
+        evidence: 建档/读回 200；service-role 落库
