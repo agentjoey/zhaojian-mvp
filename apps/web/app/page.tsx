@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { BellLogo, HeroWheel } from "@/components/ui";
 
 const ENTRIES = [
@@ -9,12 +12,26 @@ const ENTRIES = [
 ] as const;
 
 export default function Home() {
+  const [heroSrc, setHeroSrc] = useState("/hero/hero-bg.jpeg");
+
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => {
+      const isDark = el.getAttribute("data-tg-theme") === "dark";
+      setHeroSrc(isDark ? "/hero/hero-bg-dark.jpeg" : "/hero/hero-bg.jpeg");
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ["data-tg-theme"] });
+    return () => mo.disconnect();
+  }, []);
+
   return (
     <main className="mx-auto w-full max-w-[480px] pb-16 lg:max-w-5xl">
       {/* ===== Hero ===== */}
       <section className="relative overflow-hidden px-7 pb-2 pt-14 lg:pb-10 lg:pt-24 lg:text-center" style={{ background: "linear-gradient(180deg,#F2F0EA 0%,#F6F5F1 70%)" }}>
         {/* 氛围大图 + 米白渐隐遮罩（让宋体标题仍是主角） */}
-        <img src="/hero/hero-bg.jpeg" alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.55 }} />
+        <img src={heroSrc} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ opacity: 0.55 }} onError={() => { if (heroSrc === "/hero/hero-bg-dark.jpeg") setHeroSrc("/hero/hero-bg.jpeg"); }} />
         <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-paper) 25%, transparent) 0%, color-mix(in srgb, var(--color-paper) 60%, transparent) 42%, var(--color-paper) 88%)" }} />
         <HeroWheel className="pointer-events-none absolute left-1/2 top-8 -ml-[230px] w-[460px]" style={{ opacity: 0.1 }} />
         <span className="zj-pulse absolute left-12 top-24 h-[3px] w-[3px] rounded-full" style={{ background: "var(--color-cinnabar)" }} />

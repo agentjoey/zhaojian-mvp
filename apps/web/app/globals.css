@@ -191,3 +191,6 @@ html[data-tg-theme="light"] {
 .fortune-hero-img {
   filter: var(--fortune-img-filter, none);
 }
+html[data-tg-theme="dark"] .fortune-hero-img.has-dark {
+  filter: none;
+}

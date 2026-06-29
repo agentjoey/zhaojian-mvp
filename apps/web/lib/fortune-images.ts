@@ -8,6 +8,8 @@ import type { Relation } from "@eamvp/core";
  */
 export type FortuneImage = {
   file: string; // 相对 public，如 /fortune/guansha-1.jpeg
+  /** 深色版约定路径（/fortune/x.jpg → /fortune/x-dark.jpg），不存在时由客户端 onError 回退 */
+  darkFile?: string;
   /** 适配的十神情绪（可多选）—— 主匹配维度，确保意境一致 */
   moods: Relation[];
   /** 适配五行（可选，软匹配） */
@@ -57,6 +59,13 @@ function hashStr(s: string): number {
   return Math.abs(h);
 }
 
+/** 按约定生成 `-dark` 变体路径，不验证文件是否存在（客户端 onError 兜底）。 */
+export function darkVariant(path: string): string {
+  const dot = path.lastIndexOf(".");
+  if (dot <= 0) return `${path}-dark`;
+  return `${path.slice(0, dot)}-dark${path.slice(dot)}`;
+}
+
 /**
  * 按当日流日选一张配图：先按情绪(relation)匹配，命中多张则按日期确定性轮选（同一天稳定）。
  * 无匹配则在全库回退。库为空返回 null（UI 降级不显示）。
@@ -65,5 +74,7 @@ export function matchFortuneImage(relation: Relation, dateStr: string): FortuneI
   if (FORTUNE_IMAGES.length === 0) return null;
   const pool = FORTUNE_IMAGES.filter((i) => i.moods.includes(relation));
   const list = pool.length ? pool : FORTUNE_IMAGES;
-  return list[hashStr(dateStr) % list.length] ?? null;
+  const image = list[hashStr(dateStr) % list.length];
+  if (!image) return null;
+  return { ...image, darkFile: darkVariant(image.file) };
 }

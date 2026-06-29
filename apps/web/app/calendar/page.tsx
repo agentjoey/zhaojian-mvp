@@ -65,7 +65,18 @@ export default function CalendarPage() {
   const [horoscope, setHoroscope] = useState<ZiweiHoroscope | null>(null);
   const [loading, setLoading] = useState(false);
   const [casting, setCasting] = useState(false); // 进入运势的品牌化过场（每会话一次）
+  const [dark, setDark] = useState(false);
+  const [fortuneImgError, setFortuneImgError] = useState(false);
   const selYear = selected.slice(0, 4);
+
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setDark(el.getAttribute("data-tg-theme") === "dark");
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ["data-tg-theme"] });
+    return () => mo.disconnect();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -192,9 +203,11 @@ export default function CalendarPage() {
             const g = gradeOf(fortune.scores.overall);
             const yi = behavior?.do[0] ?? fortune.auspicious[0] ?? "顺势而为";
             const ji = behavior?.dont[0] ?? fortune.caution[0] ?? "勿强求";
+            const useDarkFile = dark && !!img?.darkFile && !fortuneImgError;
+            const imgSrc = useDarkFile ? img.darkFile! : img?.file;
             return (
               <div className="zj-rise relative overflow-hidden lg:col-span-2" style={{ borderRadius: "var(--radius-panel)", background: "var(--color-ink)", boxShadow: "var(--shadow-panel)" }}>
-                {img && <img src={img.file} alt={img.alt} className="fortune-hero-img absolute inset-0 h-full w-full object-cover" loading="lazy" />}
+                {img && <img src={imgSrc} alt={img.alt} className={`fortune-hero-img absolute inset-0 h-full w-full object-cover ${useDarkFile ? "has-dark" : ""}`} loading="lazy" onError={() => { if (useDarkFile) setFortuneImgError(true); }} />}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,rgba(20,18,16,.72),rgba(20,18,16,.82) 55%,rgba(20,18,16,.93))" }} />
                 <div className="relative p-6 text-on-ink">
                   <div className="flex items-center gap-5">
