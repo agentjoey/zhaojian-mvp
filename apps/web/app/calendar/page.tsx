@@ -194,7 +194,7 @@ export default function CalendarPage() {
             const ji = behavior?.dont[0] ?? fortune.caution[0] ?? "勿强求";
             return (
               <div className="zj-rise relative overflow-hidden lg:col-span-2" style={{ borderRadius: "var(--radius-panel)", background: "var(--color-ink)", boxShadow: "var(--shadow-panel)" }}>
-                {img && <img src={img.file} alt={img.alt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
+                {img && <img src={img.file} alt={img.alt} className="fortune-hero-img absolute inset-0 h-full w-full object-cover" loading="lazy" />}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,rgba(20,18,16,.72),rgba(20,18,16,.82) 55%,rgba(20,18,16,.93))" }} />
                 <div className="relative p-6 text-on-ink">
                   <div className="flex items-center gap-5">
@@ -208,7 +208,7 @@ export default function CalendarPage() {
                       <div className="text-[13px] leading-[1.6] text-on-ink-muted">{fortune.tone}</div>
                     </div>
                   </div>
-                  <div className="my-4 h-px" style={{ background: "rgba(255,255,255,.16)" }} />
+                  <div className="my-4 h-px" style={{ background: "color-mix(in srgb, var(--color-on-ink) 16%, transparent)" }} />
                   {polish && (
                     <p className="flex items-start gap-2 text-[13.5px] leading-[1.9]" style={{ color: "var(--color-on-ink-gold)" }}><span aria-hidden>✦</span><span>{polish}</span></p>
                   )}
@@ -218,9 +218,9 @@ export default function CalendarPage() {
                   </div>
                   {(fortune.favorableToday || fortune.interactions.length > 0) && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {fortune.favorableToday && <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(199,168,120,.2)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>}
+                      {fortune.favorableToday && <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink-gold) 20%, transparent)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>}
                       {fortune.interactions.map((it, i) => (
-                        <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "rgba(255,255,255,.08)", color: "var(--color-on-ink-muted)" }} title={it.note}>流日{it.kind}命{it.withPillar}支</span>
+                        <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink) 8%, transparent)", color: "var(--color-on-ink-muted)" }} title={it.note}>流日{it.kind}命{it.withPillar}支</span>
                       ))}
                     </div>
                   )}
