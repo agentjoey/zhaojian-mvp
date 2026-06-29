@@ -70,3 +70,4 @@ spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md` · pla
 | UI v2 素白 | 2026-06-20 | 全站现代化：令牌/动效/导航/首页氛围大图/评分环/测算过场/解读 Tab 化/响应式桌面布局 |
 | 🔒 MVP 冻结 | 2026-06-20 | 稳定当前版本，进入初期用户反馈收集阶段 |
 | 🌙 本命之灵陪伴层 | 2026-06-28 | EP-spirit P1+2+3：从命盘派生的单一陪伴人格(对话/关系记忆/每日问今/问卷/自我画像)，附加层不改解读，flag 默认关；pact 三 agent 编排交付 |
+| ✈️ Telegram 前端 P1 | 2026-06-29 | EP-tg P1 上线：grammY bot(@analyst_helen_bot)+Mini App 适配；initData→service_role 后端中介鉴权；tg_users 表；/start 拉起 Mini App 起盘建档闭环。kimi 执行/claude 审。P2(灵对话+/today+配额)/P3(每日推送)/P4(分享)待续。spec/plan 见 docs/superpowers。bot 品牌名待改(现 Helen|Tradelinks)。 |
