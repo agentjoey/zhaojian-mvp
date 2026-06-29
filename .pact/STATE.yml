@@ -239,7 +239,13 @@ features:
         evidence: MainButton+haptics;非TG不变;build通过
       - id: tg-ui-s4-calendar
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-tg-native-ui-surfaces.md
         evidence: 框景图暗态滤镜+卡片令牌;非TG不变;build通过
+      - id: tg-ui-s5-profiles
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-tg-native-ui-surfaces.md
+        evidence: Group/Cell 原生列表;非TG不变;build通过
