@@ -255,7 +255,13 @@ features:
     tasks:
       - id: tg-ui-r2-1-dark-rootcause
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-30-tg-native-ui-round2.md
         evidence: @theme去inline+panel-strong+geocode;build通过;亮态同值
+      - id: tg-ui-r2-2-dark-images
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-30-tg-native-ui-round2.md
+        evidence: darkFile机制+缺图回退;build通过
