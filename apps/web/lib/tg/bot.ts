@@ -60,8 +60,10 @@ export function getBot(): Bot {
       await ctx.reply(`今日 ${daily.dayGanZhi}。免费问今额度已用完——订阅即将开放。`);
     }
   });
-  bot.on("message:text", async (ctx) => {
-    if (ctx.message.text.startsWith("/")) return;
+  bot.on("message:text", async (ctx, next) => {
+    // 命令以 / 开头：放行到后续 command 中间件（必须 next()，否则会中断链、
+    // 使注册在本 handler 之后的命令 /subscribe /unsubscribe /settings 失效）。
+    if (ctx.message.text.startsWith("/")) return next();
     const u = ctx.from!;
     const { supabaseUserId } = await resolveOrCreateTgUser({ id: u.id, username: u.username, lang: u.language_code }, ctx.chat.id);
     const profile = await getProfileForUser(supabaseUserId);
