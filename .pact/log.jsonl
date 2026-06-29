@@ -76,3 +76,5 @@
 {"event_id":"0b3e136d91db12f32a532b9e85e65723","ts":"2026-06-29T09:12:43Z","agent_id":"kimi","role":"worker","event_type":"checkpoint","task_id":"tg-p3-T4-cron","feature":"tg-p3","payload":{"evidence":"cron 路由+vercel.json；build 通过"}}
 {"event_id":"b88e32dcc4b7bbe87171bee35b7ceb12","ts":"2026-06-29T09:12:43Z","agent_id":"claude","role":"reviewer","event_type":"accept","task_id":"tg-p3-T4-cron","feature":"tg-p3","payload":{}}
 {"event_id":"6a4d1b9fb18b401a101e579e6546f293","ts":"2026-06-29T09:12:43Z","agent_id":"claude","role":"orchestrator","event_type":"merge","task_id":"","feature":"tg-p3","payload":{}}
+{"event_id":"c90061d79ad6945f9ecf56ac47e6dd72","ts":"2026-06-29T09:55:58Z","agent_id":"claude","role":"orchestrator","event_type":"assign","task_id":"tg-p4-W1-ref-card","feature":"tg-p4","payload":{"branch":"main","owner":"kimi","reviewer":"claude","spec":"docs/superpowers/plans/2026-06-29-telegram-frontend-p4.md"}}
+{"event_id":"1cedb95b47df9b296d96defc9030f009","ts":"2026-06-29T10:01:23Z","agent_id":"kimi","role":"worker","event_type":"checkpoint","task_id":"tg-p4-W1-ref-card","feature":"tg-p4","payload":{"evidence":"ref 列+card 路由；卡片 PNG 中文渲染正确(实跑+人眼确认)"}}
