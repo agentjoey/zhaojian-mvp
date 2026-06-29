@@ -221,7 +221,13 @@ features:
     tasks:
       - id: tg-ui-s1-dark-correctness
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-tg-native-ui-surfaces.md
         evidence: 暗态令牌补全+错误框令牌+DarkImage+hero渐变;build通过;FBEEEC无残留
+      - id: tg-ui-s2-reading
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-tg-native-ui-surfaces.md
+        evidence: MainButton+haptics+formRef;非TG不变;build通过
