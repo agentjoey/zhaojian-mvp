@@ -115,7 +115,13 @@ features:
     tasks:
       - id: tg-p2-A-quota-data
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
         evidence: RPC+data+quota；RPC 实测原子闸；build 通过
+      - id: tg-p2-A3-bot-dm
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
+        evidence: today+message:text handler+额度+命令守卫；build 通过
