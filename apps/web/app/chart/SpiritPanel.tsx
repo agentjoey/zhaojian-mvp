@@ -6,6 +6,7 @@ import type { Profile } from "@/lib/profiles";
 import { getSpiritMemory, saveSpiritMemory, getQuestionnaire } from "@/lib/profiles";
 import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
 import { isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
+import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { SpiritPortrait } from "./SpiritPortrait";
@@ -20,6 +21,13 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
   const [memory, setMemory] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useTgMainButton({
+    text: streaming ? "本命之灵书写中…" : "发送",
+    onClick: () => handleSubmit(),
+    enabled: !streaming && !!input.trim(),
+    visible: isTelegram() && !streaming ? true : isTelegram(),
+  });
 
   const sendToSpirit = useCallback(
     async (historyForApi: { role: "user" | "spirit"; content: string }[]): Promise<string> => {
@@ -104,6 +112,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setInput("");
+    try { haptics.light(); } catch {}
 
     if (!isTelegram()) {
       try {
@@ -126,6 +135,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
           full += chunk;
           setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)));
         });
+        try { haptics.success(); } catch {}
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
         );
@@ -167,6 +177,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
           prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)),
         );
       }
+      try { haptics.success(); } catch {}
 
       await appendMessage(profile.id, "spirit", full);
       const fullHistory = [...historyForApi, { role: "spirit" as const, content: full }];
@@ -266,14 +277,16 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
           className="flex-1 resize-none rounded-[var(--radius-button)] border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2.5 text-[14px] text-ink placeholder:text-muted focus:border-[var(--color-cinnabar)] focus:outline-none disabled:opacity-60"
           style={{ minHeight: 44, maxHeight: 120 }}
         />
-        <button
-          type="submit"
-          disabled={streaming || !input.trim()}
-          className="inline-flex h-[44px] shrink-0 items-center justify-center px-4 text-[14px] font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: cinnabar, borderRadius: "var(--radius-button)" }}
-        >
-          发送
-        </button>
+        {!isTelegram() && (
+          <button
+            type="submit"
+            disabled={streaming || !input.trim()}
+            className="inline-flex h-[44px] shrink-0 items-center justify-center px-4 text-[14px] font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: cinnabar, borderRadius: "var(--radius-button)" }}
+          >
+            发送
+          </button>
+        )}
       </form>
     </Card>
   );
