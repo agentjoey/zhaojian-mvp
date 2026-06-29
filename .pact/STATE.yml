@@ -205,7 +205,13 @@ features:
         evidence: 3 hooks；build 通过
       - id: tg-ui-T3-provider-nav
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-tg-native-ui-foundation.md
         evidence: Provider+layout+AppShell隐藏导航;非TG原样;build通过
+      - id: tg-ui-T4-components-demo
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-tg-native-ui-foundation.md
+        evidence: native 4 组件+灵面板 MainButton/haptics;TG隐藏页内按钮;build通过
