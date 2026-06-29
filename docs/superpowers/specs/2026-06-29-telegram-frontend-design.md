@@ -24,19 +24,23 @@
 
 ---
 
-## 2. 身份鉴权
+## 2. 身份鉴权（后端中介 · service_role）
+
+> **为何后端中介**：该 Supabase 项目已迁移到**非对称 JWT 签名密钥（ECC P-256）**，私钥不外发，无法自签 Supabase 接受的会话 JWT（自签会被迫依赖即将淘汰的 legacy HS256 secret，不稳妥）。故 Telegram 路径**不走浏览器直连 Supabase + RLS**，改为「验 `initData` → 服务端用 `service_role` 操作」。统一一个信任边界、一个密钥。
 
 **Mini App（webview，浏览器侧）**
 - Telegram 注入 `window.Telegram.WebApp.initData`（签名串）。
-- 服务端路由 `POST /api/tg/session`：用 `TELEGRAM_BOT_TOKEN` 按官方算法做 **HMAC-SHA256 校验**（`secret = HMAC_SHA256("WebAppData", bot_token)`，比对 `hash`，并校验 `auth_date` 时效）。
-- 校验通过 → 解析 `tg_user_id` → 解析/创建对应 Supabase auth user（确定性映射，见数据模型）→ 用 `SUPABASE_JWT_SECRET`（HS256）**签发 Supabase 会话 JWT**（`sub=supabase_user_id`, `role=authenticated`, 设 `exp`）。
-- Mini App 用该会话注入 supabase client → **现有 `lib/profiles.ts` / RLS 代码零改复用**。
+- 浏览器把 `initData` 传给我方 `/api/tg/*` 路由（首次换一个**短时签名会话 cookie**，签名密钥用 `TELEGRAM_WEBHOOK_SECRET` 或独立 app secret，避免每请求重验）。
+- 服务端 `verifyInitData`：用 `TELEGRAM_BOT_TOKEN` 按官方算法 **HMAC-SHA256 校验**（`secret = HMAC_SHA256("WebAppData", bot_token)`，比对 `hash` + 校验 `auth_date` 时效）。
+- 校验通过 → 解析 `tg_user_id` → 经 `tg_users` 映射到 `supabase_user_id` → 后端用 **`SUPABASE_SERVICE_ROLE_KEY`**（绕 RLS）执行该用户的数据操作。
+- 数据层：新增薄服务端封装（复用现有查询语义）：`/api/tg/profile`(读/建档)、`/api/tg/reading`、`/api/tg/spirit/messages`+`/chat`、`/api/tg/daily`。**不在 Telegram 路径复用 `lib/profiles.ts` 的浏览器直连**（那是 web 匿名+RLS 路径，保持不动）。
 
 **Bot（DM，服务端，无 webview）**
-- Telegram webhook 更新自带 `from.id`/`chat.id`，可信（Telegram→我方服务端）；额外校验请求头 `X-Telegram-Bot-Api-Secret-Token == TELEGRAM_WEBHOOK_SECRET`（防伪造直打）。
-- Bot 后端用 `SUPABASE_JWT_SECRET` 签发 `role=service_role` 的 JWT（或用 service-role key）→ 按 `tg_user_id` 解析 profile 读写（绕 RLS，服务端可信）。
+- Telegram webhook 更新自带 `from.id`/`chat.id`；校验请求头 `X-Telegram-Bot-Api-Secret-Token == TELEGRAM_WEBHOOK_SECRET`（防伪造直打）。
+- Bot 后端同样用 `SUPABASE_SERVICE_ROLE_KEY` 按 `tg_user_id` 读写 profile / 存 `tg_chat_id`。
 
-**打通**：Mini App 与 Bot 均按同一 `tg_user_id` 落到**同一 Supabase user → 同一 profile**。DM 建档在 Mini App 可见，反之亦然。
+**打通**：Mini App 与 Bot 同一信任边界、同一 `tg_user_id` → **同一 Supabase user → 同一 profile**。DM 建档在 Mini App 可见，反之亦然。
+**安全**：`service_role` key **仅服务端**，绝不进浏览器/不入库；浏览器只持短时签名 cookie。
 
 ---
 
@@ -112,7 +116,8 @@ grammY，webhook 路由 `POST /api/tg/webhook`（校验 secret token）。
 - **Telegram 无原生 token 流式**：`typing` action + 分段 `editMessageText` 模拟书写感。
 - **initData 伪造**：服务端 HMAC 强校验 + `auth_date` 时效；webhook secret token 校验。
 - **MVP 冻结**：Telegram 为新增渠道，独立路由 `/api/tg/*` 与 Mini App 适配层，不动现有 web 冻结面。
-- **密钥管理**：`TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` / `SUPABASE_JWT_SECRET` 仅存 env（本地 `apps/web/.env.local` 已存，gitignored；生产存 Vercel env），**不入库**。`SUPABASE_JWT_SECRET` 必须等于 Supabase 项目 JWT Secret（控制台 Settings→API），否则签发的会话/JWT 不被接受——实施首步需实跑验证一次签发+RLS 读。
+- **密钥管理**：`TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` / `SUPABASE_SERVICE_ROLE_KEY` 仅存 env（本地 `apps/web/.env.local`，gitignored；生产存 Vercel env），**不入库**。`SUPABASE_SERVICE_ROLE_KEY` 绕 RLS，**绝不进浏览器**——仅 `/api/tg/*` 与 bot webhook 服务端使用。实施首步实跑验证：verifyInitData + service_role 读写一次。
+- **非对称签名密钥**：项目当前签名密钥为 ECC(P-256)，故采用后端中介（§2），不自签会话、不依赖 legacy JWT secret。
 - **Supabase user 暴增**：每 tg 用户一个 auth user；确定性映射、幂等创建，避免重复。
 
 ---
@@ -122,8 +127,8 @@ grammY，webhook 路由 `POST /api/tg/webhook`（校验 secret token）。
 | 变量 | 用途 | 状态 |
 |------|------|------|
 | `TELEGRAM_BOT_TOKEN` | BotFather bot token；initData 校验 + bot API | 已存 .env.local |
-| `TELEGRAM_WEBHOOK_SECRET` | webhook `X-Telegram-Bot-Api-Secret-Token` 校验 | 已生成存 .env.local |
-| `SUPABASE_JWT_SECRET` | 签发 Mini App 会话 JWT + service_role JWT | 已存 .env.local（需验=项目 JWT Secret） |
+| `TELEGRAM_WEBHOOK_SECRET` | webhook `X-Telegram-Bot-Api-Secret-Token` 校验 + 签 Mini App 短时会话 cookie | 已生成存 .env.local |
+| `SUPABASE_SERVICE_ROLE_KEY` | 后端中介绕 RLS 操作（service_role/secret key，仅服务端） | **待填**（Supabase 控制台 Reveal service_role / 或新建 sb_secret） |
 | `NEXT_PUBLIC_TG_BOT_USERNAME` | t.me 链接 / Mini App 归因 | 待设 |
 | `LLM_API_KEY` / `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 现有 | 已存 |
 
