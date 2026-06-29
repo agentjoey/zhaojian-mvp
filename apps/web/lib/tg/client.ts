@@ -35,3 +35,77 @@ export async function ensureTgSession(): Promise<boolean> {
   const j = await r.json();
   return !!j.hasProfile;
 }
+
+export async function tgGetProfile(): Promise<any | null> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/profile", { credentials: "include" });
+  if (!r.ok) return null;
+  return (await r.json()).profile ?? null;
+}
+
+export async function tgListMessages(): Promise<
+  { id: string; role: "user" | "spirit"; content: string; createdAt: string }[]
+> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/spirit", { credentials: "include" });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()).messages ?? [];
+}
+
+export async function tgSpiritStream(
+  messages: { role: "user" | "spirit"; content: string }[],
+  onChunk: (s: string) => void
+): Promise<string> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/spirit", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messages }),
+  });
+  if (r.status === 402) throw new Error("quota");
+  if (!r.ok || !r.body) throw new Error((await r.text()) || "对话失败");
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const c = dec.decode(value, { stream: true });
+    full += c;
+    onChunk(c);
+  }
+  return full;
+}
+
+export async function tgDaily(
+  dateStr: string
+): Promise<{ daily: any; greeting: string | null }> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/daily", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dateStr }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return await r.json();
+}
+
+export async function tgGetQuestionnaire(): Promise<Record<string, string> | null> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/questionnaire", { credentials: "include" });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()).answers ?? null;
+}
+
+export async function tgSaveQuestionnaire(answers: Record<string, string>): Promise<void> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/questionnaire", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
