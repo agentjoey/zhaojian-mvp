@@ -215,7 +215,7 @@ export default function ChartPage() {
           <Card><p className="text-[14px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p></Card>
         )}
         {err && (
-          <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "#FBEEEC", color: "var(--color-seal)", border: "1px solid #EFD6D2" }}>{err}</div>
+          <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>{err}</div>
         )}
         {reading && <ReadingTabs sections={sections} chart={chart} streaming={streaming} />}
       </Section>

@@ -67,6 +67,8 @@
   --shadow-btn: 0 12px 28px rgba(203, 70, 54, 0.28);
   --shadow-btn-hover: 0 16px 34px rgba(203, 70, 54, 0.34);
   --shadow-panel: 0 18px 50px rgba(31, 29, 25, 0.1);
+  --color-error-bg: #FBEEEC;
+  --color-error-line: #EFD6D2;
 }
 
 /* 字体变量由 next/font 注入（--font-serif / --font-sans / --font-latin），见 fonts.ts */
@@ -152,13 +154,26 @@ body {
 html[data-tg-theme="dark"] {
   --color-paper: #100e0b;
   --color-bg2: #1a1712; /* 原生 cell/卡 次底（新增令牌，供 native 组件用） */
+  --color-surface: #1a1712;
+  --color-float: #1a1712;
+  --color-tint: #221e18;
+  --color-backdrop: #0a0907;
   --color-rail: #161310;
   --color-line: #2a2620;
+  --color-divider: #2a2620;
+  --color-spoke: #3a352c;
   --color-ink: #ece6da;
   --color-ink-2: #c4bcae;
   --color-muted: #8a8276;
   --color-cinnabar: #d4564a;
   --color-cinnabar-press: #b8463c;
+  --color-seal: #e0786c;
+  --shadow-card: 0 6px 20px rgba(0,0,0,.5);
+  --shadow-card-hover: 0 12px 28px rgba(0,0,0,.6);
+  --shadow-soft: 0 6px 22px rgba(0,0,0,.45);
+  --shadow-panel: 0 18px 50px rgba(0,0,0,.6);
+  --color-error-bg: #2a1714;
+  --color-error-line: #4a2a23;
 }
 html[data-tg-theme="dark"] body {
   background: var(--color-paper);

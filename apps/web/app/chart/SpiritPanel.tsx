@@ -251,9 +251,9 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
           className="mb-3 px-3 py-2 text-[12px]"
           style={{
             borderRadius: "var(--radius-card)",
-            background: "#FBEEEC",
+            background: "var(--color-error-bg)",
             color: "var(--color-seal)",
-            border: "1px solid #EFD6D2",
+            border: "1px solid var(--color-error-line)",
           }}
         >
           {error}
