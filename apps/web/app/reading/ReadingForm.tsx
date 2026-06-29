@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { computeChartAction, geocodeAction, type GeoResult } from "@/app/actions";
 import { createProfile } from "@/lib/profiles";
 import { isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
+import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import type { BirthInput } from "@eamvp/core";
 
 const field = "w-full px-3 py-2.5 text-[14px] text-ink outline-none transition-colors";
@@ -22,6 +23,20 @@ export function ReadingForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // 受控字段（用于派生 canSubmit 与 TG MainButton）
+  const [date, setDate] = useState("");
+  const [gender, setGender] = useState("");
+
+  // 出生时辰
+  const [time, setTime] = useState("");
+  const [timeUnknown, setTimeUnknown] = useState(false);
+
+  // 避免 SSR/ hydration 因 isTelegram() 不一致而错位
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const inTg = mounted && isTelegram();
 
   useEffect(() => {
     if (isTelegram()) tgReadyExpand();
@@ -34,22 +49,28 @@ export function ReadingForm() {
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geocoding, startGeocode] = useTransition();
 
-  // 出生时辰
-  const [time, setTime] = useState("");
-  const [timeUnknown, setTimeUnknown] = useState(false);
+  const canSubmit = Boolean(date && gender && geo);
+
+  useTgMainButton({
+    text: "为我起盘",
+    onClick: () => formRef.current?.requestSubmit(),
+    enabled: canSubmit,
+    visible: inTg,
+  });
 
   function doGeocode() {
     setGeoError(null);
     setCandidates([]);
     startGeocode(async () => {
       const r = await geocodeAction(placeQuery);
-      if (!r.ok) { setGeoError(r.error); return; }
+      if (!r.ok) { setGeoError(r.error); haptics.error(); return; }
       if (r.results.length === 1) setGeo(r.results[0]!);
       else setCandidates(r.results);
     });
   }
 
   function onSubmit(formData: FormData) {
+    haptics.light();
     setError(null);
     const nickname = formData.get("nickname") ? String(formData.get("nickname")) : undefined;
     const input: Partial<BirthInput> = {
@@ -72,32 +93,34 @@ export function ReadingForm() {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ nickname, birthInput: input }),
           });
-          if (!r.ok) { setError(await r.text()); return; }
+          if (!r.ok) { setError(await r.text()); haptics.error(); return; }
           router.push("/chart");
         } catch (e) {
           setError(`建档失败：${e instanceof Error ? e.message : String(e)}`);
+          haptics.error();
         }
         return;
       }
       const res = await computeChartAction(input);
-      if (!res.ok) { setError(res.error); return; }
+      if (!res.ok) { setError(res.error); haptics.error(); return; }
       try {
         await createProfile({ nickname, birthInput: input as BirthInput, chart: res.chart });
         router.push("/chart");
       } catch (e) {
         setError(`存档失败：${e instanceof Error ? e.message : String(e)}`);
+        haptics.error();
       }
     });
   }
 
   return (
-    <form action={onSubmit} className="space-y-5">
+    <form ref={formRef} action={onSubmit} className="space-y-5">
       <Field label="称呼（选填）">
         <input name="nickname" className={field} style={fieldStyle} placeholder="希望我如何称呼你？" />
       </Field>
 
       <Field label="出生日期">
-        <input name="date" type="date" required className={field} style={fieldStyle} />
+        <input name="date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={field} style={fieldStyle} />
         <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
           <input name="isLunar" type="checkbox" className="accent-[var(--color-cinnabar)]" /> 我填的是农历
         </label>
@@ -170,16 +193,18 @@ export function ReadingForm() {
       </Field>
 
       <Field label="性别">
-        <select name="gender" required className={field} style={fieldStyle}>
+        <select name="gender" required value={gender} onChange={(e) => setGender(e.target.value)} className={field} style={fieldStyle}>
           <option value="">请选择…</option>
           <option value="male">男</option>
           <option value="female">女</option>
         </select>
       </Field>
 
-      <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium text-white transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" }}>
-        {pending ? "正在为你起盘…" : "为我起盘 · 即时生成"}
-      </button>
+      {!inTg && (
+        <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium text-white transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" }}>
+          {pending ? "正在为你起盘…" : "为我起盘 · 即时生成"}
+        </button>
+      )}
 
       {error && (
         <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>{error}</div>
