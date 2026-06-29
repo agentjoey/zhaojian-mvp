@@ -69,13 +69,19 @@ features:
     tasks:
       - id: tg-1-core-initdata
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p1.md
         evidence: verifyInitData+session 纯函数+单测 6/6 绿
       - id: tg-2-migration-tg-users
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p1.md
         evidence: tg_users SQL 已写, claude apply 成功
+      - id: tg-3-identity
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p1.md
+        evidence: admin+identity+session 封装；web build 通过
