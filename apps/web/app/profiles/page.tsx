@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listProfiles, getActiveProfileId, setActiveProfile, deleteProfile, type Profile } from "@/lib/profiles";
+import { isTelegram, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
 import { Card, SealIcon } from "@/components/ui";
 
 export default function ProfilesPage() {
@@ -14,10 +15,11 @@ export default function ProfilesPage() {
 
   function refresh() {
     setLoading(true);
-    listProfiles()
+    const fetcher = isTelegram() ? tgListProfiles() : listProfiles();
+    fetcher
       .then((list) => {
         setProfiles(list);
-        setActiveId(getActiveProfileId() ?? list[0]?.id ?? null);
+        setActiveId(isTelegram() ? (list[0]?.id ?? null) : (getActiveProfileId() ?? list[0]?.id ?? null));
       })
       .catch(() => setProfiles([]))
       .finally(() => setLoading(false));
@@ -63,7 +65,11 @@ export default function ProfilesPage() {
                   className="text-[12px] text-muted hover:text-seal"
                   onClick={async () => {
                     if (confirm(`删除档案「${p.nickname}」？`)) {
-                      await deleteProfile(p.id);
+                      if (isTelegram()) {
+                        await tgDeleteProfile(p.id);
+                      } else {
+                        await deleteProfile(p.id);
+                      }
                       refresh();
                     }
                   }}

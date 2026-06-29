@@ -109,3 +109,15 @@ export async function tgSaveQuestionnaire(answers: Record<string, string>): Prom
   });
   if (!r.ok) throw new Error(await r.text());
 }
+
+export async function tgListProfiles(): Promise<any[]> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/profile", { credentials: "include" });
+  if (!r.ok) return [];
+  return (await r.json()).profiles ?? [];
+}
+
+export async function tgDeleteProfile(id: string): Promise<void> {
+  await ensureTgSession();
+  await fetch(`/api/tg/profile?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
+}

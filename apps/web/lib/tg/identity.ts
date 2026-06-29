@@ -27,3 +27,12 @@ export async function createProfileForUser(supabaseUserId: string, input: { nick
   if (error) throw error;
   return toProfile(data);
 }
+export async function listProfilesForUser(supabaseUserId: string): Promise<Profile[]> {
+  const { data, error } = await supabaseAdmin().from("profiles").select("*").eq("user_id", supabaseUserId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toProfile);
+}
+export async function deleteProfileForUser(supabaseUserId: string, profileId: string): Promise<void> {
+  const { error } = await supabaseAdmin().from("profiles").delete().eq("id", profileId).eq("user_id", supabaseUserId);
+  if (error) throw error;
+}
