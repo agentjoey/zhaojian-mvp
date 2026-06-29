@@ -37,8 +37,19 @@ export async function appendMessage(
   role: "user" | "spirit",
   content: string,
 ): Promise<void> {
-  const { error } = await supabaseAdmin().from("spirit_messages").insert({
+  const sb = supabaseAdmin();
+  // spirit_messages.user_id 为 NOT NULL DEFAULT auth.uid()；service-role 下 auth.uid() 为 NULL，
+  // 必须显式带上 user_id（取自档案归属），否则违反非空约束。
+  const { data: prof, error: e1 } = await sb
+    .from("profiles")
+    .select("user_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (e1) throw e1;
+  if (!prof) throw new Error("profile not found: " + profileId);
+  const { error } = await sb.from("spirit_messages").insert({
     profile_id: profileId,
+    user_id: (prof as { user_id: string }).user_id,
     role,
     content,
   });
