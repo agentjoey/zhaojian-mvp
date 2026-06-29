@@ -143,3 +143,9 @@ features:
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
         evidence: 5 页面 TG 分支；build 通过；非 TG 零改
+      - id: tg-fix-profiles-page
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
+        evidence: identity list/delete + route GET列表/DELETE + client + page TG 分支；实跑真实用户档案列表正常
