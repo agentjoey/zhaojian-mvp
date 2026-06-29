@@ -127,7 +127,13 @@ features:
         evidence: today+message:text handler+额度+命令守卫；build 通过
       - id: tg-p2-B1-routes
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
         evidence: 3 路由；spirit 流式+持久化(修 user_id)；daily/questionnaire 200；额度 402
+      - id: tg-p2-B2-client
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-telegram-frontend-p2.md
+        evidence: 6 helpers；build 通过
