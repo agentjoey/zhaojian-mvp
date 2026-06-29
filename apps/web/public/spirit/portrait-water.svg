@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" role="img" aria-label="本命之灵 映渊者 形象占位">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="34%" r="62%">
+      <stop offset="0%" stop-color="#3e83a0" stop-opacity="0.42"/>
+      <stop offset="46%" stop-color="#3e83a0" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0d0b08" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16120c"/>
+      <stop offset="100%" stop-color="#0b0907"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#v)"/>
+  <rect width="800" height="1000" fill="url(#g)"/>
+  <text x="400" y="430" text-anchor="middle" font-family="'Noto Serif SC','Songti SC',serif" font-size="300" fill="#3e83a0" fill-opacity="0.16" font-weight="700">水</text>
+  <circle cx="400" cy="372" r="150" fill="none" stroke="#3e83a0" stroke-opacity="0.55" stroke-width="2.5"/>
+  <text x="400" y="392" text-anchor="middle" font-family="'Noto Serif SC','Songti SC',serif" font-size="120" fill="#3e83a0" font-weight="700">水</text>
+  <text x="400" y="690" text-anchor="middle" font-family="'Noto Serif SC','Songti SC',serif" font-size="76" fill="#efe9df" font-weight="700" letter-spacing="6">映渊者</text>
+  <text x="400" y="748" text-anchor="middle" font-family="'Noto Serif SC','Songti SC',serif" font-size="26" fill="#cfc6b6" fill-opacity="0.7" letter-spacing="10">本命之灵</text>
+  <text x="400" y="930" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" fill="#8c8478" letter-spacing="4">形象生成中 · 即将就位</text>
+  <rect x="26" y="26" width="748" height="948" fill="none" stroke="#3e83a0" stroke-opacity="0.22" stroke-width="1.5" rx="14"/>
+</svg>

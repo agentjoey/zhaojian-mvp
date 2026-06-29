@@ -8,7 +8,7 @@ import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
 import { isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
-import { SpiritSigil } from "./SpiritSigil";
+import { SpiritPortrait } from "./SpiritPortrait";
 import { spiritMemoryAction } from "@/app/actions";
 
 export function SpiritPanel({ profile }: { profile: Profile }) {
@@ -187,14 +187,8 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
 
   return (
     <Card className="flex flex-col" topAccent={spirit.dominantElement}>
-      {/* Header */}
-      <div className="mb-4 flex items-center gap-3 border-b border-[var(--color-line)] pb-4">
-        <SpiritSigil element={spirit.dominantElement} size={44} />
-        <div className="min-w-0">
-          <h3 className="font-serif text-[17px] font-semibold leading-tight">{spirit.archetype}</h3>
-          <p className="mt-0.5 text-[12px] text-muted">本命之灵 · Natal Spirit</p>
-        </div>
-      </div>
+      {/* 形象 hero */}
+      <SpiritPortrait element={spirit.dominantElement} archetype={spirit.archetype} />
 
       {/* Messages */}
       <div
