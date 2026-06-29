@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { notoSerifSC, notoSansSC, cormorant } from "./fonts";
 import { AppShell } from "@/components/AppShell";
+import { TgUiProvider } from "@/components/tg/TgUiProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,7 +25,9 @@ export default function RootLayout({
           src="https://telegram.org/js/telegram-web-app.js"
           strategy="beforeInteractive"
         />
-        <AppShell>{children}</AppShell>
+        <TgUiProvider>
+          <AppShell>{children}</AppShell>
+        </TgUiProvider>
       </body>
     </html>
   );

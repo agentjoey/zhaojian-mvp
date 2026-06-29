@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BellLogo, cn } from "@/components/ui";
+import { isTelegram } from "@/lib/tg/client";
 
 const NAV = [
   { href: "/", char: "照", label: "首页" },
@@ -20,39 +22,45 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
+  const [tg, setTg] = useState(false);
+  useEffect(() => setTg(isTelegram()), []);
 
   return (
-    <div className="min-h-screen md:pl-[82px]">
-      {/* 桌面：左侧素白图标栏 */}
-      <nav
-        className="fixed inset-y-0 left-0 z-30 hidden w-[82px] flex-col items-center gap-2 py-6 md:flex"
-        style={{ background: "var(--color-rail)", borderRight: "1px solid var(--color-line)" }}
-      >
-        <Link href="/" className="mb-5" aria-label="照见 首页">
-          <BellLogo size={30} />
-        </Link>
-        {NAV.slice(1).map((item) => (
-          <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
-        ))}
-      </nav>
+    <div className={tg ? "min-h-screen" : "min-h-screen md:pl-[82px]"}>
+      {!tg && (
+        <>
+          {/* 桌面：左侧素白图标栏 */}
+          <nav
+            className="fixed inset-y-0 left-0 z-30 hidden w-[82px] flex-col items-center gap-2 py-6 md:flex"
+            style={{ background: "var(--color-rail)", borderRight: "1px solid var(--color-line)" }}
+          >
+            <Link href="/" className="mb-5" aria-label="照见 首页">
+              <BellLogo size={30} />
+            </Link>
+            {NAV.slice(1).map((item) => (
+              <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
+            ))}
+          </nav>
 
-      {/* 移动：底部毛玻璃图标栏 */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-around pt-2.5 md:hidden"
-        style={{
-          background: "rgba(246,245,241,.92)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          borderTop: "1px solid var(--color-line)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
-        }}
-      >
-        {NAV.map((item) => (
-          <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
-        ))}
-      </nav>
+          {/* 移动：底部毛玻璃图标栏 */}
+          <nav
+            className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-around pt-2.5 md:hidden"
+            style={{
+              background: "rgba(246,245,241,.92)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderTop: "1px solid var(--color-line)",
+              paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
+            }}
+          >
+            {NAV.map((item) => (
+              <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
+            ))}
+          </nav>
+        </>
+      )}
 
-      <div className="pb-24 md:pb-0">{children}</div>
+      <div className={tg ? "" : "pb-24 md:pb-0"}>{children}</div>
     </div>
   );
 }
