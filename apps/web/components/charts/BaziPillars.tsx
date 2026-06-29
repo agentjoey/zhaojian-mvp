@@ -61,8 +61,8 @@ function PillarColumn({ col }: { col: ColumnDef }) {
   return (
     <div
       style={{
-        background: "var(--color-ink)",
-        color: "var(--color-on-ink)",
+        background: "var(--color-panel-strong)",
+        color: "var(--color-on-strong)",
         borderRadius: "var(--radius-card)",
       }}
     >

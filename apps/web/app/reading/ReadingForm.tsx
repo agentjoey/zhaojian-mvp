@@ -171,7 +171,7 @@ export function ReadingForm() {
                 style={fieldStyle}
                 placeholder="输入城市/地名，如 上海、北京朝阳、New York"
               />
-              <button type="button" onClick={doGeocode} disabled={geocoding} className="shrink-0 px-4 text-[14px] text-on-ink disabled:opacity-50" style={{ background: "var(--color-ink)", borderRadius: "var(--radius-button)" }}>
+              <button type="button" onClick={doGeocode} disabled={geocoding} className="shrink-0 px-4 text-[14px] disabled:opacity-50" style={{ background: "var(--color-tint)", color: "var(--color-ink)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" }}>
                 {geocoding ? "查找…" : "查找"}
               </button>
             </div>

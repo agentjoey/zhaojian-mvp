@@ -4,9 +4,11 @@
    照见 Zhaojian · Design Tokens —— 素白 v2（现代化方向）
    令牌即单一事实源，勿写裸十六进制。
    ============================================================ */
-@theme inline {
+@theme {
   /* —— 纸 / 墨阶 —— */
   --color-paper: #f6f5f1; /* App 页面底 · 素白（冷调） */
+  --color-panel-strong: #1f1d19;
+  --color-on-strong: #f6f5f1;
   --color-surface: #ffffff; /* 卡片 / 浮层 */
   --color-float: #ffffff;
   --color-tint: #f1efea; /* 区块浅底 / chip 底 */
@@ -165,6 +167,8 @@ html[data-tg-theme="dark"] {
   --color-ink: #ece6da;
   --color-ink-2: #c4bcae;
   --color-muted: #8a8276;
+  --color-panel-strong: #241f19;
+  --color-on-strong: #ece6da;
   --color-cinnabar: #d4564a;
   --color-cinnabar-press: #b8463c;
   --color-seal: #e0786c;

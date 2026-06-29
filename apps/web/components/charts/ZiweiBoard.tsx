@@ -117,8 +117,10 @@ function CenterCell({ ziwei }: { ziwei: ZiweiChart }) {
   ];
   return (
     <div
-      className="bg-ink text-on-ink flex flex-col justify-center gap-3"
+      className="flex flex-col justify-center gap-3"
       style={{
+        background: "var(--color-panel-strong)",
+        color: "var(--color-on-strong)",
         gridRow: "2 / span 2",
         gridColumn: "2 / span 2",
         borderRadius: "var(--radius-card)",
