@@ -4,14 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listProfiles, getActiveProfileId, setActiveProfile, deleteProfile, type Profile } from "@/lib/profiles";
-import { isTelegram, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
+import { isTelegram, tgListProfiles } from "@/lib/tg/client";
 import { Card, SealIcon } from "@/components/ui";
+import { Group, Cell } from "@/components/tg/native";
 
 export default function ProfilesPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  const inTg = mounted && isTelegram();
 
   function refresh() {
     setLoading(true);
@@ -37,6 +42,25 @@ export default function ProfilesPage() {
         <Card><p className="text-[14px] text-muted">正在读取档案…</p></Card>
       ) : profiles.length === 0 ? (
         <Card><p className="text-[14px] text-muted">尚无档案。建档后命盘一次生成并冻结，不再更改。</p></Card>
+      ) : inTg ? (
+        <Group>
+          {profiles.map((p) => {
+            const active = p.id === activeId;
+            return (
+              <Cell
+                key={p.id}
+                icon={p.nickname.slice(0, 1)}
+                accent={"var(--color-cinnabar)"}
+                title={p.nickname + (active ? " · 当前" : "")}
+                subtitle={`${p.chart.bazi.dayMaster}（${p.chart.bazi.dayMasterElement}）· ${p.birthInput.date}`}
+                onClick={() => {
+                  setActiveProfile(p.id);
+                  router.push("/chart");
+                }}
+              />
+            );
+          })}
+        </Group>
       ) : (
         <div className="space-y-3">
           {profiles.map((p) => {
@@ -65,11 +89,7 @@ export default function ProfilesPage() {
                   className="text-[12px] text-muted hover:text-seal"
                   onClick={async () => {
                     if (confirm(`删除档案「${p.nickname}」？`)) {
-                      if (isTelegram()) {
-                        await tgDeleteProfile(p.id);
-                      } else {
-                        await deleteProfile(p.id);
-                      }
+                      await deleteProfile(p.id);
                       refresh();
                     }
                   }}
