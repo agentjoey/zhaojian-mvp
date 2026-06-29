@@ -49,6 +49,8 @@ spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md` · pla
 🌙 EP-spirit 已交付但 flag 默认关——待反馈期决定开启；每日问今/画像未做 localStorage 缓存（每次现算，flag 关时无影响）。
 
 ## Next Sprint Candidates
+- [ ] [EP-i18n] [HIGH] **英文版**：全站 UI 文案 i18n（中/英），LLM 输出按 locale（`ReadingLanguage` 已支持 en）；Telegram 海外市场用户按 `language_code` 自动选语言。当前全中文。
+- [ ] [EP-tg-ui] [HIGH] **更适配 Telegram Mini App 的 UI**：用 Telegram WebApp 主题参数/MainButton/BackButton/viewport/haptics，做原生感而非「网页塞进 webview」；隐藏 web 底部导航、贴合 TG 交互。
 - [ ] [EP-spirit-open] [HIGH] 收集反馈后开启本命之灵 flag + 真人小流量灰度（对话/问卷/画像/每日问今）。
 - [ ] [EP-spirit-2] [MED] 灵深化：每日问今/画像 localStorage 缓存；自我画像叠加关系记忆(memoryPresent)；会话结束显式收束。
 - [ ] [EP-cal-img-2] [MED] 配图扩库 + 筛图从人工转 agent reviewer（skill `curate-fortune-images` 已就绪）。
