@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { computeChartAction, geocodeAction, type GeoResult } from "@/app/actions";
 import { createProfile } from "@/lib/profiles";
+import { isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
 import type { BirthInput } from "@eamvp/core";
 
 const field = "w-full px-3 py-2.5 text-[14px] text-ink outline-none transition-colors";
@@ -21,6 +22,10 @@ export function ReadingForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (isTelegram()) tgReadyExpand();
+  }, []);
 
   // 出生地（地名 → 经纬度/时区）
   const [placeQuery, setPlaceQuery] = useState("");
@@ -58,6 +63,22 @@ export function ReadingForm() {
       nickname,
     };
     startTransition(async () => {
+      if (isTelegram()) {
+        try {
+          await ensureTgSession();
+          const r = await fetch("/api/tg/profile", {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ nickname, birthInput: input }),
+          });
+          if (!r.ok) { setError(await r.text()); return; }
+          router.push("/chart");
+        } catch (e) {
+          setError(`建档失败：${e instanceof Error ? e.message : String(e)}`);
+        }
+        return;
+      }
       const res = await computeChartAction(input);
       if (!res.ok) { setError(res.error); return; }
       try {

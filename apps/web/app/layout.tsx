@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { notoSerifSC, notoSansSC, cormorant } from "./fonts";
 import { AppShell } from "@/components/AppShell";
 import "./globals.css";
@@ -19,6 +20,10 @@ export default function RootLayout({
       className={`${notoSerifSC.variable} ${notoSansSC.variable} ${cormorant.variable} h-full`}
     >
       <body className="min-h-full">
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
         <AppShell>{children}</AppShell>
       </body>
     </html>
