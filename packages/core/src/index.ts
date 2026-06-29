@@ -28,6 +28,10 @@ export type { NormalizedBirth } from "./normalize";
 export { computeDailyFortune } from "./daily/index";
 export type { DailyFortune, Relation } from "./daily/index";
 
+export { verifyInitData } from "./tg/initData";
+export type { TgUser, VerifyResult } from "./tg/initData";
+export { signSession, verifySession } from "./tg/session";
+
 import { BirthInputSchema, type BirthInput } from "./types/birth-input";
 import { UnifiedChartSchema, type UnifiedChart } from "./types/chart";
 import { normalizeBirth } from "./normalize";
