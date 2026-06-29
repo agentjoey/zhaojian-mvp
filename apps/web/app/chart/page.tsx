@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
 import { isTelegram, tgGetProfile } from "@/lib/tg/client";
+import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -35,6 +36,17 @@ export default function ChartPage() {
   const [streaming, setStreaming] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<string | null>(null);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const inTg = mounted && isTelegram();
+
+  useTgMainButton({
+    text: streaming ? "正在为你照见…" : "为我照见",
+    onClick: () => generate(),
+    enabled: !streaming,
+    visible: inTg && !reading,
+  });
 
   useEffect(() => {
     (async () => {
@@ -84,6 +96,7 @@ export default function ChartPage() {
         setProfile({ ...profile, reading: target });
       }
       setStreaming(false);
+      haptics.success();
     };
     const tick = () => {
       if (pause > 0) {
@@ -198,7 +211,7 @@ export default function ChartPage() {
 
       {/* 三段式解读 */}
       <Section title="三段式解读">
-        {!reading && !streaming && (
+        {!inTg && !reading && !streaming && (
           <button
             onClick={generate}
             className="group flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-all duration-200 hover:bg-cinnabar-press"
