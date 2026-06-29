@@ -147,3 +147,23 @@ body {
 .reading-prose em {
   color: var(--color-ink-2);
 }
+
+/* ===== Telegram Mini App 主题（跟随 TG colorScheme；非 TG 无此属性→零影响）===== */
+html[data-tg-theme="dark"] {
+  --color-paper: #100e0b;
+  --color-bg2: #1a1712; /* 原生 cell/卡 次底（新增令牌，供 native 组件用） */
+  --color-rail: #161310;
+  --color-line: #2a2620;
+  --color-ink: #ece6da;
+  --color-ink-2: #c4bcae;
+  --color-muted: #8a8276;
+  --color-cinnabar: #d4564a;
+  --color-cinnabar-press: #b8463c;
+}
+html[data-tg-theme="dark"] body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+html[data-tg-theme="light"] {
+  --color-bg2: #ffffff;
+} /* 亮态沿用素白默认 + 定义 bg2 */
