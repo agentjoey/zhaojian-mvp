@@ -11,7 +11,7 @@ import { SpiritSigil } from "./SpiritSigil";
 export function SpiritPortrait({
   element,
   archetype,
-  height = 280,
+  height = 320,
 }: {
   element: string;
   archetype: string;
@@ -28,11 +28,11 @@ export function SpiritPortrait({
           </div>
         ) : (
           <img
-            src={`/spirit/portrait-${element}.svg`}
+            src={`/spirit/portrait-${element}.jpg`}
             alt={`本命之灵 · ${archetype}`}
             onError={() => setFailed(true)}
             className="h-full w-full object-cover"
-            style={{ objectPosition: "center 28%" }}
+            style={{ objectPosition: "center 22%" }}
           />
         )}
         {/* 底部渐隐 + 名号 */}

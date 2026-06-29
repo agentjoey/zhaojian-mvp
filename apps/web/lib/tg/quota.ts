@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "./admin";
 
 export async function consumeQuota(tgUserId: number): Promise<boolean> {
+  // 全局关闭免费额度限制（env 开关，可逆）：TG_QUOTA_DISABLED=1 时所有 LLM 动作放行。
+  if (process.env.TG_QUOTA_DISABLED === "1") return true;
   const { data, error } = await supabaseAdmin().rpc("consume_llm_credit", {
     p_tg_user_id: tgUserId,
   });
