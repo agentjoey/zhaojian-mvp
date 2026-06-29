@@ -12,7 +12,7 @@ describe("buildSpiritSystemPrompt", () => {
     const sys = buildSpiritSystemPrompt(p, chart, "en");
     expect(sys).toContain(p.archetype);
     expect(sys.toLowerCase()).toMatch(/first person|i am|i will|i see/);
-    expect(sys).toMatch(/不预测|non-?determin|reflect/i);
+    expect(sys).toMatch(/不铁口直断|非预言|算命先生|正面回答/);
   });
 
   it("只喂 facts，不泄露原始出生坐标", () => {
