@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
+import { isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -36,15 +37,18 @@ export default function ChartPage() {
   const [timeline, setTimeline] = useState<string | null>(null);
 
   useEffect(() => {
-    getActiveProfile()
-      .then((p) => {
+    (async () => {
+      try {
+        const p = isTelegram() ? await tgGetProfile() : await getActiveProfile();
         setProfile(p);
         if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
         if (p) {
           loadTimeline(p);
         }
-      })
-      .catch(() => setProfile(null));
+      } catch {
+        setProfile(null);
+      }
+    })();
   }, []);
 
   // 当下时序：按 (档案,年份) 缓存，避免重复调 LLM

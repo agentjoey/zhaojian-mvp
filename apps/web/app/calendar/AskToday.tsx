@@ -5,6 +5,7 @@ import Link from "next/link";
 import { deriveSpirit, formatQuestionnaire, type DailyFortune } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { getSpiritMemory, getQuestionnaire } from "@/lib/profiles";
+import { isTelegram, tgDaily } from "@/lib/tg/client";
 import { dailySpiritGreetingAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -20,14 +21,20 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
     setLoading(true);
     (async () => {
       try {
-        const mem = await getSpiritMemory(profile.id);
-        if (cancelled) return;
-        const qa = await getQuestionnaire(profile.id);
-        if (cancelled) return;
-        const q = qa ? formatQuestionnaire(qa) : undefined;
-        const g = await dailySpiritGreetingAction(profile.chart, fortune, dateStr, mem ?? undefined, q);
-        if (cancelled) return;
-        setGreeting(g);
+        if (isTelegram()) {
+          const { greeting: g } = await tgDaily(dateStr);
+          if (cancelled) return;
+          setGreeting(g);
+        } else {
+          const mem = await getSpiritMemory(profile.id);
+          if (cancelled) return;
+          const qa = await getQuestionnaire(profile.id);
+          if (cancelled) return;
+          const q = qa ? formatQuestionnaire(qa) : undefined;
+          const g = await dailySpiritGreetingAction(profile.chart, fortune, dateStr, mem ?? undefined, q);
+          if (cancelled) return;
+          setGreeting(g);
+        }
       } catch {
         setGreeting(null);
       } finally {

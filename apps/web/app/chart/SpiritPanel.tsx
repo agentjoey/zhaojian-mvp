@@ -5,6 +5,7 @@ import { deriveSpirit, formatQuestionnaire } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { getSpiritMemory, saveSpiritMemory, getQuestionnaire } from "@/lib/profiles";
 import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
+import { isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { SpiritSigil } from "./SpiritSigil";
@@ -49,23 +50,31 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     let cancelled = false;
     (async () => {
       try {
-        const [mem, ms, qa] = await Promise.all([
-          getSpiritMemory(profile.id),
-          listMessages(profile.id),
-          getQuestionnaire(profile.id),
-        ]);
-        if (cancelled) return;
-        setMemory(mem);
-        setQuestionnaire(qa ? formatQuestionnaire(qa) : undefined);
-        // 真实对话从首条「用户消息」起算；开场白（首条 spirit 消息）一律丢弃、按当前语言重生成
-        const convo = ms[0]?.role === "spirit" ? ms.slice(1) : ms;
-        if (convo.length > 0) {
+        if (isTelegram()) {
+          const ms = await tgListMessages();
+          if (cancelled) return;
+          // 真实对话从首条「用户消息」起算；开场白（首条 spirit 消息）一律丢弃
+          const convo = ms[0]?.role === "spirit" ? ms.slice(1) : ms;
           setMessages(convo);
         } else {
-          const greeting = await sendToSpirit([]);
+          const [mem, ms, qa] = await Promise.all([
+            getSpiritMemory(profile.id),
+            listMessages(profile.id),
+            getQuestionnaire(profile.id),
+          ]);
           if (cancelled) return;
-          // 不持久化：仅作当次展示，确保始终是当前语言
-          setMessages([{ id: `intro-${Date.now()}`, role: "spirit", content: greeting, createdAt: new Date().toISOString() }]);
+          setMemory(mem);
+          setQuestionnaire(qa ? formatQuestionnaire(qa) : undefined);
+          // 真实对话从首条「用户消息」起算；开场白（首条 spirit 消息）一律丢弃、按当前语言重生成
+          const convo = ms[0]?.role === "spirit" ? ms.slice(1) : ms;
+          if (convo.length > 0) {
+            setMessages(convo);
+          } else {
+            const greeting = await sendToSpirit([]);
+            if (cancelled) return;
+            // 不持久化：仅作当次展示，确保始终是当前语言
+            setMessages([{ id: `intro-${Date.now()}`, role: "spirit", content: greeting, createdAt: new Date().toISOString() }]);
+          }
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -96,15 +105,42 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     setMessages(nextMessages);
     setInput("");
 
-    try {
-      await appendMessage(profile.id, "user", text);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      return;
+    if (!isTelegram()) {
+      try {
+        await appendMessage(profile.id, "user", text);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return;
+      }
     }
 
     setStreaming(true);
     const historyForApi = nextMessages.map((m) => ({ role: m.role, content: m.content }));
+
+    if (isTelegram()) {
+      const tempId = `spirit-${Date.now()}`;
+      setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
+      try {
+        let full = "";
+        await tgSpiritStream(historyForApi, (chunk) => {
+          full += chunk;
+          setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)));
+        });
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
+        );
+      } catch (e) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        if (e instanceof Error && e.message === "quota") {
+          setError("免费畅聊额度已用完");
+        } else {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        setStreaming(false);
+      }
+      return;
+    }
 
     try {
       let full = "";
@@ -165,6 +201,16 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         ref={scrollRef}
         className="mb-4 flex max-h-[420px] min-h-[180px] flex-col gap-3 overflow-y-auto pr-1"
       >
+        {messages.length === 0 && isTelegram() && (
+          <div className="flex justify-start">
+            <div
+              className="max-w-[82%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed bg-[var(--color-paper)] text-ink-2"
+              style={{ border: "1px solid var(--color-line)" }}
+            >
+              与本命之灵说点什么吧…
+            </div>
+          </div>
+        )}
         {messages.map((m) => (
           <div
             key={m.id}

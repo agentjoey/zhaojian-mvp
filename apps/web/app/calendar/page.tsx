@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
+import { isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction, ziweiHoroscopeAction } from "@/app/actions";
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { Card, GanzhiBadge } from "@/components/ui";
@@ -67,7 +68,14 @@ export default function CalendarPage() {
   const selYear = selected.slice(0, 4);
 
   useEffect(() => {
-    getActiveProfile().then(setProfile).catch(() => setProfile(null));
+    (async () => {
+      try {
+        const p = isTelegram() ? await tgGetProfile() : await getActiveProfile();
+        setProfile(p);
+      } catch {
+        setProfile(null);
+      }
+    })();
   }, []);
 
   // 测算过场：每会话首次进入运势播 ~2.1s
