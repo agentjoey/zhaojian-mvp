@@ -199,7 +199,13 @@ features:
         evidence: theme.ts+深色令牌；build 通过
       - id: tg-ui-T2-hooks
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-06-29-tg-native-ui-foundation.md
         evidence: 3 hooks；build 通过
+      - id: tg-ui-T3-provider-nav
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-06-29-tg-native-ui-foundation.md
+        evidence: Provider+layout+AppShell隐藏导航;非TG原样;build通过
