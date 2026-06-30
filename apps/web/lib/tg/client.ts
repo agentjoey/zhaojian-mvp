@@ -121,3 +121,17 @@ export async function tgDeleteProfile(id: string): Promise<void> {
   await ensureTgSession();
   await fetch(`/api/tg/profile?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
 }
+
+export async function tgLoginWithWidget(data: any): Promise<{ ok: true }> {
+  const r = await fetch("/api/auth/telegram", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return r.ok ? r.json() : Promise.reject(await r.text());
+}
+
+export async function tgLogout(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+}

@@ -1,7 +1,9 @@
 "use client";
 
+import Script from "next/script";
 import { useEffect, useState } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail } from "@/lib/supabase";
+import { tgLoginWithWidget } from "@/lib/tg/client";
 
 export default function AccountPage() {
   const [user, setUser] = useState<{ id: string; email: string | null; isAnonymous: boolean } | null | undefined>(
@@ -12,6 +14,12 @@ export default function AccountPage() {
 
   useEffect(() => {
     getWebUser().then(setUser);
+  }, []);
+
+  useEffect(() => {
+    (window as any).onTelegramAuth = (u: any) => {
+      tgLoginWithWidget(u).then(() => location.reload()).catch(console.error);
+    };
   }, []);
 
   async function handleSendLink() {
@@ -121,7 +129,16 @@ export default function AccountPage() {
               </p>
             )}
 
-            {/* Telegram 登录入口将在 Task 2 中添加 */}
+            {/* 换专属 bot 时改 data-telegram-login + BotFather /setdomain */}
+            <div className="flex justify-center pt-2" id="tg-login-container">
+              <Script
+                src="https://telegram.org/js/telegram-widget.js?22"
+                data-telegram-login="analyst_helen_bot"
+                data-onauth="onTelegramAuth(user)"
+                data-request-access="write"
+                strategy="afterInteractive"
+              />
+            </div>
           </div>
         )}
       </section>
