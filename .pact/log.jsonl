@@ -139,3 +139,5 @@
 {"event_id":"2535ea7d359ee03de2df0fda155c5d62","ts":"2026-06-30T18:04:20Z","agent_id":"claude","role":"reviewer","event_type":"accept","task_id":"account-T4-merge","feature":"account-login","payload":{}}
 {"event_id":"6ba23eafb8efb97f944b6f99f440ab22","ts":"2026-06-30T18:04:27Z","agent_id":"claude","role":"orchestrator","event_type":"assign","task_id":"account-T5-state","feature":"account-login","payload":{"branch":"main","owner":"kimi","reviewer":"claude","spec":"docs/superpowers/plans/2026-07-01-account-login-system.md"}}
 {"event_id":"46305819a75e6c67cb9579b7bbc23c1f","ts":"2026-06-30T18:07:10Z","agent_id":"kimi","role":"worker","event_type":"checkpoint","task_id":"account-T5-state","feature":"account-login","payload":{"evidence":"三态+双登出;build通过"}}
+{"event_id":"3408693d87d272c47e4a558c61f8a97c","ts":"2026-06-30T18:07:10Z","agent_id":"claude","role":"reviewer","event_type":"accept","task_id":"account-T5-state","feature":"account-login","payload":{}}
+{"event_id":"d9361ac1fe06e377217cb274e1942b5b","ts":"2026-06-30T18:07:10Z","agent_id":"claude","role":"orchestrator","event_type":"merge","task_id":"","feature":"account-login","payload":{}}
