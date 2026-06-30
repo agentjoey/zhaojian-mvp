@@ -24,3 +24,41 @@ export async function ensureSession(): Promise<string> {
   if (error) throw error;
   return anon.user!.id;
 }
+
+export async function getWebUser(): Promise<{ id: string; email: string | null; isAnonymous: boolean } | null> {
+  const { data } = await supabase().auth.getUser();
+  if (!data.user) return null;
+  return { id: data.user.id, email: data.user.email ?? null, isAnonymous: !!(data.user as any).is_anonymous };
+}
+
+export async function upgradeAnonymousToEmail(
+  email: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { error } = await supabase().auth.updateUser(
+      { email },
+      { emailRedirectTo: typeof location !== "undefined" ? location.origin + "/auth/callback" : undefined },
+    );
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "升级失败" };
+  }
+}
+
+export async function signInWithEmail(email: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { error } = await supabase().auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: typeof location !== "undefined" ? location.origin + "/auth/callback" : undefined },
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || "发送失败" };
+  }
+}
+
+export async function signOutWeb(): Promise<void> {
+  await supabase().auth.signOut();
+}
