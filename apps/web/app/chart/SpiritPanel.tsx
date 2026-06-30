@@ -5,7 +5,7 @@ import { deriveSpirit, formatQuestionnaire } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { getSpiritMemory, saveSpiritMemory, getQuestionnaire } from "@/lib/profiles";
 import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
-import { isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -58,7 +58,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     let cancelled = false;
     (async () => {
       try {
-        if (isTelegram()) {
+        if (hasTgSession()) {
           const ms = await tgListMessages();
           if (cancelled) return;
           // 真实对话从首条「用户消息」起算；开场白（首条 spirit 消息）一律丢弃
@@ -114,7 +114,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     setInput("");
     try { haptics.light(); } catch {}
 
-    if (!isTelegram()) {
+    if (!hasTgSession()) {
       try {
         await appendMessage(profile.id, "user", text);
       } catch (e) {
@@ -126,7 +126,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     setStreaming(true);
     const historyForApi = nextMessages.map((m) => ({ role: m.role, content: m.content }));
 
-    if (isTelegram()) {
+    if (hasTgSession()) {
       const tempId = `spirit-${Date.now()}`;
       setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
       try {

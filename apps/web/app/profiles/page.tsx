@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listProfiles, getActiveProfileId, setActiveProfile, deleteProfile, type Profile } from "@/lib/profiles";
-import { isTelegram, tgListProfiles } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgListProfiles } from "@/lib/tg/client";
 import { Card, SealIcon } from "@/components/ui";
 import { Group, Cell } from "@/components/tg/native";
 
@@ -20,11 +20,11 @@ export default function ProfilesPage() {
 
   function refresh() {
     setLoading(true);
-    const fetcher = isTelegram() ? tgListProfiles() : listProfiles();
+    const fetcher = hasTgSession() ? tgListProfiles() : listProfiles();
     fetcher
       .then((list) => {
         setProfiles(list);
-        setActiveId(isTelegram() ? (list[0]?.id ?? null) : (getActiveProfileId() ?? list[0]?.id ?? null));
+        setActiveId(hasTgSession() ? (list[0]?.id ?? null) : (getActiveProfileId() ?? list[0]?.id ?? null));
       })
       .catch(() => setProfiles([]))
       .finally(() => setLoading(false));

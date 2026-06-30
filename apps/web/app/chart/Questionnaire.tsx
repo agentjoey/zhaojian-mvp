@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PROFILE_QUESTIONNAIRE, type QuestionnaireAnswers } from "@eamvp/core";
 import { saveQuestionnaire, type Profile } from "@/lib/profiles";
-import { isTelegram, tgSaveQuestionnaire } from "@/lib/tg/client";
+import { hasTgSession, tgSaveQuestionnaire } from "@/lib/tg/client";
 import { Card } from "@/components/ui";
 
 export function Questionnaire({
@@ -26,7 +26,7 @@ export function Questionnaire({
     if (!allAnswered) return;
     setSaving(true);
     try {
-      if (isTelegram()) {
+      if (hasTgSession()) {
         await tgSaveQuestionnaire(answers);
       } else {
         await saveQuestionnaire(profile.id, answers);

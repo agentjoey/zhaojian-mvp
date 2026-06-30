@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { isTelegram, tgGetProfile } from "@/lib/tg/client";
+import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { dailyFortuneAction, dailyPolishAction, dailyBehaviorAction, ziweiHoroscopeAction } from "@/app/actions";
 import { matchFortuneImage, MOOD_LABEL } from "@/lib/fortune-images";
 import { Card, GanzhiBadge } from "@/components/ui";
@@ -81,7 +81,7 @@ export default function CalendarPage() {
   useEffect(() => {
     (async () => {
       try {
-        const p = isTelegram() ? await tgGetProfile() : await getActiveProfile();
+        const p = hasTgSession() ? await tgGetProfile() : await getActiveProfile();
         setProfile(p);
       } catch {
         setProfile(null);

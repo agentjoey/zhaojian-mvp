@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { verifyInitData } from "@eamvp/core";
 import { resolveOrCreateTgUser, getProfileForUser } from "@/lib/tg/identity";
-import { makeSessionToken, TG_COOKIE } from "@/lib/tg/session";
+import { makeSessionToken, readSession, TG_COOKIE } from "@/lib/tg/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export async function GET(req: Request): Promise<Response> {
+  const cookie = req.headers.get("cookie") ?? "";
+  const token = cookie.split("; ").find((c) => c.startsWith(`${TG_COOKIE}=`))?.slice(TG_COOKIE.length + 1);
+  const session = readSession(token);
+  return NextResponse.json({ active: !!session });
+}
 export async function POST(req: Request): Promise<Response> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return new Response("TG 未配置", { status: 503 });

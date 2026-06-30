@@ -17,6 +17,11 @@ export function isTelegram(): boolean {
   return !!((window as any).Telegram?.WebApp?.initData);
 }
 
+export function hasTgSession(): boolean {
+  if (typeof document === "undefined") return false;
+  return isTelegram() || document.cookie.includes("zj_tg_hint=1");
+}
+
 export function tgReadyExpand(): void {
   const w = (window as any).Telegram?.WebApp;
   w?.ready?.();

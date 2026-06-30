@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { computeChartAction, geocodeAction, type GeoResult } from "@/app/actions";
 import { createProfile } from "@/lib/profiles";
-import { isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import type { BirthInput } from "@eamvp/core";
 
@@ -84,7 +84,7 @@ export function ReadingForm() {
       nickname,
     };
     startTransition(async () => {
-      if (isTelegram()) {
+      if (hasTgSession()) {
         try {
           await ensureTgSession();
           const r = await fetch("/api/tg/profile", {

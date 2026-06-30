@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, getQuestionnaire, type Profile } from "@/lib/profiles";
-import { isTelegram, tgGetProfile, tgGetQuestionnaire } from "@/lib/tg/client";
+import { hasTgSession, tgGetProfile, tgGetQuestionnaire } from "@/lib/tg/client";
 import type { QuestionnaireAnswers } from "@eamvp/core";
 import { SpiritPanel } from "@/app/chart/SpiritPanel";
 import { Questionnaire } from "@/app/chart/Questionnaire";
@@ -18,11 +18,11 @@ export default function SpiritPage() {
   useEffect(() => {
     if (!ENABLED) return;
     // TG 内走后端中介(service_role)取档；web 走 Supabase RLS
-    (isTelegram() ? tgGetProfile() : getActiveProfile())
+    (hasTgSession() ? tgGetProfile() : getActiveProfile())
       .then((p: Profile | null) => {
         setProfile(p);
         if (p) {
-          (isTelegram() ? tgGetQuestionnaire() : getQuestionnaire(p.id))
+          (hasTgSession() ? tgGetQuestionnaire() : getQuestionnaire(p.id))
             .then((q) => setQAnswers((q as QuestionnaireAnswers | null) ?? null))
             .catch(() => setQAnswers(null));
         }

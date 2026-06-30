@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
-import { isTelegram, tgGetProfile } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
@@ -51,7 +51,7 @@ export default function ChartPage() {
   useEffect(() => {
     (async () => {
       try {
-        const p = isTelegram() ? await tgGetProfile() : await getActiveProfile();
+        const p = hasTgSession() ? await tgGetProfile() : await getActiveProfile();
         setProfile(p);
         if (p?.reading) setReading(p.reading); // 已生成则直接展示，不再调用 LLM
         if (p) {

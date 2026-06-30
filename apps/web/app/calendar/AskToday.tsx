@@ -5,7 +5,7 @@ import Link from "next/link";
 import { deriveSpirit, formatQuestionnaire, type DailyFortune } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { getSpiritMemory, getQuestionnaire } from "@/lib/profiles";
-import { isTelegram, tgDaily } from "@/lib/tg/client";
+import { hasTgSession, tgDaily } from "@/lib/tg/client";
 import { dailySpiritGreetingAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -21,7 +21,7 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
     setLoading(true);
     (async () => {
       try {
-        if (isTelegram()) {
+        if (hasTgSession()) {
           const { greeting: g } = await tgDaily(dateStr);
           if (cancelled) return;
           setGreeting(g);
