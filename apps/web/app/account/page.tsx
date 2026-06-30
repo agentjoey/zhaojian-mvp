@@ -11,14 +11,30 @@ export default function AccountPage() {
   );
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
+  const [mergeNotice, setMergeNotice] = useState<number | null>(null);
 
   useEffect(() => {
     getWebUser().then(setUser);
   }, []);
 
   useEffect(() => {
+    const n = sessionStorage.getItem("zj_merged");
+    if (n) {
+      setMergeNotice(Number(n));
+      sessionStorage.removeItem("zj_merged");
+    }
+  }, []);
+
+  useEffect(() => {
     (window as any).onTelegramAuth = (u: any) => {
-      tgLoginWithWidget(u).then(() => location.reload()).catch(console.error);
+      tgLoginWithWidget(u)
+        .then((res) => {
+          if (res?.merged > 0) {
+            sessionStorage.setItem("zj_merged", String(res.merged));
+          }
+          location.reload();
+        })
+        .catch(console.error);
     };
   }, []);
 
@@ -66,6 +82,18 @@ export default function AccountPage() {
         >
           {loggedInWithEmail ? "账号" : "保存你的照见"}
         </h1>
+
+        {mergeNotice !== null && (
+          <div
+            className="mb-4 rounded-xl px-4 py-3 text-center text-sm"
+            style={{
+              background: "rgba(224, 78, 57, 0.12)",
+              color: "var(--color-cinnabar)",
+            }}
+          >
+            已合并 {mergeNotice} 个本地档案到你的账号
+          </div>
+        )}
 
         {loggedInWithEmail ? (
           <div className="space-y-6 text-center">

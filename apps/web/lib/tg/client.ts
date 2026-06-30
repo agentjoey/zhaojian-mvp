@@ -1,5 +1,7 @@
 "use client";
 
+import { supabase } from "@/lib/supabase";
+
 declare global {
   interface Window {
     Telegram?: {
@@ -127,12 +129,15 @@ export async function tgDeleteProfile(id: string): Promise<void> {
   await fetch(`/api/tg/profile?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
 }
 
-export async function tgLoginWithWidget(data: any): Promise<{ ok: true }> {
+export async function tgLoginWithWidget(data: any): Promise<{ ok: true; merged: number }> {
+  const { data: s } = await supabase().auth.getSession();
+  const anonAccessToken =
+    s.session && (s.session.user as any)?.is_anonymous ? s.session.access_token : undefined;
   const r = await fetch("/api/auth/telegram", {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, anonAccessToken }),
   });
   return r.ok ? r.json() : Promise.reject(await r.text());
 }

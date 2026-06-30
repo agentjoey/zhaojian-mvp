@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyTelegramLogin } from "@eamvp/core";
 import { resolveOrCreateTgUser } from "@/lib/tg/identity";
 import { makeSessionToken, TG_COOKIE } from "@/lib/tg/session";
+import { mergeAnonProfiles } from "@/lib/tg/merge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,13 @@ export async function POST(req: Request): Promise<Response> {
 
   const { supabaseUserId } = await resolveOrCreateTgUser({ id: v.id, username: v.username });
 
-  const res = NextResponse.json({ ok: true });
+  let merged = 0;
+  if (body.anonAccessToken && typeof body.anonAccessToken === "string") {
+    const result = await mergeAnonProfiles(body.anonAccessToken, supabaseUserId);
+    merged = result.merged;
+  }
+
+  const res = NextResponse.json({ ok: true, merged });
   const maxAge = 60 * 60 * 24 * 30;
   res.cookies.set(TG_COOKIE, makeSessionToken(supabaseUserId, v.id), {
     httpOnly: true,
