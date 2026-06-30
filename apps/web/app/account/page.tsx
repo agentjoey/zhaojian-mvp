@@ -3,18 +3,43 @@
 import Script from "next/script";
 import { useEffect, useState } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail } from "@/lib/supabase";
-import { tgLoginWithWidget } from "@/lib/tg/client";
+import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
+
+const TG_USERNAME_KEY = "zj_tg_username";
+
+type ViewState =
+  | { kind: "loading" }
+  | { kind: "telegram"; username?: string | null }
+  | { kind: "email"; email: string }
+  | { kind: "anon"; user: { id: string; email: string | null; isAnonymous: boolean } | null };
 
 export default function AccountPage() {
-  const [user, setUser] = useState<{ id: string; email: string | null; isAnonymous: boolean } | null | undefined>(
-    undefined,
-  );
+  const [view, setView] = useState<ViewState>({ kind: "loading" });
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
   const [mergeNotice, setMergeNotice] = useState<number | null>(null);
 
   useEffect(() => {
-    getWebUser().then(setUser);
+    async function resolve() {
+      if (hasTgSession()) {
+        // Optional: confirm the server-side TG session is still active.
+        try {
+          await fetch("/api/tg/session", { credentials: "include" });
+        } catch {
+          // Ignore confirmation failures; keep TG state based on client hint.
+        }
+        const username = typeof localStorage !== "undefined" ? localStorage.getItem(TG_USERNAME_KEY) : null;
+        setView({ kind: "telegram", username });
+        return;
+      }
+      const user = await getWebUser();
+      if (user && user.email && !user.isAnonymous) {
+        setView({ kind: "email", email: user.email });
+      } else {
+        setView({ kind: "anon", user });
+      }
+    }
+    resolve();
   }, []);
 
   useEffect(() => {
@@ -32,6 +57,9 @@ export default function AccountPage() {
           if (res?.merged > 0) {
             sessionStorage.setItem("zj_merged", String(res.merged));
           }
+          if (u?.username && typeof localStorage !== "undefined") {
+            localStorage.setItem(TG_USERNAME_KEY, String(u.username));
+          }
           location.reload();
         })
         .catch(console.error);
@@ -44,7 +72,7 @@ export default function AccountPage() {
       return;
     }
     setStatus("sending");
-    const result = user?.isAnonymous ? await upgradeAnonymousToEmail(email) : await signInWithEmail(email);
+    const result = view.kind === "anon" && view.user?.isAnonymous ? await upgradeAnonymousToEmail(email) : await signInWithEmail(email);
     if (result.ok) {
       setStatus("sent");
     } else {
@@ -52,12 +80,17 @@ export default function AccountPage() {
     }
   }
 
-  async function handleSignOut() {
-    await signOutWeb();
+  async function handleLogout() {
+    // Dual clear safety: if both TG and web traces exist, clear both before reload.
+    const tgExists = hasTgSession();
+    const webUser = await getWebUser().catch(() => null);
+    const webExists = !!webUser && !!webUser.email && !webUser.isAnonymous;
+    if (tgExists) await tgLogout().catch(() => {});
+    if (webExists) await signOutWeb().catch(() => {});
     location.reload();
   }
 
-  if (user === undefined) {
+  if (view.kind === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center p-6" style={{ background: "var(--color-bg)" }}>
         <p style={{ color: "var(--color-muted)" }}>加载中…</p>
@@ -65,7 +98,7 @@ export default function AccountPage() {
     );
   }
 
-  const loggedInWithEmail = user && user.email && !user.isAnonymous;
+  const title = view.kind === "email" || view.kind === "telegram" ? "账号" : "保存你的照见";
 
   return (
     <main className="flex min-h-screen items-start justify-center p-6 pt-24" style={{ background: "var(--color-bg)" }}>
@@ -80,7 +113,7 @@ export default function AccountPage() {
           className="mb-3 text-center text-2xl font-semibold"
           style={{ fontFamily: "var(--font-serif)", color: "var(--color-ink)" }}
         >
-          {loggedInWithEmail ? "账号" : "保存你的照见"}
+          {title}
         </h1>
 
         {mergeNotice !== null && (
@@ -95,11 +128,28 @@ export default function AccountPage() {
           </div>
         )}
 
-        {loggedInWithEmail ? (
+        {view.kind === "telegram" ? (
           <div className="space-y-6 text-center">
-            <p style={{ color: "var(--color-ink)" }}>{user.email}</p>
+            <p style={{ color: "var(--color-ink)" }}>
+              已通过 Telegram 登录
+              {view.username ? `（${view.username}）` : null}
+            </p>
             <button
-              onClick={handleSignOut}
+              onClick={handleLogout}
+              className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98]"
+              style={{
+                background: "var(--color-cinnabar)",
+                color: "#fff",
+              }}
+            >
+              登出
+            </button>
+          </div>
+        ) : view.kind === "email" ? (
+          <div className="space-y-6 text-center">
+            <p style={{ color: "var(--color-ink)" }}>{view.email}</p>
+            <button
+              onClick={handleLogout}
               className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98]"
               style={{
                 background: "var(--color-cinnabar)",
