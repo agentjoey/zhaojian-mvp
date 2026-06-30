@@ -283,7 +283,13 @@ features:
     tasks:
       - id: account-T1-email
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-account-login-system.md
         evidence: 邮箱登录+/account+callback+导航;build通过
+      - id: account-T2-telegram
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-account-login-system.md
+        evidence: verifyTelegramLogin+API+Widget;core66测;build通过
