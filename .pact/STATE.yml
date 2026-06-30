@@ -295,7 +295,13 @@ features:
         evidence: verifyTelegramLogin+API+Widget;core66测;build通过
       - id: account-T3-hastgsession
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-account-login-system.md
         evidence: hasTgSession泛化12处数据路径;UI保留isTelegram;build通过
+      - id: account-T4-merge
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-account-login-system.md
+        evidence: 归并 profiles+spirit_messages 双表幂等+提示;build通过
