@@ -303,4 +303,18 @@ export const en: Messages = {
     saving: "Saving…",
     complete: "Complete · Help your 本命之灵 (Natal Spirit) understand you",
   },
+  profiles: {
+    title: "我的档案 (My Profiles)",
+    create: "新建档案 (Create Profile)",
+    loading: "Loading profiles…",
+    empty:
+      "No profiles yet. Once created, the chart is generated and frozen, and will not change.",
+    current: "Current",
+    rename: "Rename",
+    confirmDelete: "Confirm delete?",
+    nicknameLengthError: "Nickname must be 1–24 characters",
+    renameFailed: "Rename failed",
+    privacyNotice:
+      "Profiles are stored in your private space (anonymous, device-isolated, visible only to you) and can be deleted anytime. The chart is calculated once at profile creation and frozen, and will not change.",
+  },
 };

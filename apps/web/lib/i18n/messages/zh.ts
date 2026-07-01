@@ -290,6 +290,19 @@ export const zh = {
     saving: "保存中…",
     complete: "完成 · 让本命之灵更懂你",
   },
+  profiles: {
+    title: "我的档案",
+    create: "新建档案",
+    loading: "正在读取档案…",
+    empty: "尚无档案。建档后命盘一次生成并冻结，不再更改。",
+    current: "当前",
+    rename: "重命名",
+    confirmDelete: "确认删除?",
+    nicknameLengthError: "昵称长度应为 1-24 字符",
+    renameFailed: "重命名失败",
+    privacyNotice:
+      "档案存于你的私人空间（匿名、按设备隔离，仅你可见），可随时删除。命盘建档时一次推算并冻结，不再更改。",
+  },
 } as const;
 
 type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };

@@ -8,9 +8,11 @@ import { hasTgSession, isTelegram, tgListProfiles, tgDeleteProfile } from "@/lib
 import { supabase } from "@/lib/supabase";
 import { Card, SealIcon } from "@/components/ui";
 import { Group, Cell } from "@/components/tg/native";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export default function ProfilesPage() {
   const router = useRouter();
+  const t = useT();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export default function ProfilesPage() {
   async function doRename(profileId: string) {
     const trimmed = renameValue.trim();
     if (trimmed.length < 1 || trimmed.length > 24) {
-      alert("昵称长度应为 1-24 字符");
+      alert(t("profiles.nicknameLengthError"));
       return;
     }
     const { data: { session } } = await supabase().auth.getSession();
@@ -58,7 +60,7 @@ export default function ProfilesPage() {
       body: JSON.stringify({ profileId, nickname: trimmed }),
     });
     if (!r.ok) {
-      const msg = await r.text().catch(() => "重命名失败");
+      const msg = await r.text().catch(() => t("profiles.renameFailed"));
       alert(msg);
       return;
     }
@@ -90,14 +92,14 @@ export default function ProfilesPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-[28px] font-black">我的档案</h1>
-        <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>新建档案</Link>
+        <h1 className="font-serif text-[28px] font-black">{t("profiles.title")}</h1>
+        <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("profiles.create")}</Link>
       </header>
 
       {loading ? (
-        <Card><p className="text-[14px] text-muted">正在读取档案…</p></Card>
+        <Card><p className="text-[14px] text-muted">{t("profiles.loading")}</p></Card>
       ) : profiles.length === 0 ? (
-        <Card><p className="text-[14px] text-muted">尚无档案。建档后命盘一次生成并冻结，不再更改。</p></Card>
+        <Card><p className="text-[14px] text-muted">{t("profiles.empty")}</p></Card>
       ) : inTg ? (
         <Group>
           {profiles.map((p) => {
@@ -109,7 +111,7 @@ export default function ProfilesPage() {
                 <Cell
                   icon={p.nickname.slice(0, 1)}
                   accent={"var(--color-cinnabar)"}
-                  title={p.nickname + (active ? " · 当前" : "")}
+                  title={p.nickname + (active ? " · " + t("profiles.current") : "")}
                   subtitle={`${p.chart.bazi.dayMaster}（${p.chart.bazi.dayMasterElement}）· ${p.birthInput.date}`}
                   onClick={() => {
                     setActiveProfile(p.id);
@@ -128,20 +130,20 @@ export default function ProfilesPage() {
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") doRename(p.id); if (e.key === "Escape") setEditingId(null); }}
                       />
-                      <button className={actionBase} onClick={() => doRename(p.id)}>保存</button>
-                      <button className={actionBase} onClick={() => setEditingId(null)}>取消</button>
+                      <button className={actionBase} onClick={() => doRename(p.id)}>{t("common.save")}</button>
+                      <button className={actionBase} onClick={() => setEditingId(null)}>{t("common.cancel")}</button>
                     </>
                   ) : (
-                    <button className={actionBase} onClick={() => startRename(p)}>重命名</button>
+                    <button className={actionBase} onClick={() => startRename(p)}>{t("profiles.rename")}</button>
                   )}
                   {confirming ? (
                     <>
-                      <span className="text-[12px] text-[var(--color-cinnabar)]">确认删除?</span>
-                      <button className={dangerBase} onClick={() => doDelete(p.id)}>确认</button>
-                      <button className={actionBase} onClick={() => setConfirmDeleteId(null)}>取消</button>
+                      <span className="text-[12px] text-[var(--color-cinnabar)]">{t("profiles.confirmDelete")}</span>
+                      <button className={dangerBase} onClick={() => doDelete(p.id)}>{t("common.confirm")}</button>
+                      <button className={actionBase} onClick={() => setConfirmDeleteId(null)}>{t("common.cancel")}</button>
                     </>
                   ) : (
-                    <button className={actionBase} onClick={() => { setConfirmDeleteId(p.id); setEditingId(null); }}>删除</button>
+                    <button className={actionBase} onClick={() => { setConfirmDeleteId(p.id); setEditingId(null); }}>{t("common.delete")}</button>
                   )}
                 </div>
               </div>
@@ -167,7 +169,7 @@ export default function ProfilesPage() {
                   <div>
                     <div className="text-[16px] font-semibold">
                       {p.nickname}
-                      {active && <span className="ml-2 text-[11px] text-cinnabar">当前</span>}
+                      {active && <span className="ml-2 text-[11px] text-cinnabar">{t("profiles.current")}</span>}
                     </div>
                     <div className="latin-label text-[10px] text-muted">
                       {p.chart.bazi.dayMaster}（{p.chart.bazi.dayMasterElement}）· {p.birthInput.date}
@@ -186,24 +188,24 @@ export default function ProfilesPage() {
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") doRename(p.id); if (e.key === "Escape") setEditingId(null); }}
                       />
-                      <button className={actionBase} onClick={() => doRename(p.id)}>保存</button>
-                      <button className={actionBase} onClick={() => setEditingId(null)}>取消</button>
+                      <button className={actionBase} onClick={() => doRename(p.id)}>{t("common.save")}</button>
+                      <button className={actionBase} onClick={() => setEditingId(null)}>{t("common.cancel")}</button>
                     </>
                   ) : (
-                    <button className={actionBase} onClick={() => startRename(p)}>重命名</button>
+                    <button className={actionBase} onClick={() => startRename(p)}>{t("profiles.rename")}</button>
                   )}
                   {confirming ? (
                     <>
-                      <span className="text-[12px] text-[var(--color-cinnabar)]">确认删除?</span>
-                      <button className={dangerBase} onClick={() => doDelete(p.id)}>确认</button>
-                      <button className={actionBase} onClick={() => setConfirmDeleteId(null)}>取消</button>
+                      <span className="text-[12px] text-[var(--color-cinnabar)]">{t("profiles.confirmDelete")}</span>
+                      <button className={dangerBase} onClick={() => doDelete(p.id)}>{t("common.confirm")}</button>
+                      <button className={actionBase} onClick={() => setConfirmDeleteId(null)}>{t("common.cancel")}</button>
                     </>
                   ) : (
                     <button
                       className={actionBase}
                       onClick={() => { setConfirmDeleteId(p.id); setEditingId(null); }}
                     >
-                      删除
+                      {t("common.delete")}
                     </button>
                   )}
                 </div>
@@ -214,7 +216,7 @@ export default function ProfilesPage() {
       )}
 
       <p className="mt-8 text-[12px] leading-relaxed text-muted">
-        档案存于你的私人空间（匿名、按设备隔离，仅你可见），可随时删除。命盘建档时一次推算并冻结，不再更改。
+        {t("profiles.privacyNotice")}
       </p>
     </main>
   );
