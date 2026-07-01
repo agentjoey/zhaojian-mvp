@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { UnifiedChart } from "@eamvp/core";
 import { Markdown } from "@/components/Markdown";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export type ReadingSection = { key: string; title: string; body: string; accent?: "fire" | "water" | "metal" };
 
@@ -49,14 +50,15 @@ function xinChips(c: UnifiedChart): string[] {
 
 
 export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingSection[]; chart: UnifiedChart; streaming: boolean }) {
+  const t = useT();
   const [tab, setTab] = useState<"命理" | "心理" | "共振">("命理");
   const byAccent = (a: string) => sections.find((s) => s.accent === a);
   const overview = sections.find((s) => !s.accent);
 
   const TABS = [
-    { k: "命理" as const, kicker: "East · 命理结构", sec: byAccent("fire"), chips: liChips(chart), dark: false },
-    { k: "心理" as const, kicker: "West · 心理映照", sec: byAccent("water"), chips: xinChips(chart), dark: false },
-    { k: "共振" as const, kicker: "Resonance · 共振", sec: byAccent("metal"), chips: ["福德宫 ↔ 月亮 · 土星"], dark: true },
+    { k: "命理" as const, label: t("chart.tabMingli"), kicker: t("chart.kickerMingli"), sec: byAccent("fire"), chips: liChips(chart), dark: false },
+    { k: "心理" as const, label: t("chart.tabPsych"), kicker: t("chart.kickerPsych"), sec: byAccent("water"), chips: xinChips(chart), dark: false },
+    { k: "共振" as const, label: t("chart.tabResonance"), kicker: t("chart.kickerResonance"), sec: byAccent("metal"), chips: [t("chart.resonanceExampleChip")], dark: true },
   ];
   const progress = { 命理: "34%", 心理: "67%", 共振: "100%" }[tab];
   const cur = TABS.find((t) => t.k === tab)!;
@@ -77,16 +79,16 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
       {/* sticky Tab */}
       <div className="sticky top-[3px] z-10 mt-4 py-2" style={{ background: "var(--color-paper)" }}>
         <div className="flex gap-1 p-1" style={{ background: "var(--color-tint)", borderRadius: "13px" }}>
-          {TABS.map((t) => {
-            const on = t.k === tab;
+          {TABS.map((item) => {
+            const on = item.k === tab;
             return (
               <button
-                key={t.k}
-                onClick={() => setTab(t.k)}
+                key={item.k}
+                onClick={() => setTab(item.k)}
                 className="flex-1 py-2.5 text-[13.5px] font-medium transition-all duration-200"
                 style={{ borderRadius: "10px", background: on ? "var(--color-surface)" : "transparent", color: on ? "var(--color-ink)" : "var(--color-muted)", boxShadow: on ? "0 2px 8px rgba(31,29,25,.1)" : "none" }}
               >
-                {t.k}
+                {item.label}
               </button>
             );
           })}
@@ -109,7 +111,7 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
         {head ? (
           <div className="mt-2 font-serif text-[21px] font-bold leading-[1.5]">{head}</div>
         ) : (
-          <div className="mt-2 text-[14px]" style={{ color: cur.dark ? "var(--color-on-ink-muted)" : "var(--color-muted)" }}>{streaming ? "正在为你照见…" : "—"}</div>
+          <div className="mt-2 text-[14px]" style={{ color: cur.dark ? "var(--color-on-ink-muted)" : "var(--color-muted)" }}>{streaming ? t("chart.generating") : "—"}</div>
         )}
         {cur.chips.length > 0 && (
           <div className="mt-3.5 flex flex-wrap gap-1.5">
@@ -123,11 +125,11 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
             <Markdown text={rest} />
           </div>
         )}
-        {cur.dark && <div className="mt-3.5 text-[11px] leading-[1.6]" style={{ color: "var(--color-on-ink-faint)" }}>※ 仅在「内在世界」高置信锚点谈共振，非硬等价。</div>}
+        {cur.dark && <div className="mt-3.5 text-[11px] leading-[1.6]" style={{ color: "var(--color-on-ink-faint)" }}>{t("chart.resonanceNote")}</div>}
       </div>
 
       <p className="mt-3 text-[12px] text-muted">
-        {streaming ? <>正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></> : "此解读已为你保存，下次回到命盘可直接查看。"}
+        {streaming ? <>{t("chart.generating")} <span className="animate-pulse text-cinnabar">▋</span></> : t("chart.readingSaved")}
       </p>
     </div>
   );
