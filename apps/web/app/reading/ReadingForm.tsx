@@ -6,6 +6,7 @@ import { computeChartAction, geocodeAction, type GeoResult } from "@/app/actions
 import { createProfile } from "@/lib/profiles";
 import { hasTgSession, isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 import type { BirthInput } from "@eamvp/core";
 
 const field = "w-full px-3 py-2.5 text-[14px] text-ink outline-none transition-colors";
@@ -21,6 +22,7 @@ function shichenOf(hhmm: string): string {
 
 export function ReadingForm() {
   const router = useRouter();
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -52,7 +54,7 @@ export function ReadingForm() {
   const canSubmit = Boolean(date && gender && geo);
 
   useTgMainButton({
-    text: "为我起盘",
+    text: t("reading.castMyChart"),
     onClick: () => formRef.current?.requestSubmit(),
     enabled: canSubmit,
     visible: inTg,
@@ -96,7 +98,7 @@ export function ReadingForm() {
           if (!r.ok) { setError(await r.text()); haptics.error(); return; }
           router.push("/chart");
         } catch (e) {
-          setError(`建档失败：${e instanceof Error ? e.message : String(e)}`);
+          setError(t("reading.saveProfileError", { message: e instanceof Error ? e.message : String(e) }));
           haptics.error();
         }
         return;
@@ -107,27 +109,29 @@ export function ReadingForm() {
         await createProfile({ nickname, birthInput: input as BirthInput, chart: res.chart });
         router.push("/chart");
       } catch (e) {
-        setError(`存档失败：${e instanceof Error ? e.message : String(e)}`);
+        setError(t("reading.saveChartError", { message: e instanceof Error ? e.message : String(e) }));
         haptics.error();
       }
     });
   }
 
+  const join = t("common.listSeparator");
+
   return (
     <form ref={formRef} action={onSubmit} className="space-y-5">
-      <Field label="称呼（选填）">
-        <input name="nickname" className={`${field} placeholder:text-muted`} style={fieldStyle} placeholder="希望我如何称呼你？" />
+      <Field label={t("reading.nicknameLabel")}>
+        <input name="nickname" className={`${field} placeholder:text-muted`} style={fieldStyle} placeholder={t("reading.nicknamePlaceholder")} />
       </Field>
 
-      <Field label="出生日期">
+      <Field label={t("reading.birthDateLabel")}>
         <input name="date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${field} placeholder:text-muted`} style={fieldStyle} />
         <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
-          <input name="isLunar" type="checkbox" className="accent-[var(--color-cinnabar)]" /> 我填的是农历
+          <input name="isLunar" type="checkbox" className="accent-[var(--color-cinnabar)]" /> {t("reading.lunarCheckbox")}
         </label>
       </Field>
 
       {/* 出生时辰 */}
-      <Field label="出生时辰">
+      <Field label={t("reading.birthTimeLabel")}>
         <div className="flex items-center gap-3">
           <input
             type="time"
@@ -143,22 +147,22 @@ export function ReadingForm() {
         </div>
         <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
           <input type="checkbox" checked={timeUnknown} onChange={(e) => setTimeUnknown(e.target.checked)} className="accent-[var(--color-cinnabar)]" />
-          不知道出生时辰
+          {t("reading.timeUnknownLabel")}
         </label>
         <p className="mt-1 text-[11px] text-muted">
-          {timeUnknown ? "将略去西方星盘与心理映照层，仅呈现命理。" : "时辰决定时柱与上升星座，越准越好。"}
+          {timeUnknown ? t("reading.timeUnknownHint") : t("reading.timeKnownHint")}
         </p>
       </Field>
 
       {/* 出生地 */}
-      <Field label="出生地（用于校正真太阳时与西方星盘）">
+      <Field label={t("reading.birthplaceLabel")}>
         {geo ? (
           <div className="flex items-start justify-between gap-3 px-3 py-2.5" style={fieldStyle}>
             <div className="text-[13px]">
-              <div className="text-ink">{geo.label.split(",").slice(0, 3).join("、")}</div>
-              <div className="latin-label mt-0.5 text-[10px] text-muted">经 {geo.lon}° · 纬 {geo.lat}° · {geo.timezone}</div>
+              <div className="text-ink">{geo.label.split(",").slice(0, 3).join(join)}</div>
+              <div className="latin-label mt-0.5 text-[10px] text-muted">{t("reading.geoCoords", { lon: geo.lon, lat: geo.lat, timezone: geo.timezone })}</div>
             </div>
-            <button type="button" onClick={() => { setGeo(null); setCandidates([]); }} className="shrink-0 text-[12px] text-cinnabar">重选</button>
+            <button type="button" onClick={() => { setGeo(null); setCandidates([]); }} className="shrink-0 text-[12px] text-cinnabar">{t("reading.reselect")}</button>
           </div>
         ) : (
           <>
@@ -169,10 +173,10 @@ export function ReadingForm() {
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); doGeocode(); } }}
                 className={`${field} placeholder:text-muted`}
                 style={fieldStyle}
-                placeholder="输入城市/地名，如 上海、北京朝阳、New York"
+                placeholder={t("reading.birthplacePlaceholder")}
               />
               <button type="button" onClick={doGeocode} disabled={geocoding} className="shrink-0 px-4 text-[14px] disabled:opacity-50" style={{ background: "var(--color-tint)", color: "var(--color-ink)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" }}>
-                {geocoding ? "查找…" : "查找"}
+                {geocoding ? t("reading.searching") : t("reading.search")}
               </button>
             </div>
             {geoError && <p className="mt-1.5 text-[12px] text-seal">{geoError}</p>}
@@ -185,23 +189,23 @@ export function ReadingForm() {
                       onClick={() => { setGeo(c); setCandidates([]); }}
                       className="block w-full rounded-[var(--radius-button)] px-3 py-2.5 text-left text-[13px] text-ink bg-surface border border-line transition-colors hover:bg-tint"
                     >
-                      {c.label.split(",").slice(0, 4).join("、")}
+                      {c.label.split(",").slice(0, 4).join(join)}
                     </button>
                   </li>
                 ))}
               </ul>
             )}
-            <p className="mt-1 text-[11px] text-muted">不填出生地则不做真太阳时校正、并略去西方星盘。</p>
+            <p className="mt-1 text-[11px] text-muted">{t("reading.noBirthplaceHint")}</p>
           </>
         )}
       </Field>
 
-      <Field label="性别">
+      <Field label={t("reading.genderLabel")}>
         <div className="flex gap-2">
           {(
             [
-              { value: "male", label: "男" },
-              { value: "female", label: "女" },
+              { value: "male", label: t("reading.male") },
+              { value: "female", label: t("reading.female") },
             ] as const
           ).map((opt) => {
             const selected = gender === opt.value;
@@ -227,7 +231,7 @@ export function ReadingForm() {
 
       {!inTg && (
         <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium text-white transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" }}>
-          {pending ? "正在为你起盘…" : "为我起盘 · 即时生成"}
+          {pending ? t("reading.submitting") : t("reading.submit")}
         </button>
       )}
 

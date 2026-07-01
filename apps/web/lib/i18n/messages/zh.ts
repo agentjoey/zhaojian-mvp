@@ -9,6 +9,8 @@ export const zh = {
     close: "关闭",
     sending: "发送中…",
     signingIn: "登录中…",
+    brand: "照见",
+    listSeparator: "、",
   },
   nav: {
     home: "首页",
@@ -65,6 +67,77 @@ export const zh = {
     telegramIAP: "Telegram 内购即将开放",
     subtitleLimit: "档案已达上限，升级会员后可继续保存。",
     subtitleQuota: "免费额度已用尽，升级会员后可继续对话。",
+  },
+  home: {
+    heroTitle1: "你的命盘，",
+    heroTitle2: "是一面镜子",
+    heroSubtitle: "紫微 · 八字 × 深层心理。观照自身，而非预言吉凶。",
+    ctaButton: "为我起盘 · 即时生成",
+    entries: {
+      calendar: { title: "今日运势", sub: "流日 · 每日一推" },
+      annual: { title: "本年时序", sub: "流年 · 大限四化" },
+      chart: { title: "我的命盘", sub: "命理 + 心理解读" },
+      reading: { title: "起盘建档", sub: "出生信息即时排盘" },
+    },
+    cards: {
+      east: {
+        label: "East · 命理结构",
+        text: "紫微十二宫、八字四柱、生年四化——开源引擎精确计算，可审计、不臆造。",
+      },
+      west: {
+        label: "West · 心理映照",
+        text: "太阳月亮上升、土星课题、内在张力——以荣格原型读命盘为心象。",
+      },
+      resonance: {
+        label: "Resonance · 共振",
+        text: "仅在内在世界轴等高置信处东西互证，给出克制、非决定论的成长之言。",
+      },
+    },
+    disclaimer:
+      "本产品为传统文化与心理学的自我探索工具，所有解读仅供自我反思，不构成医疗、法律、财务或心理诊断建议。",
+    tg: {
+      tagline: "你的命盘，是一面镜子",
+      entries: {
+        calendar: { title: "今日运势", subtitle: "流日 · 每日一推" },
+        chart: { title: "我的命盘", subtitle: "命理 + 心理解读" },
+        spirit: { title: "本命之灵", subtitle: "守护灵与年度指引" },
+        reading: { title: "起盘建档", subtitle: "出生信息即时排盘" },
+        profiles: { title: "我的档案", subtitle: "已保存的命盘档案" },
+      },
+    },
+  },
+  reading: {
+    heroTitle1: "告诉我，",
+    heroTitle2: "你何时来到这世间。",
+    intro:
+      "我们即时推算你的八字、紫微斗数与西方本命盘。出生地用于校正真太阳时；若缺出生时辰，将略去心理（西方）层，仅呈现命理。",
+    disclaimerStart: "出生信息属敏感个人信息。命盘",
+    disclaimerHighlight: "存于你的私人档案",
+    disclaimerEnd:
+      "（匿名、按设备隔离，仅你可见），可随时在「档案」中删除。仅供自我观照。",
+    nicknameLabel: "称呼（选填）",
+    nicknamePlaceholder: "希望我如何称呼你？",
+    birthDateLabel: "出生日期",
+    lunarCheckbox: "我填的是农历",
+    birthTimeLabel: "出生时辰",
+    timeKnownHint: "时辰决定时柱与上升星座，越准越好。",
+    timeUnknownLabel: "不知道出生时辰",
+    timeUnknownHint: "将略去西方星盘与心理映照层，仅呈现命理。",
+    birthplaceLabel: "出生地（用于校正真太阳时与西方星盘）",
+    birthplacePlaceholder: "输入城市/地名，如 上海、北京朝阳、New York",
+    search: "查找",
+    searching: "查找…",
+    reselect: "重选",
+    geoCoords: "经 {lon}° · 纬 {lat}° · {timezone}",
+    noBirthplaceHint: "不填出生地则不做真太阳时校正、并略去西方星盘。",
+    genderLabel: "性别",
+    male: "男",
+    female: "女",
+    castMyChart: "为我起盘",
+    submit: "为我起盘 · 即时生成",
+    submitting: "正在为你起盘…",
+    saveProfileError: "建档失败：{message}",
+    saveChartError: "存档失败：{message}",
   },
 } as const;
 

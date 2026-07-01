@@ -6,12 +6,27 @@ import { useEffect, useState } from "react";
 import { BellLogo, HeroWheel } from "@/components/ui";
 import { isTelegram } from "@/lib/tg/client";
 import { Group, Cell } from "@/components/tg/native";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 const ENTRIES = [
-  { href: "/calendar", char: "运", n: "01", title: "今日运势", sub: "流日 · 每日一推", bg: "var(--color-cinnabar)", fg: "#fff", arrow: "var(--color-cinnabar)" },
-  { href: "/chart", char: "序", n: "02", title: "本年时序", sub: "流年 · 大限四化", bg: "var(--color-ink)", fg: "var(--color-on-ink)", arrow: "var(--color-ink)" },
-  { href: "/chart", char: "盘", n: "03", title: "我的命盘", sub: "命理 + 心理解读", bg: "var(--color-water)", fg: "var(--color-on-water)", arrow: "var(--color-water)" },
-  { href: "/reading", char: "起", n: "04", title: "起盘建档", sub: "出生信息即时排盘", bg: "var(--color-metal)", fg: "var(--color-on-metal)", arrow: "var(--color-metal)" },
+  { href: "/calendar", char: "运", n: "01", key: "calendar" as const, bg: "var(--color-cinnabar)", fg: "#fff", arrow: "var(--color-cinnabar)" },
+  { href: "/chart", char: "序", n: "02", key: "annual" as const, bg: "var(--color-ink)", fg: "var(--color-on-ink)", arrow: "var(--color-ink)" },
+  { href: "/chart", char: "盘", n: "03", key: "chart" as const, bg: "var(--color-water)", fg: "var(--color-on-water)", arrow: "var(--color-water)" },
+  { href: "/reading", char: "起", n: "04", key: "reading" as const, bg: "var(--color-metal)", fg: "var(--color-on-metal)", arrow: "var(--color-metal)" },
+] as const;
+
+const CARDS = [
+  { id: "east" as const, el: "var(--color-fire)" },
+  { id: "west" as const, el: "var(--color-water)" },
+  { id: "resonance" as const, el: "var(--color-metal)" },
+] as const;
+
+const TG_ENTRIES = [
+  { icon: "运", accent: "var(--color-cinnabar)", key: "calendar" as const, path: "/calendar" },
+  { icon: "盘", accent: "var(--color-water)", key: "chart" as const, path: "/chart" },
+  { icon: "灵", accent: "var(--color-metal)", key: "spirit" as const, path: "/spirit" },
+  { icon: "起", accent: "var(--color-earth)", key: "reading" as const, path: "/reading" },
+  { icon: "档", accent: "var(--color-wood)", key: "profiles" as const, path: "/profiles" },
 ] as const;
 
 export default function Home() {
@@ -19,6 +34,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const inTg = mounted && isTelegram();
   const router = useRouter();
+  const t = useT();
 
   useEffect(() => setMounted(true), []);
 
@@ -50,16 +66,16 @@ export default function Home() {
 
             <div className="zj-rise relative flex items-center gap-2.5 lg:justify-center">
               <BellLogo size={26} />
-              <span className="font-serif text-[17px] font-bold tracking-[0.14em]">照见</span>
+              <span className="font-serif text-[17px] font-bold tracking-[0.14em]">{t("common.brand")}</span>
             </div>
 
             <div className="relative mt-28 lg:mt-16">
               <div className="zj-rise latin-label text-[12px] text-cinnabar" style={{ animationDelay: ".08s" }}>Mirror, not fate</div>
               <h1 className="zj-rise mt-2.5 font-serif text-[46px] font-black leading-[1.08] lg:text-[68px]" style={{ animationDelay: ".16s" }}>
-                你的命盘，<br className="lg:hidden" />是一面镜子
+                {t("home.heroTitle1")}<br className="lg:hidden" />{t("home.heroTitle2")}
               </h1>
               <p className="zj-rise mt-3.5 max-w-[290px] text-[13.5px] leading-[1.8] text-ink-2 lg:mx-auto lg:max-w-[420px] lg:text-[15px]" style={{ animationDelay: ".26s" }}>
-                紫微 · 八字 × 深层心理。观照自身，而非预言吉凶。
+                {t("home.heroSubtitle")}
               </p>
             </div>
           </section>
@@ -71,14 +87,14 @@ export default function Home() {
               className="zj-rise zj-btn mx-auto flex w-full items-center justify-center py-[17px] text-[16px] font-medium text-white transition-transform duration-200 hover:-translate-y-0.5 lg:max-w-md"
               style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)", animationDelay: ".34s" }}
             >
-              为我起盘 · 即时生成
+              {t("home.ctaButton")}
             </Link>
 
             {/* 高频入口网格 */}
             <div className="mt-3 grid grid-cols-2 gap-3 lg:mt-6 lg:grid-cols-4">
               {ENTRIES.map((e, i) => (
                 <Link
-                  key={e.title}
+                  key={e.key}
                   href={e.href}
                   className="zj-rise group block bg-surface p-[18px] transition-transform duration-200 hover:-translate-y-0.5"
                   style={{ borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", animationDelay: `${0.42 + i * 0.06}s` }}
@@ -90,30 +106,26 @@ export default function Home() {
                     <span className="font-latin text-[14px]" style={{ color: "#C9C2B2" }}>{e.n}</span>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[15px] font-medium">{e.title}</span>
+                    <span className="text-[15px] font-medium">{t(`home.entries.${e.key}.title`)}</span>
                     <span className="text-[15px]" style={{ color: e.arrow }}>→</span>
                   </div>
-                  <div className="mt-1 text-[12px] text-muted">{e.sub}</div>
+                  <div className="mt-1 text-[12px] text-muted">{t(`home.entries.${e.key}.sub`)}</div>
                 </Link>
               ))}
             </div>
 
             {/* 三段式说明 */}
             <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-3">
-              {[
-                { el: "var(--color-fire)", k: "East · 命理结构", t: "紫微十二宫、八字四柱、生年四化——开源引擎精确计算，可审计、不臆造。" },
-                { el: "var(--color-water)", k: "West · 心理映照", t: "太阳月亮上升、土星课题、内在张力——以荣格原型读命盘为心象。" },
-                { el: "var(--color-metal)", k: "Resonance · 共振", t: "仅在内在世界轴等高置信处东西互证，给出克制、非决定论的成长之言。" },
-              ].map((c) => (
-                <div key={c.k} className="bg-surface p-5" style={{ borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", borderTop: `3px solid ${c.el}` }}>
-                  <div className="latin-label mb-2 text-[11px] text-muted">{c.k}</div>
-                  <p className="text-[14px] leading-[1.85] text-ink-2">{c.t}</p>
+              {CARDS.map((c) => (
+                <div key={c.id} className="bg-surface p-5" style={{ borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", borderTop: `3px solid ${c.el}` }}>
+                  <div className="latin-label mb-2 text-[11px] text-muted">{t(`home.cards.${c.id}.label`)}</div>
+                  <p className="text-[14px] leading-[1.85] text-ink-2">{t(`home.cards.${c.id}.text`)}</p>
                 </div>
               ))}
             </div>
 
             <p className="mt-9 px-1 text-[12px] leading-relaxed text-muted">
-              本产品为传统文化与心理学的自我探索工具，所有解读仅供自我反思，不构成医疗、法律、财务或心理诊断建议。
+              {t("home.disclaimer")}
             </p>
           </div>
         </>
@@ -122,15 +134,20 @@ export default function Home() {
       {inTg && (
         <div className="px-5 pt-10">
           <div className="mb-5">
-            <h1 className="font-serif text-[24px] font-bold tracking-[0.08em]">照见</h1>
-            <p className="mt-1 text-[13px] text-muted">你的命盘，是一面镜子</p>
+            <h1 className="font-serif text-[24px] font-bold tracking-[0.08em]">{t("common.brand")}</h1>
+            <p className="mt-1 text-[13px] text-muted">{t("home.tg.tagline")}</p>
           </div>
           <Group>
-            <Cell icon="运" accent="var(--color-cinnabar)" title="今日运势" subtitle="流日 · 每日一推" onClick={() => router.push("/calendar")} />
-            <Cell icon="盘" accent="var(--color-water)" title="我的命盘" subtitle="命理 + 心理解读" onClick={() => router.push("/chart")} />
-            <Cell icon="灵" accent="var(--color-metal)" title="本命之灵" subtitle="守护灵与年度指引" onClick={() => router.push("/spirit")} />
-            <Cell icon="起" accent="var(--color-earth)" title="起盘建档" subtitle="出生信息即时排盘" onClick={() => router.push("/reading")} />
-            <Cell icon="档" accent="var(--color-wood)" title="我的档案" subtitle="已保存的命盘档案" onClick={() => router.push("/profiles")} />
+            {TG_ENTRIES.map((e) => (
+              <Cell
+                key={e.key}
+                icon={e.icon}
+                accent={e.accent}
+                title={t(`home.tg.entries.${e.key}.title`)}
+                subtitle={t(`home.tg.entries.${e.key}.subtitle`)}
+                onClick={() => router.push(e.path)}
+              />
+            ))}
           </Group>
         </div>
       )}
