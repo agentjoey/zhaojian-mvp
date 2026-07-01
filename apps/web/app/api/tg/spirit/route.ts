@@ -15,6 +15,7 @@ import {
   saveMemory,
 } from "@/lib/tg/data";
 import { consumeQuota } from "@/lib/tg/quota";
+import { consumeLlm } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,11 @@ export async function POST(req: Request): Promise<Response> {
       status: 402,
       headers: { "content-type": "application/json" },
     });
+  }
+
+  const gate = await consumeLlm(s.uid);
+  if (!gate.ok) {
+    return Response.json({ error: "paywall" }, { status: 402 });
   }
 
   const mem = await getMemory(profile.id);

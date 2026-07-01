@@ -1,5 +1,7 @@
 import { resolveLlmConfig, isLlmConfigured, generateSpiritIntro, streamSpiritChat } from "@eamvp/llm";
 import type { UnifiedChart } from "@eamvp/core";
+import { supabaseAdmin } from "@/lib/tg/admin";
+import { consumeLlm } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +26,23 @@ export async function POST(req: Request): Promise<Response> {
   const questionnaire = typeof body?.questionnaire === "string" ? body.questionnaire : undefined;
   if (!chart) {
     return new Response("缺少命盘 chart", { status: 400 });
+  }
+
+  const authHeader = req.headers.get("authorization");
+  let userId: string | undefined;
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data } = await supabaseAdmin().auth.getUser(token);
+    userId = data.user?.id;
+  }
+
+  // 开场白（无用户消息）不消耗额度；有用户消息时执行统一 LLM 额度闸门
+  const isIntro = !messages.some((m) => m.role === "user");
+  if (!isIntro && userId) {
+    const gate = await consumeLlm(userId);
+    if (!gate.ok) {
+      return new Response(JSON.stringify({ error: "paywall" }), { status: 402, headers: { "content-type": "application/json" } });
+    }
   }
 
   const encoder = new TextEncoder();

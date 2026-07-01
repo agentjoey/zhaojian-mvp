@@ -7,6 +7,7 @@ import { getSpiritMemory, saveSpiritMemory, getQuestionnaire } from "@/lib/profi
 import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
 import { hasTgSession, isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { SpiritPortrait } from "./SpiritPortrait";
@@ -154,11 +155,27 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
 
     try {
       let full = "";
+      const { data: sessionData } = await supabase().auth.getSession();
+      const token = sessionData.session?.access_token;
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
       });
+      if (res.status === 402) {
+        setError("__paywall__");
+        setStreaming(false);
+        return;
+      }
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const body = await res.json().catch(() => null);
+        if (body && typeof body === "object" && (body as any).error === "paywall") {
+          setError("__paywall__");
+          setStreaming(false);
+          return;
+        }
+      }
       if (!res.ok || !res.body) {
         throw new Error(await res.text() || "本命之灵暂时无法回应");
       }

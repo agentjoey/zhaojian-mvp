@@ -5,6 +5,7 @@ import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { getProfileForUser } from "@/lib/tg/identity";
 import { getMemory, getQuestionnaire } from "@/lib/tg/data";
 import { consumeQuota } from "@/lib/tg/quota";
+import { consumeLlm } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,11 @@ export async function POST(req: Request): Promise<Response> {
     const mem = await getMemory(profile.id);
     const qa = await getQuestionnaire(profile.id);
     const q = qa ? formatQuestionnaire(qa) : undefined;
+    // 仅对 LLM 生成的 behavior/greeting 计费；前面的 五维/黄历（computeDailyFortune）不消耗额度，缓存命中也不消耗。
+    const gate = await consumeLlm(s.uid);
+    if (!gate.ok) {
+      return Response.json({ error: "paywall" }, { status: 402 });
+    }
     greeting = (
       await generateDailySpiritGreeting(profile.chart, daily, dateStr, {
         language: "zh",
