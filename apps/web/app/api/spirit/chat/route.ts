@@ -2,6 +2,7 @@ import { resolveLlmConfig, isLlmConfigured, generateSpiritIntro, streamSpiritCha
 import type { UnifiedChart } from "@eamvp/core";
 import { supabaseAdmin } from "@/lib/tg/admin";
 import { consumeLlm } from "@/lib/entitlements";
+import { localeFromRequest } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,15 +46,16 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
+  const language = localeFromRequest(req);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
         if (messages.length === 0) {
-          const { text } = await generateSpiritIntro(chart, { language: "zh", memory, questionnaire });
+          const { text } = await generateSpiritIntro(chart, { language, memory, questionnaire });
           controller.enqueue(encoder.encode(text));
         } else {
-          for await (const chunk of streamSpiritChat(chart, messages, { language: "zh", memory, questionnaire })) {
+          for await (const chunk of streamSpiritChat(chart, messages, { language, memory, questionnaire })) {
             controller.enqueue(encoder.encode(chunk));
           }
         }

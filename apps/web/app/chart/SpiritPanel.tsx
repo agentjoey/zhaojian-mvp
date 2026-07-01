@@ -13,8 +13,10 @@ import { Markdown } from "@/components/Markdown";
 import { Paywall } from "@/components/Paywall";
 import { SpiritPortrait } from "./SpiritPortrait";
 import { spiritMemoryAction } from "@/app/actions";
+import { useLocale } from "@/lib/i18n/I18nProvider";
 
 export function SpiritPanel({ profile }: { profile: Profile }) {
+  const { locale } = useLocale();
   const spirit = deriveSpirit(profile.chart);
   const [messages, setMessages] = useState<SpiritMessage[]>([]);
   const [input, setInput] = useState("");
@@ -35,7 +37,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     async (historyForApi: { role: "user" | "spirit"; content: string }[]): Promise<string> => {
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-zj-locale": locale },
         body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
       });
       if (!res.ok || !res.body) {
@@ -160,7 +162,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       const token = sessionData.session?.access_token;
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { "Content-Type": "application/json", "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
       });
       if (res.status === 402) {

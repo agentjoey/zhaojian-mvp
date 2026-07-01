@@ -6,6 +6,7 @@ import { getProfileForUser } from "@/lib/tg/identity";
 import { getMemory, getQuestionnaire } from "@/lib/tg/data";
 import { consumeQuota } from "@/lib/tg/quota";
 import { consumeLlm } from "@/lib/entitlements";
+import { localeFromRequest } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const daily = computeDailyFortune(profile.chart, dateStr);
   let greeting: string | null = null;
+  const language = localeFromRequest(req);
 
   if (await consumeQuota(s.tgId)) {
     const mem = await getMemory(profile.id);
@@ -39,7 +41,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     greeting = (
       await generateDailySpiritGreeting(profile.chart, daily, dateStr, {
-        language: "zh",
+        language,
         memory: mem ?? undefined,
         questionnaire: q,
       })

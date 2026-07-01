@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
+import { type Locale, LOCALE_COOKIE } from "@/lib/i18n/locale";
 
 declare global {
   interface Window {
@@ -12,6 +13,12 @@ declare global {
       };
     };
   }
+}
+
+function getLocaleHeader(): { "x-zj-locale": Locale } {
+  if (typeof document === "undefined") return { "x-zj-locale": "zh" };
+  const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=(zh|en)`));
+  return { "x-zj-locale": m ? (m[1] as Locale) : "zh" };
 }
 
 export function isTelegram(): boolean {
@@ -67,7 +74,7 @@ export async function tgSpiritStream(
   const r = await fetch("/api/tg/spirit", {
     method: "POST",
     credentials: "include",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...getLocaleHeader() },
     body: JSON.stringify({ messages }),
   });
   if (r.status === 402) throw new Error("quota");
@@ -92,7 +99,7 @@ export async function tgDaily(
   const r = await fetch("/api/tg/daily", {
     method: "POST",
     credentials: "include",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...getLocaleHeader() },
     body: JSON.stringify({ dateStr }),
   });
   if (!r.ok) throw new Error(await r.text());

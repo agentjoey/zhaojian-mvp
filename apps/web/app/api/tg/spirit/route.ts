@@ -16,6 +16,7 @@ import {
 } from "@/lib/tg/data";
 import { consumeQuota } from "@/lib/tg/quota";
 import { consumeLlm } from "@/lib/entitlements";
+import { localeFromRequest } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ export async function POST(req: Request): Promise<Response> {
   const mem = await getMemory(profile.id);
   const qa = await getQuestionnaire(profile.id);
   const q = qa ? formatQuestionnaire(qa) : undefined;
+  const language = localeFromRequest(req);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -74,7 +76,7 @@ export async function POST(req: Request): Promise<Response> {
       let full = "";
       try {
         for await (const chunk of streamSpiritChat(profile.chart, turns, {
-          language: "zh",
+          language,
           memory: mem ?? undefined,
           questionnaire: q,
         })) {
@@ -101,7 +103,7 @@ export async function POST(req: Request): Promise<Response> {
           const summary = await summarizeSpiritMemory(
             [...turns, { role: "spirit", content: full }],
             mem ?? undefined,
-            { language: "zh" },
+            { language },
           );
           if (summary) await saveMemory(profile.id, summary);
         } catch {
