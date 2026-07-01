@@ -33,6 +33,10 @@ export default function AccountPage() {
     telegram: { username: string | null } | null;
   } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkEmailStatus, setLinkEmailStatus] = useState<
+    "idle" | "sending" | "sent" | { error: string }
+  >("idle");
 
   useEffect(() => {
     async function resolve() {
@@ -176,6 +180,35 @@ export default function AccountPage() {
       setStatus("sent");
     } else {
       setStatus({ error: result.error });
+    }
+  }
+
+  async function handleLinkEmail() {
+    const email = linkEmail.trim();
+    if (!email.includes("@")) {
+      setLinkEmailStatus({ error: "请输入有效的邮箱地址" });
+      return;
+    }
+    setLinkEmailStatus("sending");
+    try {
+      const res = await fetch("/api/account/link-email", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.status === 409) {
+        setLinkEmailStatus({ error: "该邮箱已被占用" });
+        return;
+      }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setLinkEmailStatus({ error: json.error || "绑定失败，请重试" });
+        return;
+      }
+      setLinkEmailStatus("sent");
+    } catch {
+      setLinkEmailStatus({ error: "绑定失败，请重试" });
     }
   }
 
@@ -323,6 +356,47 @@ export default function AccountPage() {
         {view.kind === "telegram" ? (
           <div className="space-y-6 text-center">
             {identitiesSection}
+            {identities && identities.email === null && (
+              <div className="space-y-3 text-left">
+                <label htmlFor="link-email" className="block text-sm" style={{ color: "var(--color-ink)" }}>
+                  绑定邮箱
+                </label>
+                <input
+                  id="link-email"
+                  type="email"
+                  value={linkEmail}
+                  onChange={(e) => setLinkEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full rounded-xl border bg-transparent px-4 py-3 outline-none transition focus:ring-2"
+                  style={{
+                    borderColor: "var(--color-line)",
+                    color: "var(--color-ink)",
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLinkEmail()}
+                />
+                <button
+                  onClick={handleLinkEmail}
+                  disabled={linkEmailStatus === "sending"}
+                  className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98] disabled:opacity-60"
+                  style={{
+                    background: "var(--color-cinnabar)",
+                    color: "#fff",
+                  }}
+                >
+                  {linkEmailStatus === "sending" ? "发送中…" : "绑定邮箱"}
+                </button>
+                {linkEmailStatus === "sent" && (
+                  <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
+                    确认邮件已发送，请查收后点击链接完成绑定
+                  </p>
+                )}
+                {typeof linkEmailStatus === "object" && "error" in linkEmailStatus && (
+                  <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
+                    {linkEmailStatus.error}
+                  </p>
+                )}
+              </div>
+            )}
             <p style={{ color: "var(--color-ink)" }}>
               已通过 Telegram 登录
               {view.username ? `（${view.username}）` : null}
