@@ -329,7 +329,13 @@ features:
         evidence: 0010 apply;端点闸门;flag门控;build通过
       - id: billing-T3-profile-limit
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-billing-membership.md
         evidence: 档案上限3 TG+web;flag门控;build通过
+      - id: billing-T4-paywall
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-billing-membership.md
+        evidence: Paywall+account会员状态+status API;build通过
