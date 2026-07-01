@@ -65,6 +65,17 @@ export async function createProfile(input: {
   chart: UnifiedChart;
 }): Promise<Profile> {
   const userId = await ensureSession();
+  // NOTE: 生产前应把 web 建档上限移到服务端权威校验
+  if (process.env.NEXT_PUBLIC_BILLING_ENABLED === "1") {
+    const { data: ent } = await supabase().from("entitlements").select("tier,member_until").maybeSingle();
+    const isMemberNow = ent?.tier === "member" && ent.member_until && new Date(ent.member_until) > new Date();
+    if (!isMemberNow) {
+      const { count } = await supabase().from("profiles").select("id", { count: "exact", head: true });
+      if ((count ?? 0) >= Number(process.env.NEXT_PUBLIC_FREE_PROFILE_LIMIT ?? 3)) {
+        throw new Error("profile_limit");
+      }
+    }
+  }
   const { data, error } = await supabase()
     .from("profiles")
     .insert({

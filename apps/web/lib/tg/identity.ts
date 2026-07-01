@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./admin";
+import { getEntitlement, isMember } from "@/lib/entitlements";
 import type { BirthInput, UnifiedChart } from "@eamvp/core";
 export type Profile = { id: string; nickname: string; birthInput: BirthInput; chart: UnifiedChart; createdAt: string; reading: string | null };
 const toProfile = (r: any): Profile => ({ id: r.id, nickname: r.nickname, birthInput: r.birth_input, chart: r.chart, createdAt: r.created_at, reading: r.reading ?? null });
@@ -26,6 +27,14 @@ export async function getProfileForUser(supabaseUserId: string): Promise<Profile
   return data ? toProfile(data) : null;
 }
 export async function createProfileForUser(supabaseUserId: string, input: { nickname?: string; birthInput: BirthInput; chart: UnifiedChart }): Promise<Profile> {
+  if (process.env.BILLING_ENABLED === "1") {
+    if (!isMember(await getEntitlement(supabaseUserId))) {
+      const { count } = await supabaseAdmin().from("profiles").select("id", { count: "exact", head: true }).eq("user_id", supabaseUserId);
+      if ((count ?? 0) >= Number(process.env.FREE_PROFILE_LIMIT ?? 3)) {
+        throw new Error("profile_limit");
+      }
+    }
+  }
   const { data, error } = await supabaseAdmin().from("profiles").insert({ user_id: supabaseUserId, nickname: input.nickname?.trim() || "无名", birth_input: input.birthInput, chart: input.chart }).select("*").single();
   if (error) throw error;
   return toProfile(data);

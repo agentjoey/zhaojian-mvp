@@ -31,6 +31,13 @@ export async function POST(req: Request): Promise<Response> {
   const parsed = BirthInputSchema.safeParse(body?.birthInput);
   if (!parsed.success) return new Response(parsed.error.issues.map((i) => i.message).join("; "), { status: 400 });
   let chart; try { chart = computeUnifiedChart(parsed.data); } catch (e) { return new Response("排盘失败", { status: 500 }); }
-  const profile = await createProfileForUser(s.uid, { nickname: body?.nickname, birthInput: parsed.data, chart });
-  return Response.json({ profile });
+  try {
+    const profile = await createProfileForUser(s.uid, { nickname: body?.nickname, birthInput: parsed.data, chart });
+    return Response.json({ profile });
+  } catch (e) {
+    if (e instanceof Error && e.message === "profile_limit") {
+      return Response.json({ error: "limit" }, { status: 402 });
+    }
+    throw e;
+  }
 }
