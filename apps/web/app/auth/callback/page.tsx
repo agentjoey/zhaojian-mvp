@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+  const t = useT();
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +35,7 @@ export default function AuthCallbackPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6" style={{ background: "var(--color-bg)" }}>
       <p className="text-lg" style={{ color: "var(--color-ink)" }}>
-        登录中…
+        {t("common.signingIn")}
       </p>
     </main>
   );

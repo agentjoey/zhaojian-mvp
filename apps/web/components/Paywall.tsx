@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export function Paywall({
   reason = "quota",
@@ -11,11 +12,12 @@ export function Paywall({
   onClose?: () => void;
 }) {
   const [noted, setNoted] = useState(false);
+  const t = useT();
 
   const subtitle =
     reason === "limit"
-      ? "档案已达上限，升级会员后可继续保存。"
-      : "免费额度已用尽，升级会员后可继续对话。";
+      ? t("paywall.subtitleLimit")
+      : t("paywall.subtitleQuota");
 
   return (
     <div
@@ -33,13 +35,13 @@ export function Paywall({
             className="text-lg font-semibold"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            升级会员，解锁无限
+            {t("paywall.title")}
           </h3>
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              aria-label="关闭"
+              aria-label={t("common.close")}
               className="text-[15px] leading-none transition"
               style={{ color: "var(--color-muted)" }}
               onMouseEnter={(e) =>
@@ -62,7 +64,7 @@ export function Paywall({
           className="mt-4 text-2xl font-semibold"
           style={{ color: "var(--color-ink)" }}
         >
-          $9/月 · $99/年
+          {t("paywall.monthly")} · {t("paywall.yearly")}
         </div>
 
         <Button
@@ -70,7 +72,7 @@ export function Paywall({
           onClick={() => setNoted(true)}
           disabled={noted}
         >
-          升级会员
+          {t("paywall.upgrade")}
         </Button>
 
         {noted && (
@@ -78,7 +80,7 @@ export function Paywall({
             className="mt-3 text-center text-sm"
             style={{ color: "var(--color-cinnabar)" }}
           >
-            支付即将开放，敬请期待
+            {t("paywall.comingSoon")}
           </p>
         )}
 
@@ -86,7 +88,7 @@ export function Paywall({
           className="mt-3 text-center text-xs"
           style={{ color: "var(--color-muted)" }}
         >
-          Telegram 内购即将开放
+          {t("paywall.telegramIAP")}
         </p>
       </div>
     </div>

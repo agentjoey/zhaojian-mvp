@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
 import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
 import { Paywall } from "@/components/Paywall";
+import { useT } from "@/lib/i18n/I18nProvider";
+import { LocaleSwitch } from "@/lib/i18n/switch";
 
 const TG_USERNAME_KEY = "zj_tg_username";
 
@@ -22,6 +24,7 @@ type BillingStatus = {
 };
 
 export default function AccountPage() {
+  const t = useT();
   const [view, setView] = useState<ViewState>({ kind: "loading" });
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
@@ -161,21 +164,21 @@ export default function AccountPage() {
           body: JSON.stringify(u),
         });
         if (res.status === 409) {
-          setLinkError("该 Telegram 已绑定其他账号，请改用登录并合并");
+          setLinkError(t("account.tgAlreadyLinked"));
           return;
         }
         if (!res.ok) throw new Error(await res.text());
         location.reload();
       } catch (e) {
         console.error(e);
-        setLinkError("绑定失败，请重试");
+        setLinkError(t("account.linkFailed"));
       }
     };
-  }, []);
+  }, [t]);
 
   async function handleSendLink() {
     if (!email.includes("@")) {
-      setStatus({ error: "请输入有效的邮箱地址" });
+      setStatus({ error: t("account.invalidEmail") });
       return;
     }
     setStatus("sending");
@@ -190,7 +193,7 @@ export default function AccountPage() {
   async function handleLinkEmail() {
     const email = linkEmail.trim();
     if (!email.includes("@")) {
-      setLinkEmailStatus({ error: "请输入有效的邮箱地址" });
+      setLinkEmailStatus({ error: t("account.invalidEmail") });
       return;
     }
     setLinkEmailStatus("sending");
@@ -202,17 +205,17 @@ export default function AccountPage() {
         body: JSON.stringify({ email }),
       });
       if (res.status === 409) {
-        setLinkEmailStatus({ error: "该邮箱已被占用" });
+        setLinkEmailStatus({ error: t("account.linkEmailInUse") });
         return;
       }
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setLinkEmailStatus({ error: json.error || "绑定失败，请重试" });
+        setLinkEmailStatus({ error: json.error || t("account.linkFailed") });
         return;
       }
       setLinkEmailStatus("sent");
     } catch {
-      setLinkEmailStatus({ error: "绑定失败，请重试" });
+      setLinkEmailStatus({ error: t("account.linkFailed") });
     }
   }
 
@@ -235,7 +238,7 @@ export default function AccountPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setDeleteError(json.error || "注销失败，请重试");
+        setDeleteError(json.error || t("account.deleteFailed"));
         return;
       }
       await Promise.all([
@@ -244,7 +247,7 @@ export default function AccountPage() {
       ]);
       location.href = "/";
     } catch {
-      setDeleteError("注销失败，请重试");
+      setDeleteError(t("account.deleteFailed"));
     } finally {
       setDeleteLoading(false);
     }
@@ -263,7 +266,7 @@ export default function AccountPage() {
   if (view.kind === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center p-6" style={{ background: "var(--color-bg)" }}>
-        <p style={{ color: "var(--color-muted)" }}>加载中…</p>
+        <p style={{ color: "var(--color-muted)" }}>{t("common.loading")}</p>
       </main>
     );
   }
@@ -280,19 +283,19 @@ export default function AccountPage() {
         className="mb-3 text-sm font-medium"
         style={{ color: "var(--color-ink)" }}
       >
-        已绑定
+        {t("account.linked")}
       </h2>
       <div className="space-y-2 text-sm">
         <div className="flex items-center justify-between">
-          <span style={{ color: "var(--color-muted)" }}>邮箱</span>
+          <span style={{ color: "var(--color-muted)" }}>{t("account.email")}</span>
           <span style={{ color: "var(--color-ink)" }}>
-            {identities?.email ?? "未绑定"}
+            {identities?.email ?? t("account.notLinked")}
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span style={{ color: "var(--color-muted)" }}>Telegram</span>
           <span style={{ color: "var(--color-ink)" }}>
-            {identities?.telegram?.username ?? "未绑定"}
+            {identities?.telegram?.username ?? t("account.notLinked")}
           </span>
         </div>
       </div>
@@ -319,7 +322,7 @@ export default function AccountPage() {
   );
 
   const title =
-    view.kind === "email" || view.kind === "telegram" ? "账号" : "保存你的照见";
+    view.kind === "email" || view.kind === "telegram" ? t("account.title") : t("account.saveYourZhaojian");
 
   return (
     <main className="flex min-h-screen items-start justify-center p-6 pt-24" style={{ background: "var(--color-bg)" }}>
@@ -337,6 +340,11 @@ export default function AccountPage() {
           {title}
         </h1>
 
+        <div className="mb-6 flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)" }}>
+          <span className="text-sm" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
+          <LocaleSwitch />
+        </div>
+
         {mergeNotice !== null && (
           <div
             className="mb-4 rounded-xl px-4 py-3 text-center text-sm"
@@ -345,7 +353,7 @@ export default function AccountPage() {
               color: "var(--color-cinnabar)",
             }}
           >
-            已合并 {mergeNotice} 个本地档案到你的账号
+            {t("account.mergedProfiles", { count: mergeNotice })}
           </div>
         )}
 
@@ -360,15 +368,15 @@ export default function AccountPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>
-                  {billing.tier === "member" ? "会员" : "免费"}
+                  {billing.tier === "member" ? t("account.tierMember") : t("account.tierFree")}
                 </p>
                 {billing.tier === "member" && billing.memberUntil ? (
                   <p className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    到期 {new Date(billing.memberUntil).toLocaleDateString("zh-CN")}
+                    {t("account.expiresOn", { date: new Date(billing.memberUntil).toLocaleDateString("zh-CN") })}
                   </p>
                 ) : (
                   <p className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    本月已用 {billing.used}/{billing.free}
+                    {t("account.usageThisMonth", { used: billing.used, free: billing.free })}
                   </p>
                 )}
               </div>
@@ -379,7 +387,7 @@ export default function AccountPage() {
                   className="rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.98]"
                   style={{ background: "var(--color-cinnabar)", color: "#fff" }}
                 >
-                  升级会员
+                  {t("paywall.upgrade")}
                 </button>
               )}
             </div>
@@ -397,7 +405,7 @@ export default function AccountPage() {
             {identities && identities.email === null && (
               <div className="space-y-3 text-left">
                 <label htmlFor="link-email" className="block text-sm" style={{ color: "var(--color-ink)" }}>
-                  绑定邮箱
+                  {t("account.linkEmailLabel")}
                 </label>
                 <input
                   id="link-email"
@@ -421,11 +429,11 @@ export default function AccountPage() {
                     color: "#fff",
                   }}
                 >
-                  {linkEmailStatus === "sending" ? "发送中…" : "绑定邮箱"}
+                  {linkEmailStatus === "sending" ? t("common.sending") : t("account.linkEmailLabel")}
                 </button>
                 {linkEmailStatus === "sent" && (
                   <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                    确认邮件已发送，请查收后点击链接完成绑定
+                    {t("account.linkEmailSent")}
                   </p>
                 )}
                 {typeof linkEmailStatus === "object" && "error" in linkEmailStatus && (
@@ -436,7 +444,7 @@ export default function AccountPage() {
               </div>
             )}
             <p style={{ color: "var(--color-ink)" }}>
-              已通过 Telegram 登录
+              {t("account.loggedInViaTelegram")}
               {view.username ? `（${view.username}）` : null}
             </p>
             <button
@@ -447,7 +455,7 @@ export default function AccountPage() {
                 color: "#fff",
               }}
             >
-              登出
+              {t("account.signOut")}
             </button>
           </div>
         ) : view.kind === "email" ? (
@@ -462,18 +470,18 @@ export default function AccountPage() {
                 color: "#fff",
               }}
             >
-              登出
+              {t("account.signOut")}
             </button>
           </div>
         ) : (
           <div className="space-y-5">
             <p className="text-center text-sm leading-relaxed" style={{ color: "var(--color-muted)" }}>
-              当前为本地匿名模式，登录后可在不同设备间同步你的档案与解读记录。
+              {t("account.anonymousDescription")}
             </p>
 
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm" style={{ color: "var(--color-ink)" }}>
-                邮箱地址
+                {t("account.emailAddress")}
               </label>
               <input
                 id="email"
@@ -499,12 +507,12 @@ export default function AccountPage() {
                 color: "#fff",
               }}
             >
-              {status === "sending" ? "发送中…" : "发送登录链接"}
+              {status === "sending" ? t("common.sending") : t("account.sendMagicLink")}
             </button>
 
             {status === "sent" && (
               <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                已发送，请查收邮件中的登录链接
+                {t("account.magicLinkSent")}
               </p>
             )}
             {typeof status === "object" && "error" in status && (
@@ -538,11 +546,10 @@ export default function AccountPage() {
               className="mb-2 text-sm font-medium"
               style={{ color: "var(--color-cinnabar)" }}
             >
-              危险区 · 注销账号
+              {t("account.dangerZone")}
             </h2>
             <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--color-cinnabar)" }}>
-              此操作不可逆。注销后，你的账号、所有档案、对话记录、会员权益与 Telegram
-              绑定将被永久删除，无法恢复。
+              {t("account.deleteWarning")}
             </p>
             {!deleteOpen ? (
               <button
@@ -555,7 +562,7 @@ export default function AccountPage() {
                   background: "transparent",
                 }}
               >
-                注销账号
+                {t("account.deleteAccount")}
               </button>
             ) : (
               <div className="space-y-3">
@@ -567,7 +574,7 @@ export default function AccountPage() {
                     className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-cinnabar)]"
                   />
                   <span className="text-xs leading-relaxed" style={{ color: "var(--color-ink)" }}>
-                    我明白此操作不可逆，将永久删除我的所有档案与数据
+                    {t("account.deleteAcknowledge")}
                   </span>
                 </label>
                 <button
@@ -580,7 +587,7 @@ export default function AccountPage() {
                     color: "#fff",
                   }}
                 >
-                  {deleteLoading ? "注销中…" : "确认注销"}
+                  {deleteLoading ? t("account.deleting") : t("account.confirmDelete")}
                 </button>
                 {deleteError && (
                   <p className="text-center text-xs" style={{ color: "var(--color-cinnabar)" }}>

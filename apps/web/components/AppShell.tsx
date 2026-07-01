@@ -5,16 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BellLogo, cn } from "@/components/ui";
 import { isTelegram } from "@/lib/tg/client";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 const NAV = [
-  { href: "/", char: "照", label: "首页" },
-  { href: "/calendar", char: "运", label: "运势" },
-  { href: "/chart", char: "盘", label: "解读" },
+  { href: "/", char: "照", key: "nav.home" },
+  { href: "/calendar", char: "运", key: "nav.calendar" },
+  { href: "/chart", char: "盘", key: "nav.reading" },
   ...(process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1"
-    ? [{ href: "/spirit", char: "灵", label: "本命" }]
+    ? [{ href: "/spirit", char: "灵", key: "nav.spirit" }]
     : []),
-  { href: "/profiles", char: "我", label: "档案" },
-  { href: "/account", char: "账", label: "账号" },
+  { href: "/profiles", char: "我", key: "nav.profiles" },
+  { href: "/account", char: "账", key: "nav.account" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -24,6 +25,7 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const [tg, setTg] = useState(false);
+  const t = useT();
   useEffect(() => setTg(isTelegram()), []);
 
   return (
@@ -35,11 +37,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-y-0 left-0 z-30 hidden w-[82px] flex-col items-center gap-2 py-6 md:flex"
             style={{ background: "var(--color-rail)", borderRight: "1px solid var(--color-line)" }}
           >
-            <Link href="/" className="mb-5" aria-label="照见 首页">
+            <Link href="/" className="mb-5" aria-label={t("nav.home")}>
               <BellLogo size={30} />
             </Link>
             {NAV.slice(1).map((item) => (
-              <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
+              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} />
             ))}
           </nav>
 
@@ -55,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             }}
           >
             {NAV.map((item) => (
-              <NavItem key={item.href} {...item} active={isActive(pathname, item.href)} />
+              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} />
             ))}
           </nav>
         </>
