@@ -37,6 +37,10 @@ export default function AccountPage() {
   const [linkEmailStatus, setLinkEmailStatus] = useState<
     "idle" | "sending" | "sent" | { error: string }
   >("idle");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteChecked, setDeleteChecked] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     async function resolve() {
@@ -209,6 +213,40 @@ export default function AccountPage() {
       setLinkEmailStatus("sent");
     } catch {
       setLinkEmailStatus({ error: "绑定失败，请重试" });
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!deleteChecked) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ confirm: true }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setDeleteError(json.error || "注销失败，请重试");
+        return;
+      }
+      await Promise.all([
+        signOutWeb().catch(() => {}),
+        tgLogout().catch(() => {}),
+      ]);
+      location.href = "/";
+    } catch {
+      setDeleteError("注销失败，请重试");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -485,6 +523,72 @@ export default function AccountPage() {
                 strategy="afterInteractive"
               />
             </div>
+          </div>
+        )}
+
+        {(view.kind === "telegram" || view.kind === "email") && (
+          <div
+            className="mt-8 rounded-xl p-4"
+            style={{
+              background: "rgba(224, 78, 57, 0.08)",
+              border: "1px solid var(--color-cinnabar)",
+            }}
+          >
+            <h2
+              className="mb-2 text-sm font-medium"
+              style={{ color: "var(--color-cinnabar)" }}
+            >
+              危险区 · 注销账号
+            </h2>
+            <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--color-cinnabar)" }}>
+              此操作不可逆。注销后，你的账号、所有档案、对话记录、会员权益与 Telegram
+              绑定将被永久删除，无法恢复。
+            </p>
+            {!deleteOpen ? (
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="w-full rounded-xl border px-4 py-3 text-sm font-medium transition active:scale-[0.98]"
+                style={{
+                  borderColor: "var(--color-cinnabar)",
+                  color: "var(--color-cinnabar)",
+                  background: "transparent",
+                }}
+              >
+                注销账号
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={deleteChecked}
+                    onChange={(e) => setDeleteChecked(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-cinnabar)]"
+                  />
+                  <span className="text-xs leading-relaxed" style={{ color: "var(--color-ink)" }}>
+                    我明白此操作不可逆，将永久删除我的所有档案与数据
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={!deleteChecked || deleteLoading}
+                  className="w-full rounded-xl px-4 py-3 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50"
+                  style={{
+                    background: "var(--color-cinnabar)",
+                    color: "#fff",
+                  }}
+                >
+                  {deleteLoading ? "注销中…" : "确认注销"}
+                </button>
+                {deleteError && (
+                  <p className="text-center text-xs" style={{ color: "var(--color-cinnabar)" }}>
+                    {deleteError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
