@@ -373,7 +373,13 @@ features:
     tasks:
       - id: i18n-T1-foundation
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
         evidence: locale机制+Provider+useT+切换器;build通过
+      - id: i18n-T2-llm-locale
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
+        evidence: localeFromRequest+客户端header;无残留;build通过

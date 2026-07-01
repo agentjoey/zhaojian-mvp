@@ -7,6 +7,7 @@ import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
+import { useLocale } from "@/lib/i18n/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { ReadingTabs } from "@/components/ReadingTabs";
 import { BaziPillars } from "@/components/charts/BaziPillars";
@@ -31,6 +32,7 @@ const YEAR = new Date().getFullYear();
 const todayYmd = `${YEAR}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
 
 export default function ChartPage() {
+  const { locale } = useLocale();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [reading, setReading] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -119,7 +121,7 @@ export default function ChartPage() {
     try {
       const res = await fetch("/api/reading", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-zj-locale": locale },
         body: JSON.stringify(profile.birthInput),
       });
       if (!res.ok || !res.body) {

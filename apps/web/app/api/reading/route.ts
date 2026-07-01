@@ -1,5 +1,6 @@
 import { computeUnifiedChart, BirthInputSchema } from "@eamvp/core";
 import { streamReading, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { localeFromRequest } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,11 +29,12 @@ export async function POST(req: Request): Promise<Response> {
     return new Response(`排盘失败：${e instanceof Error ? e.message : String(e)}`, { status: 500 });
   }
 
+  const language = localeFromRequest(req);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const chunk of streamReading(chart, { nickname: parsed.data.nickname, language: "zh" })) {
+        for await (const chunk of streamReading(chart, { nickname: parsed.data.nickname, language })) {
           controller.enqueue(encoder.encode(chunk));
         }
       } catch (e) {
