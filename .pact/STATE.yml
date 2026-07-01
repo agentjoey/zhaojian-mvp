@@ -385,7 +385,13 @@ features:
         evidence: localeFromRequest+客户端header;无残留;build通过
       - id: i18n-T3-global
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
         evidence: 全局/导航/account/paywall翻译+切换器;build通过
+      - id: i18n-T4-home-reading
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
+        evidence: 首页+起盘翻译;build通过
