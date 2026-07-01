@@ -317,7 +317,13 @@ features:
     tasks:
       - id: billing-T1-entitlements
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-billing-membership.md
         evidence: entitlements表+lib;迁移apply;build通过
+      - id: billing-T2-quota-gate
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-billing-membership.md
+        evidence: 0010 apply;端点闸门;flag门控;build通过
