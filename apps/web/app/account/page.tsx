@@ -28,6 +28,11 @@ export default function AccountPage() {
   const [mergeNotice, setMergeNotice] = useState<number | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [identities, setIdentities] = useState<{
+    email: string | null;
+    telegram: { username: string | null } | null;
+  } | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     async function resolve() {
@@ -59,6 +64,35 @@ export default function AccountPage() {
       sessionStorage.removeItem("zj_merged");
     }
   }, []);
+
+  // 已绑定身份
+  useEffect(() => {
+    if (view.kind !== "telegram" && view.kind !== "email") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers: Record<string, string> = {};
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch("/api/account/identities", {
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          email: string | null;
+          telegram: { username: string | null } | null;
+        };
+        if (!cancelled) setIdentities(json);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view.kind]);
 
   // 会员状态与本月额度
   useEffect(() => {
@@ -102,6 +136,35 @@ export default function AccountPage() {
     };
   }, []);
 
+  useEffect(() => {
+    (window as any).onTelegramLink = async (u: any) => {
+      try {
+        setLinkError(null);
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        const headers: Record<string, string> = {
+          "content-type": "application/json",
+        };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch("/api/account/link-telegram", {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: JSON.stringify(u),
+        });
+        if (res.status === 409) {
+          setLinkError("该 Telegram 已绑定其他账号，请改用登录并合并");
+          return;
+        }
+        if (!res.ok) throw new Error(await res.text());
+        location.reload();
+      } catch (e) {
+        console.error(e);
+        setLinkError("绑定失败，请重试");
+      }
+    };
+  }, []);
+
   async function handleSendLink() {
     if (!email.includes("@")) {
       setStatus({ error: "请输入有效的邮箱地址" });
@@ -134,7 +197,58 @@ export default function AccountPage() {
     );
   }
 
-  const title = view.kind === "email" || view.kind === "telegram" ? "账号" : "保存你的照见";
+  const identitiesSection = (
+    <div
+      className="mb-6 rounded-xl p-4 text-left"
+      style={{
+        background: "var(--color-paper)",
+        border: "1px solid var(--color-line)",
+      }}
+    >
+      <h2
+        className="mb-3 text-sm font-medium"
+        style={{ color: "var(--color-ink)" }}
+      >
+        已绑定
+      </h2>
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center justify-between">
+          <span style={{ color: "var(--color-muted)" }}>邮箱</span>
+          <span style={{ color: "var(--color-ink)" }}>
+            {identities?.email ?? "未绑定"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span style={{ color: "var(--color-muted)" }}>Telegram</span>
+          <span style={{ color: "var(--color-ink)" }}>
+            {identities?.telegram?.username ?? "未绑定"}
+          </span>
+        </div>
+      </div>
+      {view.kind === "email" && !identities?.telegram && (
+        <div className="mt-4 flex justify-center" id="tg-link-container">
+          <Script
+            src="https://telegram.org/js/telegram-widget.js?22"
+            data-telegram-login="analyst_helen_bot"
+            data-onauth="onTelegramLink(user)"
+            data-request-access="write"
+            strategy="afterInteractive"
+          />
+        </div>
+      )}
+      {linkError && (
+        <p
+          className="mt-3 text-center text-sm"
+          style={{ color: "var(--color-cinnabar)" }}
+        >
+          {linkError}
+        </p>
+      )}
+    </div>
+  );
+
+  const title =
+    view.kind === "email" || view.kind === "telegram" ? "账号" : "保存你的照见";
 
   return (
     <main className="flex min-h-screen items-start justify-center p-6 pt-24" style={{ background: "var(--color-bg)" }}>
@@ -208,6 +322,7 @@ export default function AccountPage() {
 
         {view.kind === "telegram" ? (
           <div className="space-y-6 text-center">
+            {identitiesSection}
             <p style={{ color: "var(--color-ink)" }}>
               已通过 Telegram 登录
               {view.username ? `（${view.username}）` : null}
@@ -225,6 +340,7 @@ export default function AccountPage() {
           </div>
         ) : view.kind === "email" ? (
           <div className="space-y-6 text-center">
+            {identitiesSection}
             <p style={{ color: "var(--color-ink)" }}>{view.email}</p>
             <button
               onClick={handleLogout}
