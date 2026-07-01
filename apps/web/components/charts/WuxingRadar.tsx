@@ -1,13 +1,16 @@
+"use client";
+
 import { WUXING_LABEL_TO_KEY } from "@/components/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 // 五行雷达：固定五轴，从正上方开始顺时针 —— 木(上)、火、土、金、水。
 // 第 i 轴相对竖直方向顺时针 i*72°，屏幕角度 = -90 + i*72。
-const AXES: { label: string; key: string }[] = [
-  { label: "木", key: WUXING_LABEL_TO_KEY["木"] }, // wood
-  { label: "火", key: WUXING_LABEL_TO_KEY["火"] }, // fire
-  { label: "土", key: WUXING_LABEL_TO_KEY["土"] }, // earth
-  { label: "金", key: WUXING_LABEL_TO_KEY["金"] }, // metal
-  { label: "水", key: WUXING_LABEL_TO_KEY["水"] }, // water
+const AXES: { labelKey: string; key: string; countKey: string }[] = [
+  { labelKey: "chart.elementWood", key: WUXING_LABEL_TO_KEY["木"], countKey: "木" }, // wood
+  { labelKey: "chart.elementFire", key: WUXING_LABEL_TO_KEY["火"], countKey: "火" }, // fire
+  { labelKey: "chart.elementEarth", key: WUXING_LABEL_TO_KEY["土"], countKey: "土" }, // earth
+  { labelKey: "chart.elementMetal", key: WUXING_LABEL_TO_KEY["金"], countKey: "金" }, // metal
+  { labelKey: "chart.elementWater", key: WUXING_LABEL_TO_KEY["水"], countKey: "水" }, // water
 ];
 
 const CX = 160;
@@ -31,8 +34,10 @@ function pentagonPoints(radius: number): string {
 }
 
 export function WuxingRadar({ counts }: { counts: Record<string, number> }) {
+  const t = useT();
+
   // 取值，保证五轴都有数（缺失按 0）。
-  const values = AXES.map(({ label }) => counts[label] ?? 0);
+  const values = AXES.map(({ countKey }) => counts[countKey] ?? 0);
 
   // 比例尺：至少为 3，避免数据撑满或被裁切。
   const maxScale = Math.max(3, ...Object.values(counts));
@@ -48,12 +53,12 @@ export function WuxingRadar({ counts }: { counts: Record<string, number> }) {
 
   // 找出计数最低的元素，给出温和的喜用提示。
   const minCount = Math.min(...values);
-  const lowest = AXES.filter((_, i) => values[i] === minCount).map((a) => a.label);
-  const lowestStr = lowest.join("、");
+  const lowest = AXES.filter((_, i) => values[i] === minCount).map((a) => t(a.labelKey));
+  const lowestStr = lowest.join(t("common.listSeparator"));
   const caption =
     minCount === 0
-      ? `五行缺${lowestStr}，喜用或在此方向`
-      : `${lowestStr}偏弱，或可于此处着力`;
+      ? t("chart.missingCaption", { elements: lowestStr })
+      : t("chart.weakCaption", { elements: lowestStr });
 
   return (
     <div className="w-full" style={{ maxWidth: 320 }}>
@@ -61,7 +66,7 @@ export function WuxingRadar({ counts }: { counts: Record<string, number> }) {
         viewBox="0 0 320 320"
         width="100%"
         role="img"
-        aria-label="五行雷达图"
+        aria-label={t("chart.radarAria")}
         style={{ display: "block" }}
       >
         {/* 三层同心五边形网格：1/3、2/3、3/3 */}
@@ -124,7 +129,7 @@ export function WuxingRadar({ counts }: { counts: Record<string, number> }) {
                 fontSize={15}
                 fill={`var(--color-${axis.key})`}
               >
-                {axis.label}
+                {t(axis.labelKey)}
               </text>
               <text
                 x={x}

@@ -148,4 +148,74 @@ export const en: Messages = {
     saveProfileError: "Failed to create profile: {message}",
     saveChartError: "Failed to save chart: {message}",
   },
+  chart: {
+    title: "命盘 (Chart)",
+    loadingProfile: "Loading profile…",
+    noProfile: "No chart profile yet.",
+    goCast: "去起盘 (Cast chart) →",
+    share: "分享 (Share) →",
+    shareText: "照见 (Zhaojian) · Eastern astrology × Western psychology for self-reflection",
+    todayFortune: "今日运势 (Today's fortune) →",
+
+    baziTitle: "八字四柱 (BaZi Four Pillars)",
+    ziweiTitle: "紫微斗数 (Zi Wei Dou Shu) · 十二宫 (Twelve Palaces)",
+    westernTitle: "西方本命盘 (Western Natal Chart) · 心理映照 (Psychological Reflection)",
+    westernMissing: "Missing birth time or place; the Western chart and psychological layer are omitted. Complete them to unlock.",
+    readingTitle: "三段式解读 (Three-Part Reading)",
+
+    castForMe: "为我照见 (Zhaojian for me)",
+    generating: "正在为你照见 (Reflecting for you)…",
+    generateReading: "为我照见 (Zhaojian for me) · 生成完整解读 (Generate full reading)",
+    generateReadingSub: "Your chart is ready — read your core self, growth themes, and a word for this moment through 命理结构 (Mingli structure) + 深层心理 (depth psychology).",
+
+
+    timelineTitle: "当下时序 (Current Cycles)",
+    timelineDisclaimer: "Cycles are calculated by 大限 (Decade) / 流年 (Annual) flow for the current year ({year}), updated yearly. For self-reflection only, not event prediction.",
+
+    pageDisclaimer: "The chart is computed once at profile creation and frozen. All readings are for self-reflection only and do not constitute medical, legal, financial, or psychological advice.",
+
+    tabMingli: "命理 (Mingli)",
+    tabPsych: "心理 (Psych)",
+    tabResonance: "共振 (Resonance)",
+    kickerMingli: "East · 命理结构 (Mingli Structure)",
+    kickerPsych: "West · 心理映照 (Psychological Reflection)",
+    kickerResonance: "Resonance · 共振",
+    readingSaved: "This reading has been saved; return to Chart to view it again.",
+    resonanceNote: "※ 仅在「内在世界 (inner world)」高置信锚点谈共振，非硬等价。",
+    resonanceExampleChip: "福德宫 (Life Palace) ↔ 月亮 (Moon) · 土星 (Saturn)",
+
+    pillarYear: "年 (Year)",
+    pillarMonth: "月 (Month)",
+    pillarDay: "日 (Day)",
+    pillarHour: "时 (Hour)",
+    dayMaster: "日主 (Day Master)",
+    strength: "旺衰 (Strength)",
+    fiveElements: "五行 (Five Elements)",
+    strengthStrong: "身强 (Strong)",
+    strengthWeak: "身弱 (Weak)",
+    strengthBalanced: "中和 (Balanced)",
+    strengthUnknown: "—",
+
+    soulPalace: "命宫 (Life Palace)",
+    bodyPalace: "身宫 (Body Palace)",
+    fiveElementBureau: "五行局 (Five Element Bureau)",
+    birthMutagens: "生年四化 (Natal Four Transforms)",
+    bodyPalaceSuffix: "身 (Body)",
+
+    radarAria: "五行雷达图 (Five Elements Radar)",
+    missingCaption: "五行 (Five Elements) lacks {elements}; your favorable direction may lie here.",
+    weakCaption: "{elements} is relatively weak; you may focus here.",
+
+    elementWood: "木 (Wood)",
+    elementFire: "火 (Fire)",
+    elementEarth: "土 (Earth)",
+    elementMetal: "金 (Metal)",
+    elementWater: "水 (Water)",
+
+    natalAria: "西方本命盘 (Western Natal Chart)",
+    houseUnit: "{n}宫 (House)",
+
+    selfPortraitTitle: "自我画像 (Self-Portrait)",
+    selfPortraitSubtitle: "An inner profile synthesized from chart structure and self-reported traits.",
+  },
 };

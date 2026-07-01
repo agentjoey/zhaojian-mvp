@@ -139,6 +139,75 @@ export const zh = {
     saveProfileError: "建档失败：{message}",
     saveChartError: "存档失败：{message}",
   },
+  chart: {
+    title: "命盘",
+    loadingProfile: "正在读取档案…",
+    noProfile: "尚无命盘档案。",
+    goCast: "去起盘",
+    share: "分享 →",
+    shareText: "照见 · 东方命理 × 西方心理的自我观照",
+    todayFortune: "今日运势 →",
+
+    baziTitle: "八字四柱",
+    ziweiTitle: "紫微斗数 · 十二宫",
+    westernTitle: "西方本命盘 · 心理映照",
+    westernMissing: "缺出生时辰或出生地，已略去西方星盘与心理层。补全后可解锁。",
+    readingTitle: "三段式解读",
+
+    castForMe: "为我照见",
+    generating: "正在为你照见…",
+    generateReading: "为我照见 · 生成完整解读",
+    generateReadingSub: "命盘已就位 —— 用命理结构 + 深层心理，读出你的核心自我、成长课题与一句此刻之言",
+
+    timelineTitle: "当下时序",
+    timelineDisclaimer: "时序按当前年份（{year}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。",
+
+    pageDisclaimer: "命盘为建档时一次推算并冻结。所有解读仅供自我观照，不构成医疗、法律、财务或心理诊断建议。",
+
+    tabMingli: "命理",
+    tabPsych: "心理",
+    tabResonance: "共振",
+    kickerMingli: "East · 命理结构",
+    kickerPsych: "West · 心理映照",
+    kickerResonance: "Resonance · 共振",
+    readingSaved: "此解读已为你保存，下次回到命盘可直接查看。",
+    resonanceNote: "※ 仅在「内在世界」高置信锚点谈共振，非硬等价。",
+    resonanceExampleChip: "福德宫 ↔ 月亮 · 土星",
+
+    pillarYear: "年",
+    pillarMonth: "月",
+    pillarDay: "日",
+    pillarHour: "时",
+    dayMaster: "日主",
+    strength: "旺衰",
+    fiveElements: "五行",
+    strengthStrong: "身强",
+    strengthWeak: "身弱",
+    strengthBalanced: "中和",
+    strengthUnknown: "—",
+
+    soulPalace: "命宫",
+    bodyPalace: "身宫",
+    fiveElementBureau: "五行局",
+    birthMutagens: "生年四化",
+    bodyPalaceSuffix: "身",
+
+    radarAria: "五行雷达图",
+    missingCaption: "五行缺{elements}，喜用或在此方向",
+    weakCaption: "{elements}偏弱，或可于此处着力",
+
+    elementWood: "木",
+    elementFire: "火",
+    elementEarth: "土",
+    elementMetal: "金",
+    elementWater: "水",
+
+    natalAria: "西方本命盘",
+    houseUnit: "{n}宫",
+
+    selfPortraitTitle: "自我画像 · Self-Portrait",
+    selfPortraitSubtitle: "由命盘结构与自我自陈合成的内在侧写",
+  },
 } as const;
 
 type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };

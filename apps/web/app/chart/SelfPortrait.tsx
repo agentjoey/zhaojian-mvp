@@ -4,6 +4,7 @@ import { deriveSelfPortrait, deriveSpirit } from "@eamvp/core";
 import type { QuestionnaireAnswers } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { Card } from "@/components/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 import { SpiritSigil } from "./SpiritSigil";
 
 export function SelfPortrait({
@@ -13,6 +14,7 @@ export function SelfPortrait({
   chart: Profile["chart"];
   questionnaire?: QuestionnaireAnswers;
 }) {
+  const t = useT();
   const portrait = deriveSelfPortrait(chart, { questionnaire, memoryPresent: false });
   const spirit = deriveSpirit(chart);
   const accentVar = `var(--color-${portrait.dominantElement})`;
@@ -22,9 +24,9 @@ export function SelfPortrait({
       <div className="mb-5 flex items-center gap-3">
         <SpiritSigil element={spirit.dominantElement} size={44} />
         <div className="min-w-0">
-          <h3 className="font-serif text-[17px] font-semibold leading-tight">自我画像 · Self-Portrait</h3>
+          <h3 className="font-serif text-[17px] font-semibold leading-tight">{t("chart.selfPortraitTitle")}</h3>
           <p className="mt-0.5 text-[12px] text-muted">
-            由命盘结构与自我自陈合成的内在侧写
+            {t("chart.selfPortraitSubtitle")}
           </p>
         </div>
       </div>

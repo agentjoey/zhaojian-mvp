@@ -1,5 +1,8 @@
+"use client";
+
 import type { ZiweiChart, Palace, Star } from "@eamvp/core";
 import { MutagenTag, cn } from "@/components/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 /**
  * 照见 · 紫微星盘（presentational, data-driven, NO recomputation）
@@ -23,6 +26,7 @@ const BRANCH_CELL: Record<string, { row: number; col: number }> = {
 const MUTAGEN_ORDER = ["禄", "权", "科", "忌"] as const;
 
 function PalaceCell({ palace }: { palace: Palace }) {
+  const t = useT();
   const pos = BRANCH_CELL[palace.branch];
   if (!pos) return null;
 
@@ -53,7 +57,7 @@ function PalaceCell({ palace }: { palace: Palace }) {
           {palace.name}
           {palace.isBodyPalace && (
             <span className="ml-1 align-middle" style={{ color: "var(--color-seal)", fontSize: "0.78em" }}>
-              身
+              {t("chart.bodyPalaceSuffix")}
             </span>
           )}
         </span>
@@ -110,10 +114,11 @@ function PalaceCell({ palace }: { palace: Palace }) {
 }
 
 function CenterCell({ ziwei }: { ziwei: ZiweiChart }) {
+  const t = useT();
   const facts: { label: string; value: string }[] = [
-    { label: "命宫", value: ziwei.soulPalaceBranch },
-    { label: "身宫", value: ziwei.bodyPalaceBranch },
-    { label: "五行局", value: ziwei.fiveElementBureau },
+    { label: t("chart.soulPalace"), value: ziwei.soulPalaceBranch },
+    { label: t("chart.bodyPalace"), value: ziwei.bodyPalaceBranch },
+    { label: t("chart.fiveElementBureau"), value: ziwei.fiveElementBureau },
   ];
   return (
     <div
@@ -143,7 +148,7 @@ function CenterCell({ ziwei }: { ziwei: ZiweiChart }) {
       {/* 生年四化 */}
       <div className="flex flex-col items-center gap-1">
         <span className="text-on-ink-gold" style={{ fontSize: "clamp(9px, 2vw, 11px)" }}>
-          生年四化
+          {t("chart.birthMutagens")}
         </span>
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
           {MUTAGEN_ORDER.map((k) => (

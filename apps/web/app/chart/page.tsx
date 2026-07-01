@@ -7,7 +7,7 @@ import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
-import { useLocale } from "@/lib/i18n/I18nProvider";
+import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { ReadingTabs } from "@/components/ReadingTabs";
 import { BaziPillars } from "@/components/charts/BaziPillars";
@@ -33,6 +33,7 @@ const todayYmd = `${YEAR}-${String(new Date().getMonth() + 1).padStart(2, "0")}-
 
 export default function ChartPage() {
   const { locale } = useLocale();
+  const t = useT();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [reading, setReading] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -44,7 +45,7 @@ export default function ChartPage() {
   const inTg = mounted && isTelegram();
 
   useTgMainButton({
-    text: streaming ? "正在为你照见…" : "为我照见",
+    text: streaming ? t("chart.generating") : t("chart.castForMe"),
     onClick: () => generate(),
     enabled: !streaming,
     visible: inTg && !reading,
@@ -145,13 +146,13 @@ export default function ChartPage() {
     }
   }
 
-  if (profile === undefined) return <Centered>正在读取档案…</Centered>;
+  if (profile === undefined) return <Centered>{t("chart.loadingProfile")}</Centered>;
   if (profile === null)
     return (
       <Centered>
-        <p className="text-ink-2">尚无命盘档案。</p>
+        <p className="text-ink-2">{t("chart.noProfile")}</p>
         <Link href="/reading" className="mt-4 inline-block px-6 py-3 text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>
-          去起盘
+          {t("chart.goCast")}
         </Link>
       </Centered>
     );
@@ -163,7 +164,7 @@ export default function ChartPage() {
     <main className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-serif text-[28px] font-black">{profile.nickname} · 命盘</h1>
+          <h1 className="font-serif text-[28px] font-black">{profile.nickname} · {t("chart.title")}</h1>
           <p className="latin-label mt-1 text-[11px] text-muted">{chart.normalizedSolarTime}</p>
         </div>
         <div className="flex items-center gap-4">
@@ -175,20 +176,20 @@ export default function ChartPage() {
                   "https://t.me/share/url?url=" +
                     encodeURIComponent(`https://t.me/${username}?startapp=zhaojian`) +
                     "&text=" +
-                    encodeURIComponent("照见 · 东方命理 × 西方心理的自我观照")
+                    encodeURIComponent(t("chart.shareText"))
                 );
               }}
               className="text-[13px] text-cinnabar underline underline-offset-4"
             >
-              分享 →
+              {t("chart.share")}
             </button>
           )}
-          <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">今日运势 →</Link>
+          <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">{t("chart.todayFortune")}</Link>
         </div>
       </header>
 
       {/* 八字 + 五行 */}
-      <Section title="八字四柱">
+      <Section title={t("chart.baziTitle")}>
         <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
           <Card><BaziPillars bazi={chart.bazi} /></Card>
           <Card><WuxingRadar counts={chart.bazi.fiveElementCounts} /></Card>
@@ -196,23 +197,23 @@ export default function ChartPage() {
       </Section>
 
       {/* 紫微 */}
-      <Section title="紫微斗数 · 十二宫">
+      <Section title={t("chart.ziweiTitle")}>
         <Card><ZiweiBoard ziwei={chart.ziwei} /></Card>
       </Section>
 
       {/* 西方本命盘（降级隐藏） */}
       {chart.western ? (
-        <Section title="西方本命盘 · 心理映照">
+        <Section title={t("chart.westernTitle")}>
           <Card><NatalWheel western={chart.western} /></Card>
         </Section>
       ) : (
-        <Section title="西方本命盘 · 心理映照">
-          <Card><p className="text-[14px] text-muted">缺出生时辰或出生地，已略去西方星盘与心理层。补全后可解锁。</p></Card>
+        <Section title={t("chart.westernTitle")}>
+          <Card><p className="text-[14px] text-muted">{t("chart.westernMissing")}</p></Card>
         </Section>
       )}
 
       {/* 三段式解读 */}
-      <Section title="三段式解读">
+      <Section title={t("chart.readingTitle")}>
         {!inTg && !reading && !streaming && (
           <button
             onClick={generate}
@@ -220,14 +221,14 @@ export default function ChartPage() {
             style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-card)", color: "var(--color-on-ink)" }}
           >
             <span>
-              <span className="block text-[17px] font-semibold">为我照见 · 生成完整解读</span>
-              <span className="mt-1 block text-[13px] opacity-85">命盘已就位 —— 用命理结构 + 深层心理，读出你的核心自我、成长课题与一句此刻之言</span>
+              <span className="block text-[17px] font-semibold">{t("chart.generateReading")}</span>
+              <span className="mt-1 block text-[13px] opacity-85">{t("chart.generateReadingSub")}</span>
             </span>
             <span className="text-[22px] transition-transform duration-200 group-hover:translate-x-1">✦</span>
           </button>
         )}
         {streaming && !reading && (
-          <Card><p className="text-[14px] text-muted">正在为你照见… <span className="animate-pulse text-cinnabar">▋</span></p></Card>
+          <Card><p className="text-[14px] text-muted">{t("chart.generating")} <span className="animate-pulse text-cinnabar">▋</span></p></Card>
         )}
         {err && (
           <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>{err}</div>
@@ -236,16 +237,16 @@ export default function ChartPage() {
       </Section>
 
       {timeline && (
-        <Section title="当下时序">
+        <Section title={t("chart.timelineTitle")}>
           <Card topAccent="metal">
             <div className="reading-prose"><Markdown text={timeline.replace(/^##\s*本年时序\s*/, "")} /></div>
-            <p className="mt-3 text-[11px] text-muted">时序按当前年份（{YEAR}）的大限/流年推算，随年更新；仅供自我观照，非事件预测。</p>
+            <p className="mt-3 text-[11px] text-muted">{t("chart.timelineDisclaimer", { year: YEAR })}</p>
           </Card>
         </Section>
       )}
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">
-        命盘为建档时一次推算并冻结。所有解读仅供自我观照，不构成医疗、法律、财务或心理诊断建议。
+        {t("chart.pageDisclaimer")}
       </p>
     </main>
   );

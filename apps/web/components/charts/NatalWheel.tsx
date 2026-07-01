@@ -1,4 +1,7 @@
+"use client";
+
 import type { WesternChart, Aspect } from "@eamvp/core";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 // ── 静态查表（纯展示，无任何排盘推算）─────────────────────────────
 const SIGN_ORDER = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"] as const;
@@ -49,6 +52,7 @@ function spread(angles: number[], MIN = 11): number[] {
 }
 
 export function NatalWheel({ western }: { western: WesternChart | null }) {
+  const t = useT();
   if (!western) return null;
   const { ascendant, midheaven, planets, aspects } = western;
   const ascLon = lonOf(ascendant.sign, ascendant.degree);
@@ -69,7 +73,7 @@ export function NatalWheel({ western }: { western: WesternChart | null }) {
 
   return (
     <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="西方本命盘" style={{ width: "100%", height: "auto", maxWidth: 440 }}>
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={t("chart.natalAria")} style={{ width: "100%", height: "auto", maxWidth: 440 }}>
         {/* 圆环 */}
         <circle cx={C} cy={C} r={R_OUTER} fill="none" stroke="var(--color-line)" strokeWidth={1} />
         <circle cx={C} cy={C} r={R_ZODIAC_IN} fill="none" stroke="var(--color-line)" strokeWidth={1} />
@@ -151,7 +155,7 @@ export function NatalWheel({ western }: { western: WesternChart | null }) {
             <span aria-hidden className="inline-flex w-5 justify-center font-semibold">{(PLANET_GLYPH[p.name] ?? "") + VS}</span>
             <span className="w-9">{PLANET_CN[p.name] ?? p.name}</span>
             <span className="w-9 text-muted">{SIGN_CN[p.sign] ?? p.sign}</span>
-            <span className="w-8 text-muted text-[12px]">{p.house}宫</span>
+            <span className="w-8 text-muted text-[12px]">{t("chart.houseUnit", { n: p.house })}</span>
             <span className="font-latin tabular-nums text-muted text-[12px]">{p.degree.toFixed(1)}°</span>
             {p.retrograde && <span className="font-latin text-fire text-[12px]">℞</span>}
           </li>
