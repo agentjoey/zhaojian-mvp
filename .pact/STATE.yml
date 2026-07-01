@@ -403,7 +403,13 @@ features:
         evidence: 命盘壳+图谱标签翻译;build通过
       - id: i18n-T6-calendar
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
         evidence: 运势翻译;build通过
+      - id: i18n-T7-spirit
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-i18n-bilingual.md
+        evidence: 灵/问卷/画像UI翻译;build通过

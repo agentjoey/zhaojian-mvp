@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SpiritSigil } from "./SpiritSigil";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 /**
  * 本命之灵角色形象（EP-spirit-portrait）。按主导五行映射一张形象图，名号叠在底部渐隐上。
@@ -17,6 +18,7 @@ export function SpiritPortrait({
   archetype: string;
   height?: number;
 }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
 
   return (
@@ -29,7 +31,7 @@ export function SpiritPortrait({
         ) : (
           <img
             src={`/spirit/portrait-${element}.jpg`}
-            alt={`本命之灵 · ${archetype}`}
+            alt={t("spirit.archetypeAlt", { archetype })}
             onError={() => setFailed(true)}
             className="h-full w-full object-cover"
             style={{ objectPosition: "center 22%" }}
@@ -43,7 +45,7 @@ export function SpiritPortrait({
           <SpiritSigil element={element} size={26} />
           <div className="min-w-0">
             <div className="font-serif text-[18px] font-semibold leading-tight text-white">{archetype}</div>
-            <div className="text-[11px] tracking-wide text-white/70">本命之灵 · Natal Spirit</div>
+            <div className="text-[11px] tracking-wide text-white/70">{t("spirit.natalSpirit")}</div>
           </div>
         </div>
       </div>
