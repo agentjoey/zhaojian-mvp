@@ -208,6 +208,64 @@ export const zh = {
     selfPortraitTitle: "自我画像 · Self-Portrait",
     selfPortraitSubtitle: "由命盘结构与自我自陈合成的内在侧写",
   },
+  calendar: {
+    title: "运势日历",
+    loadingProfile: "正在读取档案…",
+    noProfileForFortune: "尚无命盘档案，无法生成每日运势。",
+    goCast: "去起盘",
+    dayMasterLabel: "命主",
+    today: "今日",
+    calculating: "正在推算当日流日…",
+    disclaimer:
+      "每日运势为流日命理的启发性参照，非吉凶预言。请结合现实理性判断。",
+
+    decadal: "本限",
+    yearly: "流年",
+    yearlyJi: "流年化忌",
+    thisYearLesson: "今年功课",
+    yearlyLu: "化禄",
+    favorable: "顺势",
+    toTimeline: "本年时序 →",
+
+    scoreLabel: "{grade} · {today}",
+    moodLabel: "{today} · {mood}",
+    grade: {
+      auspicious: "吉",
+      smooth: "顺",
+      neutral: "平",
+      cautious: "谨",
+      advance: "宜进取",
+      proceed: "可推进",
+      steady: "守稳健",
+      still: "宜守静",
+    },
+
+    yi: "宜",
+    ji: "忌",
+    favorableToday: "今日喜用",
+    interaction: "流日{kind}命{withPillar}支",
+    todayYi: "今日宜",
+    todayJi: "今日忌",
+    auspiciousYi: "趋吉 · 宜",
+    cautionJi: "避祸 · 忌",
+
+    almanac: "黄历",
+    none: "—",
+
+    dims: {
+      career: "事业",
+      wealth: "财运",
+      love: "感情",
+      health: "健康",
+      travel: "出行",
+    },
+
+    spiritCardLabel: "本命之灵 · 问今日",
+    spiritLoading: "本命之灵正在感应今日…",
+    talkToSpirit: "与本命之灵详谈 →",
+
+    weekDays: "日,一,二,三,四,五,六",
+  },
 } as const;
 
 type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };

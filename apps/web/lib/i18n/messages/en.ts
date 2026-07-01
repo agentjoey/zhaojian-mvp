@@ -218,4 +218,63 @@ export const en: Messages = {
     selfPortraitTitle: "自我画像 (Self-Portrait)",
     selfPortraitSubtitle: "An inner profile synthesized from chart structure and self-reported traits.",
   },
+  calendar: {
+    title: "运势日历 (Fortune Calendar)",
+    loadingProfile: "Loading profile…",
+    noProfileForFortune:
+      "No chart profile yet. Daily fortune cannot be generated.",
+    goCast: "去起盘 (Cast chart)",
+    dayMasterLabel: "命主 (Day Master)",
+    today: "Today",
+    calculating: "Casting today’s flow…",
+    disclaimer:
+      "Daily fortune is an inspirational reference of the day’s flow, not a prophecy of good or ill. Please judge with reality and reason.",
+
+    decadal: "本限 (Decade)",
+    yearly: "流年 (Annual flow)",
+    yearlyJi: "流年化忌 (Annual Hua-Ji)",
+    thisYearLesson: "今年功课 (This year’s lesson)",
+    yearlyLu: "化禄 (Hua-Lu)",
+    favorable: "顺势 (Favorable)",
+    toTimeline: "本年时序 → (Current cycles →)",
+
+    scoreLabel: "{grade} · {today}",
+    moodLabel: "{today} · {mood}",
+    grade: {
+      auspicious: "吉 (Auspicious)",
+      smooth: "顺 (Smooth)",
+      neutral: "平 (Steady)",
+      cautious: "谨 (Cautious)",
+      advance: "宜进取 (Favorable for advancing)",
+      proceed: "可推进 (Can push forward)",
+      steady: "守稳健 (Stay steady)",
+      still: "宜守静 (Favorable for stillness)",
+    },
+
+    yi: "宜 (Favorable)",
+    ji: "忌 (Unfavorable)",
+    favorableToday: "今日喜用 (Today’s favorables)",
+    interaction: "流日{kind}命{withPillar}支 (Daily flow {kind} on {withPillar} branch)",
+    todayYi: "今日宜 (Favorable today)",
+    todayJi: "今日忌 (Unfavorable today)",
+    auspiciousYi: "趋吉 · 宜 (Auspicious · Do)",
+    cautionJi: "避祸 · 忌 (Avoid harm · Don’t)",
+
+    almanac: "黄历 (Almanac)",
+    none: "—",
+
+    dims: {
+      career: "事业 (Career)",
+      wealth: "财运 (Wealth)",
+      love: "感情 (Love)",
+      health: "健康 (Health)",
+      travel: "出行 (Travel)",
+    },
+
+    spiritCardLabel: "本命之灵 · 问今日 (Guardian Spirit · Ask Today)",
+    spiritLoading: "本命之灵正在感应今日… (The guardian spirit is sensing today…)",
+    talkToSpirit: "与本命之灵详谈 → (Talk to guardian spirit →)",
+
+    weekDays: "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
+  },
 };

@@ -10,6 +10,7 @@ import { Card, GanzhiBadge } from "@/components/ui";
 import { ScoreRing } from "@/components/ScoreRing";
 import { CastingOverlay } from "@/components/CastingOverlay";
 import { AskToday } from "./AskToday";
+import { useT } from "@/lib/i18n/I18nProvider";
 import type { DailyFortune, ZiweiHoroscope } from "@eamvp/core";
 
 // 按 (档案,日期,kind) 缓存 LLM 结果到 localStorage，避免重复调用
@@ -24,12 +25,12 @@ function cacheSet(kind: string, pid: string, date: string, v: string): void {
 const ELEMENT_COLOR: Record<string, string> = {
   木: "var(--color-wood)", 火: "var(--color-fire)", 土: "var(--color-earth)", 金: "var(--color-metal)", 水: "var(--color-water)",
 };
-// 综合分 → 大字总评
-function gradeOf(overall: number): { glyph: string; label: string } {
-  if (overall >= 8) return { glyph: "吉", label: "宜进取" };
-  if (overall >= 6) return { glyph: "顺", label: "可推进" };
-  if (overall >= 4) return { glyph: "平", label: "守稳健" };
-  return { glyph: "谨", label: "宜守静" };
+// 综合分 → 大字总评（返回 i18n key）
+function gradeOf(overall: number): "auspicious" | "smooth" | "neutral" | "cautious" {
+  if (overall >= 8) return "auspicious";
+  if (overall >= 6) return "smooth";
+  if (overall >= 4) return "neutral";
+  return "cautious";
 }
 
 type Behavior = { do: string[]; dont: string[] };
@@ -46,16 +47,13 @@ function weekDays(today: Date): Date[] {
     return d;
   });
 }
-const WK = ["日", "一", "二", "三", "四", "五", "六"];
-const DIMS: { key: keyof DailyFortune["scores"]; label: string }[] = [
-  { key: "career", label: "事业" },
-  { key: "wealth", label: "财运" },
-  { key: "love", label: "感情" },
-  { key: "health", label: "健康" },
-  { key: "travel", label: "出行" },
+const DIMS: ("career" | "wealth" | "love" | "health" | "travel")[] = [
+  "career", "wealth", "love", "health", "travel",
 ];
 
 export default function CalendarPage() {
+  const t = useT();
+  const WK = t("calendar.weekDays").split(",");
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [today] = useState(() => new Date());
   const [selected, setSelected] = useState(() => ymd(new Date()));
@@ -139,12 +137,12 @@ export default function CalendarPage() {
     };
   }, [profile, selected]);
 
-  if (profile === undefined) return <Centered>正在读取档案…</Centered>;
+  if (profile === undefined) return <Centered>{t("calendar.loadingProfile")}</Centered>;
   if (profile === null)
     return (
       <Centered>
-        <p className="text-ink-2">尚无命盘档案，无法生成每日运势。</p>
-        <Link href="/reading" className="mt-4 inline-block px-6 py-3 text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>去起盘</Link>
+        <p className="text-ink-2">{t("calendar.noProfileForFortune")}</p>
+        <Link href="/reading" className="mt-4 inline-block px-6 py-3 text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("calendar.goCast")}</Link>
       </Centered>
     );
 
@@ -152,19 +150,19 @@ export default function CalendarPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
-      {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" />}
+      {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" title={t("calendar.calculating")} />}
       <header className="mb-6">
-        <h1 className="font-serif text-[28px] font-black">运势日历</h1>
-        <p className="mt-1 text-[13px] text-muted">{profile.nickname} · 命主 {profile.chart.bazi.dayMaster}（{profile.chart.bazi.dayMasterElement}）</p>
+        <h1 className="font-serif text-[28px] font-black">{t("calendar.title")}</h1>
+        <p className="mt-1 text-[13px] text-muted">{profile.nickname} · {t("calendar.dayMasterLabel")} {profile.chart.bazi.dayMaster}（{profile.chart.bazi.dayMasterElement}）</p>
       </header>
 
       {/* 本年/本限 时序上下文（大背景 → 今日） */}
       {horoscope && (
         <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[var(--radius-card)] px-4 py-3" style={{ background: "var(--color-surface)", border: "1px solid var(--color-line)" }}>
-          <span className="text-[13px] text-ink-2">本限 <b className="font-semibold">{horoscope.decadal.stem}{horoscope.decadal.branch}</b></span>
-          <span className="text-[13px] text-ink-2">{selYear} 流年 <b className="font-semibold">{horoscope.yearly.stem}{horoscope.yearly.branch}</b></span>
-          <span className="text-[12px] text-muted">流年化忌 <b className="text-cinnabar">{horoscope.yearly.mutagens.忌}</b>（今年功课）· 化禄 <b className="text-wood">{horoscope.yearly.mutagens.禄}</b>（顺势）</span>
-          <Link href="/chart" className="ml-auto shrink-0 text-[12px] text-gold underline underline-offset-4">本年时序 →</Link>
+          <span className="text-[13px] text-ink-2">{t("calendar.decadal")} <b className="font-semibold">{horoscope.decadal.stem}{horoscope.decadal.branch}</b></span>
+          <span className="text-[13px] text-ink-2">{selYear} {t("calendar.yearly")} <b className="font-semibold">{horoscope.yearly.stem}{horoscope.yearly.branch}</b></span>
+          <span className="text-[12px] text-muted">{t("calendar.yearlyJi")} <b className="text-cinnabar">{horoscope.yearly.mutagens.忌}</b>（{t("calendar.thisYearLesson")}）· {t("calendar.yearlyLu")} <b className="text-wood">{horoscope.yearly.mutagens.禄}</b>（{t("calendar.favorable")}）</span>
+          <Link href="/chart" className="ml-auto shrink-0 text-[12px] text-gold underline underline-offset-4">{t("calendar.toTimeline")}</Link>
         </div>
       )}
 
@@ -194,7 +192,7 @@ export default function CalendarPage() {
       </div>
 
       {loading || !fortune ? (
-        <Card><p className="text-[14px] text-muted">正在推算当日流日…</p></Card>
+        <Card><p className="text-[14px] text-muted">{t("calendar.calculating")}</p></Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {/* 今日运势 hero（每日配图作背景 + 评分环） */}
@@ -211,9 +209,9 @@ export default function CalendarPage() {
                 <div className="absolute inset-0" style={{ background: "linear-gradient(155deg,rgba(20,18,16,.72),rgba(20,18,16,.82) 55%,rgba(20,18,16,.93))" }} />
                 <div className="relative p-6 text-on-ink">
                   <div className="flex items-center gap-5">
-                    <ScoreRing score={fortune.scores.overall} max={10} size={104} label={g.glyph + " · 今日"} />
+                    <ScoreRing score={fortune.scores.overall} max={10} size={104} label={t("calendar.scoreLabel", { grade: t("calendar.grade." + g), today: t("calendar.today") })} />
                     <div className="min-w-0 flex-1">
-                      <div className="latin-label text-[11px] text-on-ink-gold">Today · {MOOD_LABEL[fortune.relation]}</div>
+                      <div className="latin-label text-[11px] text-on-ink-gold">{t("calendar.moodLabel", { today: t("calendar.today"), mood: MOOD_LABEL[fortune.relation] })}</div>
                       <div className="my-2.5 flex gap-2">
                         <GanzhiBadge char={fortune.dayGanZhi[0]!} size={40} />
                         <GanzhiBadge char={fortune.dayGanZhi[1]!} size={40} />
@@ -226,14 +224,14 @@ export default function CalendarPage() {
                     <p className="flex items-start gap-2 text-[13.5px] leading-[1.9]" style={{ color: "var(--color-on-ink-gold)" }}><span aria-hidden>✦</span><span>{polish}</span></p>
                   )}
                   <div className="mt-4 flex gap-2">
-                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", border: "1px solid #4A463B", borderRadius: "var(--radius-chip)", color: "#9FCBB4" }}>宜 · {yi}</span>
-                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", background: "var(--color-cinnabar)", borderRadius: "var(--radius-chip)", color: "#fff" }}>忌 · {ji}</span>
+                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", border: "1px solid #4A463B", borderRadius: "var(--radius-chip)", color: "#9FCBB4" }}>{t("calendar.yi")} · {yi}</span>
+                    <span className="flex-1 truncate text-center text-[13px]" style={{ padding: "9px", background: "var(--color-cinnabar)", borderRadius: "var(--radius-chip)", color: "#fff" }}>{t("calendar.ji")} · {ji}</span>
                   </div>
                   {(fortune.favorableToday || fortune.interactions.length > 0) && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {fortune.favorableToday && <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink-gold) 20%, transparent)", color: "var(--color-on-ink-gold)" }}>今日喜用</span>}
+                      {fortune.favorableToday && <span className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink-gold) 20%, transparent)", color: "var(--color-on-ink-gold)" }}>{t("calendar.favorableToday")}</span>}
                       {fortune.interactions.map((it, i) => (
-                        <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink) 8%, transparent)", color: "var(--color-on-ink-muted)" }} title={it.note}>流日{it.kind}命{it.withPillar}支</span>
+                        <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--color-on-ink) 8%, transparent)", color: "var(--color-on-ink-muted)" }} title={it.note}>{t("calendar.interaction", { kind: it.kind, withPillar: it.withPillar })}</span>
                       ))}
                     </div>
                   )}
@@ -249,13 +247,13 @@ export default function CalendarPage() {
           {/* 五维评分 */}
           <Card>
             <div className="space-y-2.5">
-              {DIMS.map((d) => (
-                <div key={d.key} className="flex items-center gap-3">
-                  <span className="w-8 text-[13px] text-ink-2">{d.label}</span>
+              {DIMS.map((key) => (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="w-8 text-[13px] text-ink-2">{t("calendar.dims." + key)}</span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "var(--color-tint)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${fortune.scores[d.key] * 10}%`, background: "var(--color-cinnabar)" }} />
+                    <div className="h-full rounded-full" style={{ width: `${fortune.scores[key] * 10}%`, background: "var(--color-cinnabar)" }} />
                   </div>
-                  <span className="font-latin w-5 text-right text-[13px] text-muted">{fortune.scores[d.key]}</span>
+                  <span className="font-latin w-5 text-right text-[13px] text-muted">{fortune.scores[key]}</span>
                 </div>
               ))}
             </div>
@@ -264,31 +262,31 @@ export default function CalendarPage() {
           {/* 今日宜忌：优先心理行为版（LLM，现代可执行），降级用确定性趋吉避祸 */}
           <div className="grid gap-4 sm:grid-cols-2">
             <Card topAccent="wood">
-              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-wood)" }}>{behavior ? "今日宜" : "趋吉 · 宜"}</h3>
+              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-wood)" }}>{behavior ? t("calendar.todayYi") : t("calendar.auspiciousYi")}</h3>
               <ul className="mt-2 space-y-1.5 text-[14px] text-ink-2">
-                {(behavior?.do ?? fortune.auspicious).map((t, i) => <li key={i} className="flex gap-1.5"><span className="text-wood">·</span><span>{t}</span></li>)}
+                {(behavior?.do ?? fortune.auspicious).map((item, i) => <li key={i} className="flex gap-1.5"><span className="text-wood">·</span><span>{item}</span></li>)}
               </ul>
             </Card>
             <Card topAccent="fire">
-              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-fire)" }}>{behavior ? "今日忌" : "避祸 · 忌"}</h3>
+              <h3 className="text-[15px] font-semibold" style={{ color: "var(--color-fire)" }}>{behavior ? t("calendar.todayJi") : t("calendar.cautionJi")}</h3>
               <ul className="mt-2 space-y-1.5 text-[14px] text-ink-2">
-                {(behavior?.dont ?? fortune.caution).map((t, i) => <li key={i} className="flex gap-1.5"><span className="text-fire">·</span><span>{t}</span></li>)}
+                {(behavior?.dont ?? fortune.caution).map((item, i) => <li key={i} className="flex gap-1.5"><span className="text-fire">·</span><span>{item}</span></li>)}
               </ul>
             </Card>
           </div>
 
           {fortune.almanacYi.length + fortune.almanacJi.length > 0 && (
             <Card>
-              <div className="text-[12px] text-muted">黄历</div>
-              <div className="mt-1 text-[13px] text-ink-2"><span className="text-wood">宜</span> {fortune.almanacYi.join("、") || "—"}</div>
-              <div className="mt-0.5 text-[13px] text-ink-2"><span className="text-fire">忌</span> {fortune.almanacJi.join("、") || "—"}</div>
+              <div className="text-[12px] text-muted">{t("calendar.almanac")}</div>
+              <div className="mt-1 text-[13px] text-ink-2"><span className="text-wood">{t("calendar.yi")}</span> {fortune.almanacYi.join("、") || t("calendar.none")}</div>
+              <div className="mt-0.5 text-[13px] text-ink-2"><span className="text-fire">{t("calendar.ji")}</span> {fortune.almanacJi.join("、") || t("calendar.none")}</div>
             </Card>
           )}
         </div>
       )}
 
       <p className="mt-8 text-[12px] leading-relaxed text-muted">
-        每日运势为流日命理的启发性参照，非吉凶预言。请结合现实理性判断。
+        {t("calendar.disclaimer")}
       </p>
     </main>
   );

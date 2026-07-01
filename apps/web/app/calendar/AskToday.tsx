@@ -11,8 +11,10 @@ import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { Paywall } from "@/components/Paywall";
 import { SpiritSigil } from "@/app/chart/SpiritSigil";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fortune: DailyFortune; dateStr: string }) {
+  const t = useT();
   const spirit = deriveSpirit(profile.chart);
   const [greeting, setGreeting] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,11 +69,11 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
         <SpiritSigil element={spirit.dominantElement} size={40} />
         <div className="min-w-0">
           <h3 className="font-serif text-[16px] font-semibold leading-tight">{spirit.archetype}</h3>
-          <p className="mt-0.5 text-[12px] text-muted">本命之灵 · 问今日</p>
+          <p className="mt-0.5 text-[12px] text-muted">{t("calendar.spiritCardLabel")}</p>
         </div>
       </div>
       {loading ? (
-        <p className="text-[14px] text-muted">本命之灵正在感应今日… <span className="inline-block animate-pulse text-cinnabar">▋</span></p>
+        <p className="text-[14px] text-muted">{t("calendar.spiritLoading")} <span className="inline-block animate-pulse text-cinnabar">▋</span></p>
       ) : (
         <>
           <div className="reading-prose">
@@ -81,7 +83,7 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
             href="/spirit"
             className="mt-3 inline-block text-[12px] text-cinnabar underline underline-offset-4"
           >
-            与本命之灵详谈 →
+            {t("calendar.talkToSpirit")}
           </Link>
         </>
       )}
