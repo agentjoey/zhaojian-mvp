@@ -345,7 +345,13 @@ features:
     tasks:
       - id: am-T1-identities-linktg
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-account-management.md
         evidence: uid+identities+补绑TG+/account展示;build通过
+      - id: am-T2-link-email
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-account-management.md
+        evidence: 补绑邮箱;占用校验;确认邮件;build通过
