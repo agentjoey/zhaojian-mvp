@@ -5,6 +5,7 @@ import { PROFILE_QUESTIONNAIRE, type QuestionnaireAnswers } from "@eamvp/core";
 import { saveQuestionnaire, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgSaveQuestionnaire } from "@/lib/tg/client";
 import { Card } from "@/components/ui";
+import { useT } from "@/lib/i18n/I18nProvider";
 
 export function Questionnaire({
   profile,
@@ -13,6 +14,7 @@ export function Questionnaire({
   profile: Profile;
   onDone: (a: QuestionnaireAnswers) => void;
 }) {
+  const t = useT();
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({});
   const [saving, setSaving] = useState(false);
 
@@ -40,9 +42,9 @@ export function Questionnaire({
   return (
     <Card className="mb-6">
       <div className="mb-5">
-        <h3 className="font-serif text-[17px] font-semibold">自我自陈 · A few questions</h3>
+        <h3 className="font-serif text-[17px] font-semibold">{t("spirit.questionnaireTitle")}</h3>
         <p className="mt-1 text-[13px] leading-relaxed text-muted">
-          几道主观自陈题，让本命之灵更懂你的心境与倾向。答案没有对错，只用于深化对话与画像，不参与命盘排算。
+          {t("spirit.questionnaireIntro")}
         </p>
       </div>
 
@@ -85,7 +87,7 @@ export function Questionnaire({
         className="mt-6 w-full rounded-[var(--radius-button)] px-5 py-3 text-[15px] font-medium text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
         style={{ background: "var(--color-cinnabar)" }}
       >
-        {saving ? "保存中…" : "完成 · 让本命之灵更懂你"}
+        {saving ? t("spirit.saving") : t("spirit.complete")}
       </button>
     </Card>
   );

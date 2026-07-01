@@ -266,6 +266,30 @@ export const zh = {
 
     weekDays: "日,一,二,三,四,五,六",
   },
+  spirit: {
+    notEnabled: "本命之灵尚未开启。",
+    loadingProfile: "正在读取档案…",
+    noProfile: "尚无命盘档案。",
+    goCast: "去起盘",
+    title: "本命之灵",
+    subtitle: "从你自己的命盘里走出来的那个声音 —— 陪你照见，而非预言。",
+    disclaimer: "本命之灵基于你的冻结命盘对话；所有内容仅供自我观照，非预测、非诊断。",
+
+    send: "发送",
+    writing: "本命之灵书写中…",
+    unavailable: "本命之灵暂时无法回应",
+    emptyPrompt: "与本命之灵说点什么吧…",
+    inputPlaceholder: "与本命之灵对话…",
+
+    archetypeAlt: "本命之灵 · {archetype}",
+    natalSpirit: "本命之灵 · Natal Spirit",
+
+    questionnaireTitle: "自我自陈 · A few questions",
+    questionnaireIntro:
+      "几道主观自陈题，让本命之灵更懂你的心境与倾向。答案没有对错，只用于深化对话与画像，不参与命盘排算。",
+    saving: "保存中…",
+    complete: "完成 · 让本命之灵更懂你",
+  },
 } as const;
 
 type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };

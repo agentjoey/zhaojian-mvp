@@ -13,10 +13,11 @@ import { Markdown } from "@/components/Markdown";
 import { Paywall } from "@/components/Paywall";
 import { SpiritPortrait } from "./SpiritPortrait";
 import { spiritMemoryAction } from "@/app/actions";
-import { useLocale } from "@/lib/i18n/I18nProvider";
+import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 
 export function SpiritPanel({ profile }: { profile: Profile }) {
   const { locale } = useLocale();
+  const t = useT();
   const spirit = deriveSpirit(profile.chart);
   const [messages, setMessages] = useState<SpiritMessage[]>([]);
   const [input, setInput] = useState("");
@@ -27,7 +28,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useTgMainButton({
-    text: streaming ? "本命之灵书写中…" : "发送",
+    text: streaming ? t("spirit.writing") : t("spirit.send"),
     onClick: () => handleSubmit(),
     enabled: !streaming && !!input.trim(),
     visible: isTelegram() && !streaming ? true : isTelegram(),
@@ -41,7 +42,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
       });
       if (!res.ok || !res.body) {
-        throw new Error(await res.text() || "本命之灵暂时无法回应");
+        throw new Error(await res.text() || t("spirit.unavailable"));
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -180,7 +181,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         }
       }
       if (!res.ok || !res.body) {
-        throw new Error(await res.text() || "本命之灵暂时无法回应");
+        throw new Error(await res.text() || t("spirit.unavailable"));
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -232,7 +233,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
               className="max-w-[82%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed bg-[var(--color-paper)] text-ink-2"
               style={{ border: "1px solid var(--color-line)" }}
             >
-              与本命之灵说点什么吧…
+              {t("spirit.emptyPrompt")}
             </div>
           </div>
         )}
@@ -295,7 +296,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
               void handleSubmit();
             }
           }}
-          placeholder="与本命之灵对话…"
+          placeholder={t("spirit.inputPlaceholder")}
           rows={1}
           disabled={streaming}
           className="flex-1 resize-none rounded-[var(--radius-button)] border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2.5 text-[14px] text-ink placeholder:text-muted focus:border-[var(--color-cinnabar)] focus:outline-none disabled:opacity-60"
@@ -308,7 +309,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
             className="inline-flex h-[44px] shrink-0 items-center justify-center px-4 text-[14px] font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: cinnabar, borderRadius: "var(--radius-button)" }}
           >
-            发送
+            {t("spirit.send")}
           </button>
         )}
       </form>

@@ -277,4 +277,30 @@ export const en: Messages = {
 
     weekDays: "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
   },
+  spirit: {
+    notEnabled: "本命之灵 (Natal Spirit) is not enabled.",
+    loadingProfile: "Loading profile…",
+    noProfile: "No chart profile yet.",
+    goCast: "去起盘 (Cast chart)",
+    title: "本命之灵 (Natal Spirit)",
+    subtitle:
+      "The voice that walks out of your own chart — here to mirror you, not to prophesy.",
+    disclaimer:
+      "The 本命之灵 (Natal Spirit) converses based on your frozen chart; all content is for self-reflection only, not prediction or diagnosis.",
+
+    send: "Send",
+    writing: "本命之灵 (Natal Spirit) is writing…",
+    unavailable: "本命之灵 (Natal Spirit) is temporarily unavailable",
+    emptyPrompt: "Say something to your 本命之灵 (Natal Spirit)…",
+    inputPlaceholder: "Talk to your 本命之灵 (Natal Spirit)…",
+
+    archetypeAlt: "本命之灵 (Natal Spirit) · {archetype}",
+    natalSpirit: "本命之灵 (Natal Spirit)",
+
+    questionnaireTitle: "自我自陈 (Self-Report) · A few questions",
+    questionnaireIntro:
+      "A few subjective questions help your 本命之灵 (Natal Spirit) understand your state and tendencies. There are no right or wrong answers; they are only used to deepen the dialogue and portrait, not to calculate the chart.",
+    saving: "Saving…",
+    complete: "Complete · Help your 本命之灵 (Natal Spirit) understand you",
+  },
 };
