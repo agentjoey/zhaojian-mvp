@@ -357,7 +357,13 @@ features:
         evidence: 补绑邮箱;占用校验;确认邮件;build通过
       - id: am-T3-rename-delete
         owner: kimi
-        status: awaiting_review
+        status: accepted
         reviewer: claude
         spec: docs/superpowers/plans/2026-07-01-account-management.md
         evidence: rename只改nickname+删除二次确认;build通过
+      - id: am-T4-delete-account
+        owner: kimi
+        status: awaiting_review
+        reviewer: claude
+        spec: docs/superpowers/plans/2026-07-01-account-management.md
+        evidence: 注销级联删+清会话+二次确认;build通过
