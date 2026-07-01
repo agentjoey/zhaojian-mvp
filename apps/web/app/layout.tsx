@@ -3,6 +3,7 @@ import Script from "next/script";
 import { notoSerifSC, notoSansSC, cormorant } from "./fonts";
 import { AppShell } from "@/components/AppShell";
 import { TgUiProvider } from "@/components/tg/TgUiProvider";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
         <TgUiProvider>
-          <AppShell>{children}</AppShell>
+          <I18nProvider>
+            <AppShell>{children}</AppShell>
+          </I18nProvider>
         </TgUiProvider>
       </body>
     </html>
