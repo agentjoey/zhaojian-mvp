@@ -9,16 +9,19 @@ import { hasTgSession, tgDaily } from "@/lib/tg/client";
 import { dailySpiritGreetingAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
+import { Paywall } from "@/components/Paywall";
 import { SpiritSigil } from "@/app/chart/SpiritSigil";
 
 export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fortune: DailyFortune; dateStr: string }) {
   const spirit = deriveSpirit(profile.chart);
   const [greeting, setGreeting] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paywall, setPaywall] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setPaywall(false);
     (async () => {
       try {
         if (hasTgSession()) {
@@ -35,14 +38,26 @@ export function AskToday({ profile, fortune, dateStr }: { profile: Profile; fort
           if (cancelled) return;
           setGreeting(g);
         }
-      } catch {
-        setGreeting(null);
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("paywall")) {
+          setPaywall(true);
+        } else {
+          setGreeting(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, [profile.id, dateStr, profile.chart, fortune]);
+
+  if (paywall) {
+    return (
+      <Card topAccent={spirit.dominantElement}>
+        <Paywall reason="quota" />
+      </Card>
+    );
+  }
 
   if (!loading && greeting === null) return null;
 

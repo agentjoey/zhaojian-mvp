@@ -2,8 +2,9 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail } from "@/lib/supabase";
+import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
 import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
+import { Paywall } from "@/components/Paywall";
 
 const TG_USERNAME_KEY = "zj_tg_username";
 
@@ -13,11 +14,20 @@ type ViewState =
   | { kind: "email"; email: string }
   | { kind: "anon"; user: { id: string; email: string | null; isAnonymous: boolean } | null };
 
+type BillingStatus = {
+  tier: string;
+  memberUntil: string | null;
+  used: number;
+  free: number;
+};
+
 export default function AccountPage() {
   const [view, setView] = useState<ViewState>({ kind: "loading" });
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
   const [mergeNotice, setMergeNotice] = useState<number | null>(null);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     async function resolve() {
@@ -49,6 +59,32 @@ export default function AccountPage() {
       sessionStorage.removeItem("zj_merged");
     }
   }, []);
+
+  // 会员状态与本月额度
+  useEffect(() => {
+    if (view.kind === "loading") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers: Record<string, string> = {};
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch("/api/billing/status", {
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as BillingStatus;
+        if (!cancelled) setBilling(json);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view.kind]);
 
   useEffect(() => {
     (window as any).onTelegramAuth = (u: any) => {
@@ -125,6 +161,48 @@ export default function AccountPage() {
             }}
           >
             已合并 {mergeNotice} 个本地档案到你的账号
+          </div>
+        )}
+
+        {billing && (
+          <div
+            className="mb-6 rounded-xl p-4"
+            style={{
+              background: "var(--color-paper)",
+              border: "1px solid var(--color-line)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>
+                  {billing.tier === "member" ? "会员" : "免费"}
+                </p>
+                {billing.tier === "member" && billing.memberUntil ? (
+                  <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+                    到期 {new Date(billing.memberUntil).toLocaleDateString("zh-CN")}
+                  </p>
+                ) : (
+                  <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+                    本月已用 {billing.used}/{billing.free}
+                  </p>
+                )}
+              </div>
+              {billing.tier !== "member" && (
+                <button
+                  type="button"
+                  onClick={() => setShowPaywall(true)}
+                  className="rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.98]"
+                  style={{ background: "var(--color-cinnabar)", color: "#fff" }}
+                >
+                  升级会员
+                </button>
+              )}
+            </div>
+            {showPaywall && (
+              <div className="mt-4">
+                <Paywall reason="quota" onClose={() => setShowPaywall(false)} />
+              </div>
+            )}
           </div>
         )}
 

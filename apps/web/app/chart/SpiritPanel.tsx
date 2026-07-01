@@ -10,6 +10,7 @@ import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
+import { Paywall } from "@/components/Paywall";
 import { SpiritPortrait } from "./SpiritPortrait";
 import { spiritMemoryAction } from "@/app/actions";
 
@@ -142,8 +143,8 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         );
       } catch (e) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        if (e instanceof Error && e.message === "quota") {
-          setError("免费畅聊额度已用完");
+        if (e instanceof Error && (e.message === "quota" || e.message === "paywall" || e.message.includes("paywall"))) {
+          setError("__paywall__");
         } else {
           setError(e instanceof Error ? e.message : String(e));
         }
@@ -263,7 +264,11 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       </div>
 
       {/* Error */}
-      {error && (
+      {error === "__paywall__" ? (
+        <div className="mb-3">
+          <Paywall reason="quota" onClose={() => setError(null)} />
+        </div>
+      ) : error ? (
         <div
           className="mb-3 px-3 py-2 text-[12px]"
           style={{
@@ -275,7 +280,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         >
           {error}
         </div>
-      )}
+      ) : null}
 
       {/* Input */}
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
