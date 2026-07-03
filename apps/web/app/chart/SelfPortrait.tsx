@@ -5,7 +5,6 @@ import type { QuestionnaireAnswers } from "@eamvp/core";
 import type { Profile } from "@/lib/profiles";
 import { Card } from "@/components/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
-import { SpiritSigil } from "./SpiritSigil";
 
 const DIM_ELEMENT: Record<string, "wood" | "fire" | "earth" | "metal" | "water"> = {
   grounding: "earth",
@@ -66,10 +65,14 @@ export function SelfPortrait({
       <div className="flex flex-col gap-5 px-5 pb-24 pt-6">
         <div className="flex flex-col items-center text-center">
           <div
-            className="mb-4 flex h-[96px] w-[96px] items-center justify-center rounded-full"
+            className="mb-4 flex h-[96px] w-[96px] items-center justify-center overflow-hidden rounded-full"
             style={{ background: "var(--color-ink)" }}
           >
-            <SpiritSigil element={spirit.dominantElement} size={48} />
+            <img
+              src={`/spirit/portrait-${spirit.dominantElement.toLowerCase()}.jpg`}
+              alt={spirit.archetype}
+              className="h-full w-full object-cover"
+            />
           </div>
           <h1 className="font-serif text-[24px] font-black text-ink">{spirit.archetype}</h1>
           <p className="mt-2 max-w-[300px] text-[14px] leading-relaxed text-ink-2">{spirit.coreTension || portrait.note}</p>
@@ -99,7 +102,11 @@ export function SelfPortrait({
   return (
     <Card className="mb-6" topAccent={portrait.dominantElement as "wood" | "fire" | "earth" | "metal" | "water"}>
       <div className="mb-5 flex items-center gap-3">
-        <SpiritSigil element={spirit.dominantElement} size={44} />
+        <img
+          src={`/spirit/portrait-${spirit.dominantElement.toLowerCase()}.jpg`}
+          alt={spirit.archetype}
+          className="h-[44px] w-[44px] rounded-full object-cover"
+        />
         <div className="min-w-0">
           <h3 className="font-serif text-[17px] font-semibold leading-tight">{t("chart.selfPortraitTitle")}</h3>
           <p className="mt-0.5 text-[12px] text-muted">{t("chart.selfPortraitSubtitle")}</p>

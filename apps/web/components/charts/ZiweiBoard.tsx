@@ -166,10 +166,10 @@ function CenterCell({ ziwei }: { ziwei: ZiweiChart }) {
 export function ZiweiBoard({ ziwei }: { ziwei: ZiweiChart }) {
   return (
     <div
-      className={cn("grid w-full aspect-square")}
+      className={cn("grid w-full md:aspect-square")}
       style={{
         gridTemplateColumns: "repeat(4, 1fr)",
-        gridTemplateRows: "repeat(4, 1fr)",
+        gridTemplateRows: "repeat(4, minmax(0, auto))",
         gap: 6,
         fontFamily: "var(--font-serif)",
       }}

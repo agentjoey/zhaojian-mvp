@@ -3,7 +3,7 @@
 import Script from "next/script";
 import { useEffect, useState } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
-import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
 import { Paywall } from "@/components/Paywall";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { LocaleSwitch } from "@/lib/i18n/switch";
@@ -44,6 +44,10 @@ export default function AccountPage() {
   const [deleteChecked, setDeleteChecked] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const inTg = mounted && isTelegram();
 
   useEffect(() => {
     async function resolve() {
@@ -299,7 +303,7 @@ export default function AccountPage() {
           </span>
         </div>
       </div>
-      {view.kind === "email" && !identities?.telegram && (
+      {view.kind === "email" && !identities?.telegram && inTg && (
         <div className="mt-4 flex justify-center" id="tg-link-container">
           <Script
             src="https://telegram.org/js/telegram-widget.js?22"
@@ -521,16 +525,18 @@ export default function AccountPage() {
               </p>
             )}
 
-            {/* 换专属 bot 时改 data-telegram-login + BotFather /setdomain */}
-            <div className="flex justify-center pt-2" id="tg-login-container">
-              <Script
-                src="https://telegram.org/js/telegram-widget.js?22"
-                data-telegram-login="analyst_helen_bot"
-                data-onauth="onTelegramAuth(user)"
-                data-request-access="write"
-                strategy="afterInteractive"
-              />
-            </div>
+            {inTg && (
+              <div className="flex justify-center pt-2" id="tg-login-container">
+                {/* 换专属 bot 时改 data-telegram-login + BotFather /setdomain */}
+                <Script
+                  src="https://telegram.org/js/telegram-widget.js?22"
+                  data-telegram-login="analyst_helen_bot"
+                  data-onauth="onTelegramAuth(user)"
+                  data-request-access="write"
+                  strategy="afterInteractive"
+                />
+              </div>
+            )}
           </div>
         )}
 
