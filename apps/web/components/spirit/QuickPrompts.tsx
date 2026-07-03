@@ -4,11 +4,11 @@ import { useT } from "@/lib/i18n/I18nProvider";
 
 export function QuickPrompts({ onSelect }: { onSelect: (prompt: string) => void }) {
   const t = useT();
-  const prompts = t("spirit.quickPrompts") as unknown as string[];
+  const prompts = t<string[]>("spirit.quickPrompts");
 
   return (
     <div className="w-full">
-      <p className="mb-2 text-[12px] text-muted">想继续问：</p>
+      <p className="mb-2 text-[12px] text-muted">{t("spirit.quickPromptsLabel")}</p>
       <div className="scrollbar-hide -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {prompts.map((prompt) => (
           <button

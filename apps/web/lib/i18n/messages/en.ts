@@ -294,6 +294,7 @@ export const en: Messages = {
     emptyPrompt: "Say something to your 本命之灵 (Natal Spirit)…",
     inputPlaceholder: "Talk to your 本命之灵 (Natal Spirit)…",
     quickPrompts: ["Career", "Relationship", "Today's Fortune", "Self-Portrait"],
+    quickPromptsLabel: "Quick follow-up:",
     online: "Online",
     portraitPageTitle: "Self-Portrait",
     share: "Share",

@@ -281,6 +281,7 @@ export const zh = {
     emptyPrompt: "与本命之灵说点什么吧…",
     inputPlaceholder: "与本命之灵对话…",
     quickPrompts: ["事业方向", "感情", "今日运势", "自我画像"],
+    quickPromptsLabel: "想继续问：",
     online: "在线",
     portraitPageTitle: "自我画像",
     share: "分享",

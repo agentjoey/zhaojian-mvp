@@ -16,7 +16,7 @@ import type { Messages } from "./messages/zh";
 type I18nContextValue = {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: (key: string, vars?: Record<string, string | number>) => string;
+  t: <T = string>(key: string, vars?: Record<string, string | number>) => T;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -73,15 +73,15 @@ export function I18nProvider({
   }, []);
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>): string => {
+    <T = string,>(key: string, vars?: Record<string, string | number>): T => {
       const currentMessages = messagesByLocale[locale] ?? zh;
       const fallbackMessages = zh;
       const value =
         getValueByPath(currentMessages, key) ??
         getValueByPath(fallbackMessages, key) ??
         key;
-      if (typeof value === "string") return interpolate(value, vars);
-      return value as string;
+      if (typeof value === "string") return interpolate(value, vars) as T;
+      return value as T;
     },
     [locale]
   );
@@ -108,10 +108,10 @@ export function useLocale(): {
   return { locale: ctx.locale, setLocale: ctx.setLocale };
 }
 
-export function useT(): (
+export function useT(): <T = string>(
   key: string,
   vars?: Record<string, string | number>
-) => string {
+) => T {
   const ctx = useContext(I18nContext);
   if (!ctx) throw new Error("useT must be used within <I18nProvider>");
   return ctx.t;
