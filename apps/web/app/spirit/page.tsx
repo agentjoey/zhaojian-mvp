@@ -7,7 +7,6 @@ import { hasTgSession, tgGetProfile, tgGetQuestionnaire } from "@/lib/tg/client"
 import type { QuestionnaireAnswers } from "@eamvp/core";
 import { SpiritPanel } from "@/app/chart/SpiritPanel";
 import { Questionnaire } from "@/app/chart/Questionnaire";
-import { SelfPortrait } from "@/app/chart/SelfPortrait";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 const ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
@@ -19,7 +18,6 @@ export default function SpiritPage() {
 
   useEffect(() => {
     if (!ENABLED) return;
-    // TG 内走后端中介(service_role)取档；web 走 Supabase RLS
     (hasTgSession() ? tgGetProfile() : getActiveProfile())
       .then((p: Profile | null) => {
         setProfile(p);
@@ -58,21 +56,26 @@ export default function SpiritPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
-      <header className="mb-8">
-        <h1 className="font-serif text-[28px] font-black">{t("spirit.title")}</h1>
-        <p className="mt-1 text-[13px] text-muted">
-          {t("spirit.subtitle")}
-        </p>
+    <main className="flex h-[100dvh] flex-col">
+      <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-[var(--color-line)] bg-surface px-4">
+        <Link href="/chart" className="flex items-center gap-1 text-[14px] text-ink-2">
+          <span>←</span>
+          <span>{t("common.back")}</span>
+        </Link>
+        <Link
+          href="/spirit/portrait"
+          className="text-[13px] text-cinnabar"
+        >
+          {t("spirit.viewPortrait")}
+        </Link>
       </header>
-
-      {qAnswers === null && <Questionnaire profile={profile} onDone={setQAnswers} />}
-      {qAnswers && <SelfPortrait chart={profile.chart} questionnaire={qAnswers} />}
+      {qAnswers === null && (
+        <div className="px-4 pt-4">
+          <Questionnaire profile={profile} onDone={setQAnswers} />
+        </div>
+      )}
       <SpiritPanel profile={profile} />
-
-      <p className="mt-10 text-[12px] leading-relaxed text-muted">
-        {t("spirit.disclaimer")}
-      </p>
+      <p className="px-5 pb-2 pt-1 text-[11px] leading-relaxed text-muted">{t("spirit.disclaimer")}</p>
     </main>
   );
 }
