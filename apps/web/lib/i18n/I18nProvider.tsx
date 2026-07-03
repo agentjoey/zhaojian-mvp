@@ -23,14 +23,14 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 const messagesByLocale: Record<Locale, Messages> = { zh, en };
 
-function getValueByPath(obj: Messages, path: string): string | undefined {
+function getValueByPath(obj: Messages, path: string): unknown {
   const parts = path.split(".");
   let current: unknown = obj;
   for (const part of parts) {
     if (current == null || typeof current !== "object") return undefined;
     current = (current as Record<string, unknown>)[part];
   }
-  return typeof current === "string" ? current : undefined;
+  return current;
 }
 
 function interpolate(
@@ -44,15 +44,23 @@ function interpolate(
   });
 }
 
-export function I18nProvider({ children }: { children: React.ReactNode }) {
+export function I18nProvider({
+  children,
+  locale: localeProp,
+}: {
+  children: React.ReactNode;
+  locale?: Locale;
+}) {
   const [locale, setLocaleState] = useState<Locale>(() => {
+    if (localeProp) return localeProp;
     if (typeof document === "undefined") return "zh";
     return detectLocale();
   });
 
   useEffect(() => {
+    if (localeProp) return;
     setLocaleState(detectLocale());
-  }, []);
+  }, [localeProp]);
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
@@ -72,7 +80,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         getValueByPath(currentMessages, key) ??
         getValueByPath(fallbackMessages, key) ??
         key;
-      return interpolate(value, vars);
+      if (typeof value === "string") return interpolate(value, vars);
+      return value as string;
     },
     [locale]
   );
