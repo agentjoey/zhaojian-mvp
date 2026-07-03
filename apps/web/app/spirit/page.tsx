@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getActiveProfile, getQuestionnaire, type Profile } from "@/lib/profiles";
-import { hasTgSession, tgGetProfile, tgGetQuestionnaire } from "@/lib/tg/client";
-import type { QuestionnaireAnswers } from "@eamvp/core";
+import { getActiveProfile, type Profile } from "@/lib/profiles";
+import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { SpiritPanel } from "@/app/chart/SpiritPanel";
-import { Questionnaire } from "@/app/chart/Questionnaire";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 const ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
@@ -14,19 +12,11 @@ const ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
 export default function SpiritPage() {
   const t = useT();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
-  const [qAnswers, setQAnswers] = useState<QuestionnaireAnswers | null | undefined>(undefined);
 
   useEffect(() => {
     if (!ENABLED) return;
     (hasTgSession() ? tgGetProfile() : getActiveProfile())
-      .then((p: Profile | null) => {
-        setProfile(p);
-        if (p) {
-          (hasTgSession() ? tgGetQuestionnaire() : getQuestionnaire(p.id))
-            .then((q) => setQAnswers((q as QuestionnaireAnswers | null) ?? null))
-            .catch(() => setQAnswers(null));
-        }
-      })
+      .then((p: Profile | null) => setProfile(p))
       .catch(() => setProfile(null));
   }, []);
 
@@ -69,11 +59,6 @@ export default function SpiritPage() {
           {t("spirit.viewPortrait")}
         </Link>
       </header>
-      {qAnswers === null && (
-        <div className="px-4 pt-4">
-          <Questionnaire profile={profile} onDone={setQAnswers} />
-        </div>
-      )}
       <SpiritPanel profile={profile} />
       <p className="px-5 pb-2 pt-1 text-[11px] leading-relaxed text-muted">{t("spirit.disclaimer")}</p>
     </main>
