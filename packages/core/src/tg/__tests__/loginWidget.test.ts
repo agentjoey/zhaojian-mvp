@@ -12,7 +12,7 @@ function signWidgetParams(params: Omit<TgLoginParams, "hash">): TgLoginParams {
     .join("\n");
   const secret = createHash("sha256").update(botToken).digest();
   const hash = createHmac("sha256", secret).update(dataCheckString).digest("hex");
-  return { ...params, hash };
+  return { ...params, hash } as TgLoginParams;
 }
 
 describe("verifyTelegramLogin", () => {

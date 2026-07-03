@@ -19,6 +19,7 @@ export function verifySession(token: string, secret: string): { uid: string; tgI
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [header, sig] = parts;
+  if (!header || !sig) return null;
   const expected = base64urlEncode(createHmac("sha256", secret).update(header).digest());
   const a = Buffer.from(sig, "utf8");
   const b = Buffer.from(expected, "utf8");

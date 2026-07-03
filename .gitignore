@@ -27,3 +27,6 @@ coverage/
 
 # release backups
 *.bak
+
+# worktrees
+.worktrees/

@@ -56,7 +56,10 @@ export function deriveSelfPortrait(
   const blend = (bazi: number, west: number) =>
     w ? (bazi * 0.6 + west * 0.4) * 10 : bazi * 10;
 
-  const raw: Record<string, number> = {
+  const raw: Record<
+    "grounding" | "drive" | "reflection" | "connection" | "openness",
+    number
+  > = {
     grounding: blend(nEarth, (we + mf) / 2),
     drive: blend((nFire + nMetal) / 2, (wf + mc) / 2),
     reflection: blend(nWater, (ww + mm) / 2),
