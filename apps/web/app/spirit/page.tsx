@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { SpiritPanel } from "@/app/chart/SpiritPanel";
@@ -12,9 +11,13 @@ const ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
 
 export default function SpiritPage() {
   const t = useT();
-  const searchParams = useSearchParams();
-  const topic = searchParams.get("topic");
+  const [topic, setTopic] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTopic(params.get("topic"));
+  }, []);
 
   useEffect(() => {
     if (!ENABLED) return;
