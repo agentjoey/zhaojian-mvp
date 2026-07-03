@@ -8,10 +8,9 @@ import { listMessages, appendMessage, type SpiritMessage } from "@/lib/spirit";
 import { hasTgSession, isTelegram, tgListMessages, tgSpiritStream } from "@/lib/tg/client";
 import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
-import { Card } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { Paywall } from "@/components/Paywall";
-import { SpiritPortrait } from "./SpiritPortrait";
+import { QuickPrompts } from "@/components/spirit/QuickPrompts";
 import { spiritMemoryAction } from "@/app/actions";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 
@@ -215,22 +214,37 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     }
   }
 
-  const cinnabar = "var(--color-cinnabar)";
+  const accentVar = `var(--color-${spirit.dominantElement})`;
+  const elementLabel = t(`chart.element${spirit.dominantElement.charAt(0).toUpperCase() + spirit.dominantElement.slice(1)}` as any);
 
   return (
-    <Card className="flex flex-col" topAccent={spirit.dominantElement}>
-      {/* 形象 hero */}
-      <SpiritPortrait element={spirit.dominantElement} archetype={spirit.archetype} />
+    <div className="flex flex-1 flex-col">
+      {/* compact hero */}
+      <div className="flex items-center gap-3 px-4 pb-3 pt-2">
+        <div
+          className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[var(--radius-card)]"
+          style={{ background: "var(--color-ink)" }}
+        >
+          <span className="font-serif text-[32px] font-bold" style={{ color: accentVar }}>
+            {elementLabel}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-serif text-[18px] font-bold leading-tight text-ink">{spirit.archetype}</h2>
+          <p className="mt-0.5 text-[12px] text-muted">{elementLabel} · {t("spirit.online")}</p>
+          <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-2">{spirit.coreTension || spirit.archetype}</p>
+        </div>
+      </div>
 
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="mb-4 flex max-h-[420px] min-h-[180px] flex-col gap-3 overflow-y-auto pr-1"
+        className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3"
       >
         {messages.length === 0 && isTelegram() && (
           <div className="flex justify-start">
             <div
-              className="max-w-[82%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed bg-[var(--color-paper)] text-ink-2"
+              className="max-w-[82%] rounded-[var(--radius-card)] bg-[var(--color-paper)] px-4 py-3 text-[14px] leading-relaxed text-ink-2"
               style={{ border: "1px solid var(--color-line)" }}
             >
               {t("spirit.emptyPrompt")}
@@ -250,7 +264,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
               }`}
               style={
                 m.role === "user"
-                  ? { background: cinnabar }
+                  ? { background: "var(--color-cinnabar)" }
                   : { border: "1px solid var(--color-line)" }
               }
             >
@@ -266,27 +280,30 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         ))}
       </div>
 
-      {/* Error */}
-      {error === "__paywall__" ? (
-        <div className="mb-3">
-          <Paywall reason="quota" onClose={() => setError(null)} />
-        </div>
-      ) : error ? (
-        <div
-          className="mb-3 px-3 py-2 text-[12px]"
-          style={{
-            borderRadius: "var(--radius-card)",
-            background: "var(--color-error-bg)",
-            color: "var(--color-seal)",
-            border: "1px solid var(--color-error-line)",
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+      {/* Error & Quick Prompts */}
+      <div className="px-4 pb-2">
+        {error === "__paywall__" ? (
+          <div className="mb-3">
+            <Paywall reason="quota" onClose={() => setError(null)} />
+          </div>
+        ) : error ? (
+          <div
+            className="mb-3 px-3 py-2 text-[12px]"
+            style={{
+              borderRadius: "var(--radius-card)",
+              background: "var(--color-error-bg)",
+              color: "var(--color-seal)",
+              border: "1px solid var(--color-error-line)",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+        {!streaming && <QuickPrompts onSelect={(p) => setInput(p)} />}
+      </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+      {/* Sticky Input */}
+      <form onSubmit={handleSubmit} className="sticky bottom-0 z-10 flex items-end gap-2 border-t border-[var(--color-line)] bg-paper px-4 py-3">
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -307,12 +324,12 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
             type="submit"
             disabled={streaming || !input.trim()}
             className="inline-flex h-[44px] shrink-0 items-center justify-center px-4 text-[14px] font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: cinnabar, borderRadius: "var(--radius-button)" }}
+            style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}
           >
             {t("spirit.send")}
           </button>
         )}
       </form>
-    </Card>
+    </div>
   );
 }
