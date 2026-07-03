@@ -53,7 +53,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       }
       return full;
     },
-    [profile.chart, memory, questionnaire],
+    [profile.chart, memory, questionnaire, locale, t],
   );
 
   // 初始化：读取历史。开场白是「临时的」——每次按当前语言重新生成、不持久化，
@@ -173,7 +173,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
       const contentType = res.headers.get("content-type") || "";
       if (contentType.includes("application/json")) {
         const body = await res.json().catch(() => null);
-        if (body && typeof body === "object" && (body as any).error === "paywall") {
+        if (body && typeof body === "object" && "error" in body && body.error === "paywall") {
           setError("__paywall__");
           setStreaming(false);
           return;
@@ -215,7 +215,7 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
   }
 
   const accentVar = `var(--color-${spirit.dominantElement})`;
-  const elementLabel = t(`chart.element${spirit.dominantElement.charAt(0).toUpperCase() + spirit.dominantElement.slice(1)}` as any);
+  const elementLabel = t(`chart.element${spirit.dominantElement.charAt(0).toUpperCase() + spirit.dominantElement.slice(1)}`);
 
   return (
     <div className="flex flex-1 flex-col">
