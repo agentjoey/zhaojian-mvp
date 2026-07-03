@@ -20,7 +20,7 @@ export const en: Messages = {
     chart: "Chart",
     reading: "Reading",
     spirit: "Spirit",
-    profiles: "Profiles",
+    profiles: "Me",
     account: "Account",
   },
   account: {

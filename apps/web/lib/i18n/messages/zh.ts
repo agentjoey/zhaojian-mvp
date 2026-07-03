@@ -18,7 +18,7 @@ export const zh = {
     chart: "命盘",
     reading: "解读",
     spirit: "本命",
-    profiles: "档案",
+    profiles: "我的",
     account: "账号",
   },
   account: {

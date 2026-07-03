@@ -93,7 +93,16 @@ export default function ProfilesPage() {
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="font-serif text-[28px] font-black">{t("profiles.title")}</h1>
-        <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("profiles.create")}</Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/account"
+            className="px-4 py-2.5 text-[14px] text-ink-2 transition-colors"
+            style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" }}
+          >
+            {t("nav.account")}
+          </Link>
+          <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("profiles.create")}</Link>
+        </div>
       </header>
 
       {loading ? (

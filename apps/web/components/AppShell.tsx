@@ -15,7 +15,6 @@ const NAV = [
     ? [{ href: "/spirit", char: "灵", key: "nav.spirit" }]
     : []),
   { href: "/profiles", char: "我", key: "nav.profiles" },
-  { href: "/account", char: "账", key: "nav.account" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
