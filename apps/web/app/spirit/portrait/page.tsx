@@ -83,7 +83,7 @@ export default function SpiritPortraitPage() {
         questionnaire={qAnswers ?? undefined}
         fullPage
         onTalk={() => {
-          router.push("/spirit");
+          router.push("/spirit?topic=portrait");
         }}
       />
     </>

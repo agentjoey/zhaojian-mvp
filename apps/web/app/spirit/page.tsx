@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { SpiritPanel } from "@/app/chart/SpiritPanel";
@@ -11,6 +12,8 @@ const ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
 
 export default function SpiritPage() {
   const t = useT();
+  const searchParams = useSearchParams();
+  const topic = searchParams.get("topic");
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export default function SpiritPage() {
           {t("spirit.viewPortrait")}
         </Link>
       </header>
-      <SpiritPanel profile={profile} />
+      <SpiritPanel profile={profile} autoSend={topic === "portrait" ? t("spirit.talkPortraitMessage") : undefined} />
       <p className="px-5 pb-2 pt-1 text-[11px] leading-relaxed text-muted">{t("spirit.disclaimer")}</p>
     </main>
   );

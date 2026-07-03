@@ -299,7 +299,7 @@ export const en: Messages = {
     portraitPageTitle: "Self-Portrait",
     share: "Share",
     talkAboutPortrait: "Talk to your Natal Spirit about this",
-    portraitIntro: "An inner profile synthesized from chart structure and self-report",
+    talkPortraitMessage: "I want to talk about my self-portrait",
     portraitNoteTitle: "Your Natal Spirit's observation",
     viewPortrait: "View Self-Portrait →",
 

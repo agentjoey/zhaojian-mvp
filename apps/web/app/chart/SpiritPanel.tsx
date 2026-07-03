@@ -14,7 +14,7 @@ import { QuickPrompts } from "@/components/spirit/QuickPrompts";
 import { spiritMemoryAction } from "@/app/actions";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 
-export function SpiritPanel({ profile }: { profile: Profile }) {
+export function SpiritPanel({ profile, autoSend }: { profile: Profile; autoSend?: string }) {
   const { locale } = useLocale();
   const t = useT();
   const spirit = deriveSpirit(profile.chart);
@@ -24,7 +24,10 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
   const [error, setError] = useState<string | null>(null);
   const [memory, setMemory] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<string | undefined>(undefined);
+  const [initialized, setInitialized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef(false);
 
   useTgMainButton({
     text: streaming ? t("spirit.writing") : t("spirit.send"),
@@ -90,6 +93,8 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setInitialized(true);
       }
     })();
     return () => { cancelled = true; };
@@ -101,118 +106,141 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, streaming]);
 
-  async function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    const text = input.trim();
-    if (!text || streaming) return;
+  // 清空输入后重置 textarea 高度
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el && !input) el.style.height = "auto";
+  }, [input]);
 
-    setError(null);
-    const userMsg: SpiritMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text,
-      createdAt: new Date().toISOString(),
-    };
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
-    setInput("");
-    try { haptics.light(); } catch {}
+  const submitText = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || streaming) return;
 
-    if (!hasTgSession()) {
-      try {
-        await appendMessage(profile.id, "user", text);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+      setError(null);
+      const userMsg: SpiritMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: trimmed,
+        createdAt: new Date().toISOString(),
+      };
+      const nextMessages = [...messages, userMsg];
+      setMessages(nextMessages);
+      setInput("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      try { haptics.light(); } catch {}
+
+      if (!hasTgSession()) {
+        try {
+          await appendMessage(profile.id, "user", trimmed);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+          return;
+        }
+      }
+
+      setStreaming(true);
+      const historyForApi = nextMessages.map((m) => ({ role: m.role, content: m.content }));
+
+      if (hasTgSession()) {
+        const tempId = `spirit-${Date.now()}`;
+        setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
+        try {
+          let full = "";
+          await tgSpiritStream(historyForApi, (chunk) => {
+            full += chunk;
+            setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)));
+          });
+          try { haptics.success(); } catch {}
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
+          );
+        } catch (e) {
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          if (e instanceof Error && (e.message === "quota" || e.message === "paywall" || e.message.includes("paywall"))) {
+            setError("__paywall__");
+          } else {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        } finally {
+          setStreaming(false);
+        }
         return;
       }
-    }
 
-    setStreaming(true);
-    const historyForApi = nextMessages.map((m) => ({ role: m.role, content: m.content }));
-
-    if (hasTgSession()) {
-      const tempId = `spirit-${Date.now()}`;
-      setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
       try {
         let full = "";
-        await tgSpiritStream(historyForApi, (chunk) => {
-          full += chunk;
-          setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)));
+        const { data: sessionData } = await supabase().auth.getSession();
+        const token = sessionData.session?.access_token;
+        const res = await fetch("/api/spirit/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
         });
-        try { haptics.success(); } catch {}
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
-        );
-      } catch (e) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        if (e instanceof Error && (e.message === "quota" || e.message === "paywall" || e.message.includes("paywall"))) {
-          setError("__paywall__");
-        } else {
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      } finally {
-        setStreaming(false);
-      }
-      return;
-    }
-
-    try {
-      let full = "";
-      const { data: sessionData } = await supabase().auth.getSession();
-      const token = sessionData.session?.access_token;
-      const res = await fetch("/api/spirit/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
-      });
-      if (res.status === 402) {
-        setError("__paywall__");
-        setStreaming(false);
-        return;
-      }
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const body = await res.json().catch(() => null);
-        if (body && typeof body === "object" && "error" in body && body.error === "paywall") {
+        if (res.status === 402) {
           setError("__paywall__");
           setStreaming(false);
           return;
         }
-      }
-      if (!res.ok || !res.body) {
-        throw new Error(await res.text() || t("spirit.unavailable"));
-      }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const body = await res.json().catch(() => null);
+          if (body && typeof body === "object" && "error" in body && body.error === "paywall") {
+            setError("__paywall__");
+            setStreaming(false);
+            return;
+          }
+        }
+        if (!res.ok || !res.body) {
+          throw new Error(await res.text() || t("spirit.unavailable"));
+        }
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
 
-      // 临时 spirit 气泡，边流边更新
-      const tempId = `spirit-${Date.now()}`;
-      setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
+        // 临时 spirit 气泡，边流边更新
+        const tempId = `spirit-${Date.now()}`;
+        setMessages((prev) => [...prev, { id: tempId, role: "spirit", content: "", createdAt: new Date().toISOString() }]);
 
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += dec.decode(value, { stream: true });
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          full += dec.decode(value, { stream: true });
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)),
+          );
+        }
+        try { haptics.success(); } catch {}
+
+        await appendMessage(profile.id, "spirit", full);
+        const fullHistory = [...historyForApi, { role: "spirit" as const, content: full }];
+        spiritMemoryAction(fullHistory, memory ?? undefined)
+          .then((m) => { if (m) { setMemory(m); void saveSpiritMemory(profile.id, m); } })
+          .catch(() => {});
         setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? { ...m, content: full } : m)),
+          prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
         );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setStreaming(false);
       }
-      try { haptics.success(); } catch {}
+    },
+    [streaming, messages, profile.id, profile.chart, memory, questionnaire, locale, t],
+  );
 
-      await appendMessage(profile.id, "spirit", full);
-      const fullHistory = [...historyForApi, { role: "spirit" as const, content: full }];
-      spiritMemoryAction(fullHistory, memory ?? undefined)
-        .then((m) => { if (m) { setMemory(m); void saveSpiritMemory(profile.id, m); } })
-        .catch(() => {});
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { id: `spirit-${Date.now()}`, role: "spirit", content: full, createdAt: new Date().toISOString() } : m)),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setStreaming(false);
-    }
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    await submitText(input);
   }
+
+  // 从画像页携带 topic=portrait 进入时，自动发送预设消息开启对话
+  useEffect(() => {
+    if (!autoSend || autoSentRef.current || streaming || !initialized) return;
+    if (messages.some((m) => m.role === "user")) return;
+    autoSentRef.current = true;
+    const id = setTimeout(() => void submitText(autoSend), 0);
+    return () => clearTimeout(id);
+  }, [autoSend, initialized, messages, streaming, submitText]);
 
   const accentVar = `var(--color-${spirit.dominantElement})`;
   const elementLabel = t(`chart.element${spirit.dominantElement.charAt(0).toUpperCase() + spirit.dominantElement.slice(1)}`);
@@ -299,14 +327,24 @@ export function SpiritPanel({ profile }: { profile: Profile }) {
             {error}
           </div>
         ) : null}
-        {!streaming && <QuickPrompts onSelect={(p) => setInput(p)} />}
+        {!streaming && <QuickPrompts onSelect={(p) => void submitText(p)} />}
       </div>
 
       {/* Sticky Input */}
-      <form onSubmit={handleSubmit} className="sticky bottom-0 z-10 flex items-end gap-2 border-t border-[var(--color-line)] bg-paper px-4 py-3">
+      <form
+        onSubmit={handleSubmit}
+        className="sticky bottom-0 z-10 flex items-end gap-2 border-t border-[var(--color-line)] bg-paper px-4 pt-3"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+      >
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

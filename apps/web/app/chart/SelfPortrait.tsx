@@ -72,7 +72,7 @@ export function SelfPortrait({
             <SpiritSigil element={spirit.dominantElement} size={48} />
           </div>
           <h1 className="font-serif text-[24px] font-black text-ink">{spirit.archetype}</h1>
-          <p className="mt-2 max-w-[300px] text-[14px] leading-relaxed text-ink-2">{portrait.note}</p>
+          <p className="mt-2 max-w-[300px] text-[14px] leading-relaxed text-ink-2">{spirit.coreTension || portrait.note}</p>
         </div>
 
         <Card>

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { computeUnifiedChart, BirthInputSchema, deriveSelfPortrait } from "@eamvp/core";
+import { computeUnifiedChart, BirthInputSchema, deriveSelfPortrait, deriveSpirit } from "@eamvp/core";
 import { SelfPortrait, PortraitDimensions } from "../SelfPortrait";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 
@@ -34,12 +34,16 @@ describe("SelfPortrait", () => {
     expect(onTalk).toHaveBeenCalledTimes(1);
   });
 
-  it("uses portrait.note for hero subtitle and observation card in fullPage mode", () => {
+  it("uses spirit.coreTension for hero subtitle and portrait.note for observation card in fullPage mode", () => {
     const { container } = render(<SelfPortrait chart={mockChart} fullPage />, { wrapper: Wrapper });
     const note = deriveSelfPortrait(mockChart, { memoryPresent: false }).note;
+    const coreTension = deriveSpirit(mockChart).coreTension;
     const matches = container.querySelectorAll("p");
     const noteOccurrences = Array.from(matches).filter((p) => p.textContent === note).length;
-    expect(noteOccurrences).toBe(2);
+    expect(noteOccurrences).toBe(1);
+    if (coreTension) {
+      expect(Array.from(matches).some((p) => p.textContent === coreTension)).toBe(true);
+    }
   });
 });
 

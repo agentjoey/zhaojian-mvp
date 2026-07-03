@@ -286,7 +286,7 @@ export const zh = {
     portraitPageTitle: "自我画像",
     share: "分享",
     talkAboutPortrait: "和本命之灵聊聊这个",
-    portraitIntro: "由命盘结构与自我自陈合成的内在侧写",
+    talkPortraitMessage: "我想聊聊我的自我画像",
     portraitNoteTitle: "本命之灵的观察",
     viewPortrait: "查看自我画像 →",
 
