@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { BirthInputSchema, computeUnifiedChart, computeFengshui, FENGSHUI_GUARDRAILS } from "@eamvp/core";
+import { BirthInputSchema, computeUnifiedChart, computeFengshui, adviseObject, FENGSHUI_GUARDRAILS } from "@eamvp/core";
 import { extractFengshuiFacts } from "./facts";
-import { buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections, FENGSHUI_SECTION_KEYS } from "./prompt";
+import {
+  buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections, FENGSHUI_SECTION_KEYS,
+  buildObjectAdviceSystemPrompt, buildObjectAdviceUserPrompt,
+} from "./prompt";
 
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
-const facts = extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth) }));
+const fsChart = computeFengshui({ birth, chart: computeUnifiedChart(birth) });
+const facts = extractFengshuiFacts(fsChart);
+const objectAdvice = adviseObject(
+  { verdicts: fsChart.personalDirections, affinity: fsChart.elementAffinity },
+  { category: "desk", material: "原木" },
+);
 
 describe("EP-fs-05 风水 prompt", () => {
   it("三个分节键", () => {
@@ -79,5 +87,71 @@ describe("EP-fs-05 风水 prompt", () => {
     expect(s.situation.trim()).toBe("甲");
     expect(s.youAndSpace.trim()).toBe("乙");
     expect(s.actions).toBe("");
+  });
+});
+
+// Task 11 复审必修2：adviseObjectText 的 prompt 此前是 index.ts 内联的手写字符串，
+// 一条 core 硬规则都没带。builder 搬到这里后必须复用 FENGSHUI_GUARDRAILS（导入+展开），
+// 不得手写删减版或复制粘贴守护栏原文。
+describe("Task11 buildObjectAdviceSystemPrompt / buildObjectAdviceUserPrompt", () => {
+  it("system prompt 带入 core 守护栏全文", () => {
+    const s = buildObjectAdviceSystemPrompt("zh");
+    for (const g of FENGSHUI_GUARDRAILS) expect(s).toContain(g);
+  });
+
+  // 两个语言分支各自独立展开 guardrails 数组，只测 zh 分支测不出 en 分支被单独
+  // 删掉的变异（曾用变异验证实测：只删 en 分支的 ...guardrails 展开，若没有这条，
+  // 全部测试仍然全绿）。两个分支都要单独钉住。
+  it("en 分支也带入 core 守护栏全文（防止只删 en 分支展开而不被测出）", () => {
+    const s = buildObjectAdviceSystemPrompt("en");
+    for (const g of FENGSHUI_GUARDRAILS) expect(s).toContain(g);
+  });
+
+  // ⚠️ 与 prompt.ts 顶部注释同理：下面这条不能只验守护栏在场（那样删光本模块新增的
+  // 物件专属约束，测试也会照样通过）。所以额外断言这些措辞**不在** core 守护栏原文
+  // 里——证明它们确实是本模块自己贡献的内容，不是靠导入的守护栏躺赢。
+  it("system prompt 含物件专属约束，且该措辞不在 core 守护栏原文里", () => {
+    const s = buildObjectAdviceSystemPrompt("zh");
+    const guardText = FENGSHUI_GUARDRAILS.join("");
+    for (const phrase of ["只准使用给定的方位与规则", "不得断言吉凶后果", "只输出这"]) {
+      expect(s).toContain(phrase);
+      expect(guardText).not.toContain(phrase);
+    }
+    expect(s).toContain("2–3");
+  });
+
+  it("language 默认 zh", () => {
+    expect(buildObjectAdviceSystemPrompt()).toContain("简体中文");
+  });
+
+  // Task 11 复审必修1：language="en" 时必须是本模块自己撰写的英文框架文字，
+  // 不能是「中文原文 + 追加一句 answer in English」（旧 buildFengshuiSystemPrompt
+  // 的反模式，这里明确不许重蹈）。
+  it("language=en 时物件专属约束真的用英文书写，不是中文后面加一句 answer in English", () => {
+    const en = buildObjectAdviceSystemPrompt("en");
+    // 中文专属措辞不应残留在英文分支里——如果只是在中文提示后追加一行英文指令，
+    // 这几个中文短语仍会出现在字符串里，下面两条断言就会失败。
+    expect(en).not.toContain("自然中文");
+    expect(en).not.toContain("只准使用给定的方位与规则");
+    // 本模块自撰的英文物件专属约束必须真实存在（而不仅仅是结尾一行语言指令）。
+    expect(en).toContain("Only use the directions and rules given");
+    expect(en).toContain("2–3");
+    expect(en).toMatch(/write the whole answer in english/i);
+  });
+
+  it("user prompt 传入 nickname 时出现在文本里，未传时兜底为「你」", () => {
+    const withName = buildObjectAdviceUserPrompt(objectAdvice, { nickname: "小明" });
+    expect(withName).toContain("称呼：小明");
+    const withoutName = buildObjectAdviceUserPrompt(objectAdvice);
+    // ⚠️ 不能只断言子串「你」——personalFit 里本来就常含「…属你命局所忌…」这类
+    // 文字，裸「你」哪怕没接称呼兜底逻辑也会碰巧命中，测不出真问题。必须钉住
+    // 「称呼：你」这个精确片段才是真的在验兜底逻辑本身。
+    expect(withoutName).toContain("称呼：你");
+  });
+
+  it("user prompt 带入物件建议关键字段（品类、命局契合度）", () => {
+    const u = buildObjectAdviceUserPrompt(objectAdvice);
+    expect(u).toContain(objectAdvice.categoryLabel);
+    expect(u).toContain(objectAdvice.personalFit);
   });
 });

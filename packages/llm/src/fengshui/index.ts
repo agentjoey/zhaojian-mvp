@@ -2,10 +2,11 @@ import type { FengshuiChart, ObjectAdvice } from "@eamvp/core";
 import { resolveLlmConfig, isLlmConfigured, type LlmConfig } from "../provider";
 import { chat } from "../client";
 import type { ReadingLanguage } from "../prompt";
-import { extractFengshuiFacts, type FengshuiFacts } from "./facts";
+import { extractFengshuiFacts } from "./facts";
 import {
   buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections,
-  FENGSHUI_SECTION_KEYS, type FengshuiSectionKey,
+  buildObjectAdviceSystemPrompt, buildObjectAdviceUserPrompt,
+  type FengshuiSectionKey,
 } from "./prompt";
 import { sanitizeFengshui, verifyDirectionConsistency, type DirectionCorrection } from "./guard";
 
@@ -80,36 +81,34 @@ export async function generateFengshuiReading(
   };
 }
 
-/** 物件顾问的说人话层（EP-fs-04）。短输出、低成本，调用方可缓存。 */
+/**
+ * 物件顾问的说人话层（EP-fs-04）。短输出、低成本，调用方可缓存。
+ * prompt 构建委托给 `buildObjectAdviceSystemPrompt`/`buildObjectAdviceUserPrompt`
+ * （见 prompt.ts），本函数只做编排：解析配置 → 建两条消息 → 调 LLM → trim。
+ *
+ * ⚠️ 反幻觉只有 prompt 硬规则这**一道**，不是 `generateFengshuiReading` 那样的
+ * facts → prompt → sanitize → 方位对拍四道链路。这不是遗漏，是这里另外两道机械净化
+ * 天然对不上号，原样接上只会空转、不提供实际保护：
+ * - `sanitizeFengshui` 只读 `FengshuiFacts.remedies`（找 evidence 为「传统象征」的
+ *   条目做伪科学措辞清除）；`ObjectAdvice` 没有 `remedies` 字段——物件建议的落位
+ *   结论本来就不含「传统象征」化解内容，接上这道等于对着不存在的输入空转。
+ * - `verifyDirectionConsistency` 需要一份 `FengshuiFacts`（八方查表结果）作为比对
+ *   基准；`ObjectAdvice` 的形状（recommendedDirections/avoid/intendedVerdict）
+ *   构造不出 `FengshuiFacts`，没有可供对拍的基准。
+ * 因此这里的可信度完全依赖 prompt 硬规则本身（含 core `FENGSHUI_GUARDRAILS` +
+ * 物件专属约束）说到做到——后人扩展本函数时，不要想当然地以为四道防线都在。
+ */
 export async function adviseObjectText(
   advice: ObjectAdvice,
   opts?: { config?: LlmConfig; language?: ReadingLanguage; nickname?: string },
 ): Promise<string> {
   const cfg = opts?.config ?? resolveLlmConfig();
   if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置");
-
-  const sys =
-    "你是 Mira 的「境」声部。把给定的物件摆放结论写成 2–3 句自然中文，" +
-    "口吻平实、可执行、非决定论。只准使用给定的方位与规则，不得新增方位或断言吉凶后果。" +
-    "不用「一定/必然/注定」，不谈医疗财务。只输出这几句本身。";
-  const user = [
-    `物件：${advice.categoryLabel}`,
-    `五行：${advice.elementOfObject ?? "未定"}`,
-    `推荐方位：${advice.recommendedDirections.map((r) => `${r.label}（${r.reason}）`).join("；") || "无"}`,
-    `不宜方位：${advice.avoid.map((r) => `${r.label}（${r.reason}）`).join("；") || "无"}`,
-    `品类规则：${advice.categoryRules.join("；")}`,
-    `与命主关系：${advice.personalFit}`,
-    advice.intendedVerdict
-      ? `用户想放在：${advice.intendedVerdict.direction}，该方为${advice.intendedVerdict.star}（${advice.intendedVerdict.auspicious ? "吉" : "凶"}）`
-      : "",
-  ].filter(Boolean).join("\n");
+  const language = opts?.language ?? "zh";
 
   const raw = await chat(cfg, [
-    { role: "system", content: sys },
-    { role: "user", content: user },
+    { role: "system", content: buildObjectAdviceSystemPrompt(language) },
+    { role: "user", content: buildObjectAdviceUserPrompt(advice, { nickname: opts?.nickname }) },
   ], { maxTokens: 320, temperature: 0.8 });
   return raw.trim();
 }
-
-export { FENGSHUI_SECTION_KEYS };
-export type { FengshuiSectionKey, FengshuiFacts, DirectionCorrection };

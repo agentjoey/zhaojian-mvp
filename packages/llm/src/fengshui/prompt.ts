@@ -1,4 +1,5 @@
 import { FENGSHUI_GUARDRAILS } from "@eamvp/core";
+import type { ObjectAdvice } from "@eamvp/core";
 import type { ReadingLanguage } from "../prompt";
 import type { FengshuiFacts } from "./facts";
 
@@ -78,4 +79,64 @@ export function parseFengshuiSections(
   // 与既有 parseSections 一致：逐节 trim，别把首尾空行推给渲染方
   for (const k of FENGSHUI_SECTION_KEYS) out[k] = out[k].trim();
   return out;
+}
+
+/**
+ * 物件顾问说人话层（EP-fs-04）的 system prompt。与 {@link buildFengshuiSystemPrompt}
+ * 同样做法：硬规则复用 core 的 {@link FENGSHUI_GUARDRAILS}（单一事实源，导入+展开，
+ * 不手写删减版），在此基础上叠加物件建议特有的约束（只准用给定方位、不得新增方位、
+ * 不得断言吉凶后果、短输出）。
+ *
+ * `language="en"` 分支**不是**「中文提示后面加一句 answer in English」——本模块自撰
+ * 的框架句与物件专属约束本身就是用英文写的（Task 11 复审必修1）；只有 core 的
+ * `FENGSHUI_GUARDRAILS` 原文保持中文，因为它是被复用的单一事实源，不在本模块翻译
+ * 范围内（core 也没有对应的英文版本，翻译等于自建一份分叉，与"单一事实源"矛盾）。
+ */
+export function buildObjectAdviceSystemPrompt(language: ReadingLanguage = "zh"): string {
+  const guardrails = FENGSHUI_GUARDRAILS.map((g, i) => `${i + 1}. ${g}`);
+  const n = FENGSHUI_GUARDRAILS.length;
+
+  if (language === "en") {
+    return [
+      "You are the \"Space\" voice of Mira, giving brief, spoken-language placement advice for a single object.",
+      "",
+      "Hard rules:",
+      ...guardrails,
+      `${n + 1}. Only use the directions and rules given below — do not invent or add any direction beyond the given facts.`,
+      `${n + 2}. Do not assert fated outcomes (e.g. "this will bring wealth" or "this will cause illness") — describe tendencies and everyday experience only.`,
+      "",
+      "Write the given conclusion as 2–3 natural sentences, plain, actionable, and non-deterministic.",
+      "Output ONLY those 2–3 sentences — no heading, prefix, or extra explanation.",
+      "Write the whole answer in English.",
+    ].join("\n");
+  }
+
+  return [
+    "你是 Mira 的「境」声部——为单件物件的摆放给出简短建议。",
+    "",
+    "【硬规则】",
+    ...guardrails,
+    `${n + 1}. 只准使用给定的方位与规则作答，不得自行推算或新增给定事实之外的方位。`,
+    `${n + 2}. 不得断言吉凶后果（如「摆这里会招财/破财/生病」），只描述倾向与日常体验。`,
+    "",
+    "把给定的结论写成 2–3 句自然中文，口吻平实、可执行、非决定论。",
+    "只输出这 2–3 句本身，不加标题、前后缀或额外说明。",
+    "全文用简体中文。",
+  ].join("\n");
+}
+
+/** 物件顾问说人话层的 user prompt：给定结论 + 称呼，不含 language —— 与 {@link buildFengshuiUserPrompt} 一致，事实数据本身不随目标语言变化，由 system prompt 里的语言指令统一控制输出语言。 */
+export function buildObjectAdviceUserPrompt(advice: ObjectAdvice, opts?: { nickname?: string }): string {
+  return [
+    `称呼：${opts?.nickname ?? "你"}`,
+    `物件：${advice.categoryLabel}`,
+    `五行：${advice.elementOfObject ?? "未定"}`,
+    `推荐方位：${advice.recommendedDirections.map((r) => `${r.label}（${r.reason}）`).join("；") || "无"}`,
+    `不宜方位：${advice.avoid.map((r) => `${r.label}（${r.reason}）`).join("；") || "无"}`,
+    `品类规则：${advice.categoryRules.join("；")}`,
+    `与命主关系：${advice.personalFit}`,
+    advice.intendedVerdict
+      ? `用户想放在：${advice.intendedVerdict.direction}，该方为${advice.intendedVerdict.star}（${advice.intendedVerdict.auspicious ? "吉" : "凶"}）`
+      : "",
+  ].filter(Boolean).join("\n");
 }
