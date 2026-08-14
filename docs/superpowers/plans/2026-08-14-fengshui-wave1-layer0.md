@@ -1563,6 +1563,11 @@ git add packages/llm/src/fengshui/facts.ts packages/llm/src/fengshui/facts.test.
 git commit -m "feat(fengshui): extractFengshuiFacts 承重事实提取 [EP-fs-05]"
 ```
 
+> **交付后修正（2026-08-14，评审两条 Important）：**
+> 1. **PII 测试原本是空转的。** 断言「序列化结果不含 `1990-06-15`」对任何实现都成立——`FengshuiChart` 结构上就装不下出生日期，函数只能读它的字段。改为 `FENGSHUI_FACT_KEYS` 字段白名单断言：新增字段会让测试失败，迫使人显式决定该字段能否进 prompt（Layer 1 加居所字段时正是这一刻）。变异验证：漏出 `lichunYear` 时新测试失败、旧测试放行。另补 `directions`/`remedies` 逐项字段白名单，及「至少存在一条传统象征」防循环空转。
+> 2. **字段类型不再放宽成 `string`。** `star: FengshuiStar`、`effort: Effort`、`evidence: Remedy["evidence"]` 一律沿用 core 的字面量联合，拼错星名或成本档位直接编译失败。
+> `remedies` 仍是拍平投影（丢掉 `Remedy` 判别联合的 evidence⇒modern 关联），这是刻意取舍并已在代码注释写明：诚实标注由三层守护——源头判别联合、prompt 硬规则、`sanitizeFengshui` 后置净化。
+
 ---
 
 ## Task 9: 风水三分节 prompt
