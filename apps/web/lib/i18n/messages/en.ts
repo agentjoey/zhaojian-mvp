@@ -334,6 +334,7 @@ export const en: Messages = {
     traditionalLabel: "Traditional basis",
     askMira: "Ask Mira about this",
     narrativeFailed: "The narrative couldn't be generated right now — the chart and suggestions below are unaffected.",
+    narrativeDegraded: "This narrative got a direction wrong and was auto-corrected, so it isn't shown — the chart and suggestions below are unaffected.",
     regenerate: "Regenerate narrative",
     disclaimer: "The above is for self-awareness and improving how you experience your space, and does not constitute professional advice.",
     object: {
