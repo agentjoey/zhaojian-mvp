@@ -1246,6 +1246,11 @@ git add packages/core/src/fengshui/object-advisor.ts packages/core/test/fengshui
 git commit -m "feat(fengshui): 物件顾问弱版（五行×品类规则×命卦吉方）[EP-fs-04]"
 ```
 
+> **交付后修正（2026-08-14，评审两条 Important）：生产逻辑无误，问题在测试断言太弱。**
+> 1. 原「推荐方位落在四吉方内」在**交集分支与退回分支下都成立**（`preferred ⊆ good`，退回时直接返回 `good`），把交集逻辑整个删掉也测不出来。改为断言恰好等于交集 `{E, SE}`，并新增一条无交集场景（金属物件对坎命）断言正确退回且 `reason` 不谎称「同气」。
+> 2. 原 `expect(a.avoid.length).toBeGreaterThan(0)` 恒真——`avoid` 只由命卦四凶方决定，与物件五行无关，八宅必出 4 个凶方。改为断言喜用/忌神两种物件的 `avoid` 相同、而 `personalFit` 不同，真正区分二者职责。
+> 已用变异测试验证：删掉退回分支 → 2 条测试失败；改成永不取交集 → 1 条失败。旧断言两种变异都抓不到。
+
 ---
 
 ## Task 7: `computeFengshui` 汇总与 barrel 导出
