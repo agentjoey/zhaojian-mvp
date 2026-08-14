@@ -102,13 +102,15 @@ describe("EP-fs-06 verifyDirectionConsistency", () => {
 
 // 发现1：prompt.ts 实际诱导的输出格式（列表标注、括号、markdown 表格、加粗……）
 // 与旧正则的匹配面严重错位，评审实测 11 条真实句式只命中 2 条。下面逐条锁定
-// 扩展后的覆盖范围，覆盖除「星名在前」外评审列出的全部形态。
-describe("发现1：扩展方位名与星名之间允许的胶水", () => {
+// 「方位名在前」这一向的覆盖范围（「星名在前」那一向见后面的双向匹配用例组）。
+describe("发现1：扩展方位名与星名之间允许的胶水（方位名在前）", () => {
   const se = facts.directions.find((d) => d.direction === "SE")!;
   // 不硬编码具体星名——只要求与 se.star 不同即可，避免测试假设本命卦查表的具体数值。
   const wrong = se.star === "五鬼" ? "天医" : "五鬼";
 
   const cases: { desc: string; input: string; expectedFragment: string }[] = [
+    { desc: "「东南是绝命位」", input: `东南是${wrong}位`, expectedFragment: `东南是${se.star}位` },
+    { desc: "「东南方为绝命」", input: `东南方为${wrong}`, expectedFragment: `东南方为${se.star}` },
     { desc: "列表标注「东南：绝命」", input: `- 东南：${wrong}，不宜久坐`, expectedFragment: `东南：${se.star}` },
     { desc: "括号标注「东南（绝命）」", input: `东南（${wrong}）`, expectedFragment: `东南（${se.star}）` },
     { desc: "markdown 加粗「**东南**是绝命位」", input: `**东南**是${wrong}位`, expectedFragment: `**东南**是${se.star}位` },
@@ -116,6 +118,9 @@ describe("发现1：扩展方位名与星名之间允许的胶水", () => {
     { desc: "「东南的绝命位」", input: `东南的${wrong}位不宜久坐`, expectedFragment: `东南的${se.star}位` },
     { desc: "「东南属于绝命方」", input: `东南属于${wrong}方`, expectedFragment: `东南属于${se.star}方` },
     { desc: "「东南角是绝命位」", input: `东南角是${wrong}位`, expectedFragment: `东南角是${se.star}位` },
+    // Minor：星名被加粗时旧版漏检（`*` 只允许在方位名两侧），而
+    // 「- **东南**：**生气**（吉）」是很自然的 markdown 排版。
+    { desc: "星名加粗「- **东南**：**绝命**（凶）」", input: `- **东南**：**${wrong}**（凶）`, expectedFragment: `**东南**：**${se.star}**` },
   ];
 
   for (const c of cases) {
@@ -129,16 +134,160 @@ describe("发现1：扩展方位名与星名之间允许的胶水", () => {
     });
   }
 
-  it("已知未覆盖：星名在前的倒装句式（如「绝命位落在东南」），本次不要求纠正", () => {
-    // 这不是遗漏，是 guard.ts docstring 里显式记录的设计取舍（反向匹配误伤风险高）。
-    // 这条测试的作用是把"不覆盖"钉成一个可见的、有意的行为，而不是让它悄悄消失。
-    const md = `${wrong}位落在东南`;
-    expect(verifyDirectionConsistency(md, facts).corrections).toEqual([]);
-  });
-
   it("新增的「角」后缀 + 新增胶水不会在没有合法星名时误触发", () => {
     const md = "东南角是块风水宝地。"; // 含新后缀「角」与新胶水「是」，但后面不是八个星名之一
     expect(verifyDirectionConsistency(md, facts).corrections).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EP-fs-06b 回归：方向性误配（闸门把正确输出改成了错误输出）
+//
+// 上一轮为扩大匹配面，把分句标点「、，,」与 `\s`（含换行）放进 GLUE 且允许重复 6 次，
+// 正则开始跨分句、跨行地把「前一句的方位名」与「后一句的星名」配成一对——而
+// 「星名在前」（生气方在东南）恰恰是八宅最常见的中文语序，此前被当成「刻意不覆盖的
+// 良性缺口」，实际上不是不覆盖，是被系统性误配。一份逐条符合查表的正确输出会被
+// 改坏、并记下 8 条伪 correction。
+//
+// 为什么旧的负向用例没拦住：「东南方向采光好。」「东南角是块风水宝地。」都不含任何
+// 星名，胶水放宽到多离谱都必然通过——零判别力。下面这组一律「含星名 + 相邻另一个
+// 方位或分句」，胶水一旦重新放宽就会立刻变红。
+// ─────────────────────────────────────────────────────────────────────────────
+describe("EP-fs-06b 回归：含星名的负向语料（判别力用例）", () => {
+  it("前置：本组字面量假定 1990 男 = 坎1 的查表值", () => {
+    const table = Object.fromEntries(facts.directions.map((d) => [d.label, d.star]));
+    expect(table).toEqual({
+      东南: "生气", 东: "天医", 南: "延年", 北: "伏位",
+      西南: "绝命", 东北: "五鬼", 西北: "六煞", 西: "祸害",
+    });
+  });
+
+  const clean: { desc: string; md: string }[] = [
+    {
+      desc: "四吉方三分节（星名在前 ×4，逗号分句，前置枚举以冒号收尾）",
+      md: "四吉方为东南、东、南、北：生气位在东南，天医位在东，延年位在南，伏位在北。",
+    },
+    {
+      desc: "四凶方三分节（枚举末项「西：」紧邻下一句的星名——最刁钻的跨分句诱饵）",
+      md: "四凶方为西南、东北、西北、西：绝命方在西南，五鬼方在东北，六煞方在西北，祸害方在西。",
+    },
+    {
+      desc: "方位在前的分句 + 不带方位的星名短语（逗号跨句）",
+      md: "客厅在东南，绝命方的储物柜可以挪走（传统象征）。",
+    },
+    { desc: "两个正确的星名在前语序相邻", md: "伏位在北，生气在东南。" },
+    { desc: "两个凶星的星名在前语序相邻", md: "绝命方在西南，五鬼方在东北。" },
+    { desc: "跨行：上一行结尾方位名 + 下一行开头星名", md: "你的吉方是东南\n绝命方在西南，可作储物。" },
+    { desc: "跨空行：markdown 小节标题 + 空行 + 星名", md: "## 东南\n\n绝命位，久待紧绷。" },
+    { desc: "方位名不带星名（旧用例，保留）", md: "东南方向采光好。" },
+    { desc: "「角」后缀不带星名（旧用例，保留）", md: "东南角是块风水宝地。" },
+    { desc: "句号分隔的方位名与星名", md: "东南。生气是一种状态。" },
+    { desc: "加粗排版且完全符合查表", md: "- **东南**：**生气**（吉）\n- **西南**：**绝命**（凶）" },
+    { desc: "表格且完全符合查表", md: "| 东南 | 生气 | 吉 |\n| 西南 | 绝命 | 凶 |" },
+    { desc: "命卦术语「东四命」不得被当成方位名「东」配对", md: "生气方是东四命的最吉方位。" },
+  ];
+
+  for (const c of clean) {
+    it(`必须零改动：${c.desc}`, () => {
+      const { text, corrections } = verifyDirectionConsistency(c.md, facts);
+      expect(corrections).toEqual([]);
+      expect(text).toBe(c.md);
+    });
+  }
+});
+
+// 双向匹配：把「星名在前」这个中文最常见语序纳入覆盖。锚点始终是**方位名**
+// （查表的 key），被改写的始终是星名。
+describe("EP-fs-06b 双向匹配：星名在前的语序", () => {
+  const cases: { desc: string; input: string; expected: string; dir: string; wrote: string; correct: string }[] = [
+    { desc: "「五鬼位落在东南」", input: "五鬼位落在东南", expected: "生气位落在东南", dir: "SE", wrote: "五鬼", correct: "生气" },
+    { desc: "「绝命方在东」", input: "绝命方在东，不宜久坐", expected: "天医方在东，不宜久坐", dir: "E", wrote: "绝命", correct: "天医" },
+    { desc: "「六煞位于南」", input: "六煞位于南", expected: "延年位于南", dir: "S", wrote: "六煞", correct: "延年" },
+    { desc: "「生气方为西南」", input: "生气方为西南", expected: "绝命方为西南", dir: "SW", wrote: "生气", correct: "绝命" },
+    { desc: "加粗「**五鬼**在东南」", input: "**五鬼**在东南", expected: "**生气**在东南", dir: "SE", wrote: "五鬼", correct: "生气" },
+  ];
+
+  for (const c of cases) {
+    it(`覆盖并纠正：${c.desc}`, () => {
+      const { text, corrections } = verifyDirectionConsistency(c.input, facts);
+      expect(corrections).toHaveLength(1);
+      expect(corrections[0]!.direction).toBe(c.dir);
+      expect(corrections[0]!.wrote).toBe(c.wrote);
+      expect(corrections[0]!.correct).toBe(c.correct);
+      expect(text).toBe(c.expected);
+    });
+  }
+
+  it("纠正成「伏位」时不拼出「伏位位」（后缀去重）", () => {
+    expect(verifyDirectionConsistency("五鬼位在北", facts).text).toBe("伏位在北");
+    expect(verifyDirectionConsistency("北是绝命位", facts).text).toBe("北是伏位");
+  });
+
+  it("跨分句/跨行不配对（星名在前的方向同样不许越界）", () => {
+    for (const md of ["绝命方，在西南", "五鬼位\n在东南"]) {
+      expect(verifyDirectionConsistency(md, facts).corrections).toEqual([]);
+    }
+  });
+});
+
+// 整篇对拍：单句用例只能证明「这一句不误伤」，证明不了「一整篇正确输出零改动」——
+// 而回归正是在整篇语料上暴露的（8 条伪 correction、3 行正确文字被改坏）。
+// 这条按 prompt.ts 的三分节格式造一份逐条符合查表的正确输出，要求 byte 级零改动；
+// 再逐处注入错误星名，要求全部被抓回并**还原成同一份正确文档**。
+describe("EP-fs-06b 整篇三分节输出对拍", () => {
+  const CORRECT_DOC = `## 形势
+
+你的本命卦是坎1，属东四命。八方判语按查表如下：四吉方为东南、东、南、北——生气位在东南，天医位在东，延年位在南，伏位在北。四凶方为西南、东北、西北、西：绝命方在西南，五鬼方在东北，六煞方在西北，祸害方在西。
+
+| 方位 | 星 | 吉凶 |
+| --- | --- | --- |
+| 东南 | 生气 | 吉 |
+| 东 | 天医 | 吉 |
+| 西南 | 绝命 | 凶 |
+| 西 | 祸害 | 凶 |
+
+## 境与你
+
+- **东南**：**生气**（吉）。久待更容易松弛。
+- **西南**：**绝命**（凶）。久待更容易紧绷。
+东南是生气位，白天光线足；东南角适合放书桌。北是伏位，安静。
+西属于祸害方，西北角的六煞位不宜久坐。
+天医方在东，早晨可在这里喝杯茶。
+
+## 可做的事
+
+1. 客厅在东南，绝命方的储物柜可以挪走（传统象征）。
+2. 把书桌挪到东南（生气方），面朝东南。
+3. 五鬼位落在东北，那里少堆杂物。
+4. 六煞方在西北，可作储物。
+5. 你是东四命，东四命的四吉方为东南、东、南、北。
+
+以上是关于自我觉察与居住体验的建议，不构成专业意见。
+`;
+
+  it("逐条符合查表的正确输出：零 correction、零改动", () => {
+    const { text, corrections } = verifyDirectionConsistency(CORRECT_DOC, facts);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(CORRECT_DOC);
+  });
+
+  it("逐处注入错误星名：全部抓回并还原成同一份正确文档", () => {
+    const injected: [string, string][] = [
+      ["生气位在东南", "五鬼位在东南"],           // ② 星名在前
+      ["天医位在东", "绝命位在东"],               // ② 星名在前，短方位名
+      ["绝命方在西南", "生气方在西南"],           // ② 前面紧邻「西：」的诱饵位置
+      ["东南是生气位", "东南是绝命位"],           // ① 方位名在前
+      ["西属于祸害方", "西属于生气方"],           // ① 属于
+      ["天医方在东，早晨", "六煞方在东，早晨"],   // ② 行首
+      ["| 东南 | 生气 | 吉 |", "| 东南 | 六煞 | 吉 |"], // ① 表格
+    ];
+    let wrong = CORRECT_DOC;
+    for (const [ok, bad] of injected) wrong = wrong.replace(ok, bad);
+    expect(wrong).not.toBe(CORRECT_DOC);
+
+    const { text, corrections } = verifyDirectionConsistency(wrong, facts);
+    expect(corrections).toHaveLength(injected.length);
+    expect(text).toBe(CORRECT_DOC);
   });
 });
 

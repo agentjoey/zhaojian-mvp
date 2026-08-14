@@ -69,32 +69,65 @@ export type DirectionCorrection = {
 
 const ALL_STARS = ["生气", "天医", "延年", "伏位", "绝命", "五鬼", "六煞", "祸害"];
 
-/** markdown 加粗标记，允许出现在方位名两侧（如「**东南**是绝命位」）。 */
+/** markdown 加粗标记，允许出现在方位名与星名两侧（如「- **东南**：**生气**（吉）」）。 */
 const BOLD = "\\*\\*";
-/** 方位名后允许的量词/类别后缀。长名在前——同一 alternation 内「方位」须先于「方」试，否则「方」会先命中、留下孤立的「位」。 */
-const SUFFIX = "(?:方位|方|角)";
 /**
- * 方位名与星名之间允许的「胶水」：连接词、标点、markdown 表格分隔符、空白，允许重复
- * 出现几次（如表格行「| 东南 | 绝命 |」里，方位名与星名之间的 " | " 由「空格+竖线+
- * 空格」三个胶水单元拼成）。
+ * 方位名后允许的量词/类别后缀（「东南方」「东南角」「东南方位」）。
  *
- * 「属于」必须排在「属」前面：同一 alternation 内 JS 正则是最左优先、不是最长优先，
- * 若「属」先试，会在「属于」处只吃掉「属」这一个字，剩下的「于」既不是胶水词也不是
- * 星名首字，导致整条匹配失败（见 guard.test.ts「东南属于绝命方」用例）。
+ * 长名在前只是**防御性**写法，不是 load-bearing 约束：JS 正则确实是最左优先而非
+ * 最长优先，但短分支导致整条匹配失败后会回溯去试更长的分支。把「方位」与「方」
+ * 对调后做 138,240 条穷举差分，输出零差异——所以别再声称「否则会留下孤立的『位』」。
+ * 保留顺序，是为了将来词表扩充时不必重新推导这件事。
  */
-const GLUE = "(?:的|是|为|属于|属|系|：|:|（|\\(|、|，|,|-|—|\\||\\s)";
+const DIR_SUFFIX = "(?:方位|方|角)";
+/** 星名后允许的后缀，比方位名多一个「位」（「绝命方」「绝命位」）。 */
+const STAR_SUFFIX = "(?:方位|方|位|角)";
+/**
+ * 「方位名 → 星名」之间允许的「胶水」：连接词、标注符号、markdown 表格分隔符、
+ * **行内**空白，允许重复出现几次（表格行「| 东南 | 绝命 |」里，两者之间的 " | "
+ * 由「空格+竖线+空格」三个胶水单元拼成，故上限取 3 即够）。
+ *
+ * ⚠️ 绝不能放进来的东西：**分句标点（、，,）与换行**。它们不是胶水，是边界。
+ * 曾经放进来过（且允许重复 6 次），这道闸门于是开始跨分句、跨行地把「前一句的
+ * 方位名」和「后一句的星名」配成一对——一份逐条符合查表的正确输出被记下 8 条伪
+ * correction、3 行正确文字被改错（见 guard.test.ts「EP-fs-06b 回归：含星名的
+ * 负向语料」用例组，那组会在胶水重新放宽时立刻变红）。同理 `\s` 必须写成
+ * `[ \t]`：换行是段落边界，不是词间空白。
+ *
+ * 「属于」排在「属」前面同样只是可读性上的防御、不是 load-bearing：即便「属」先试、
+ * 在「属于」处只吃掉一个字，后面凑不齐星名一样会回溯回来（对调后穷举差分零差异）。
+ */
+const GLUE = "(?:的|是|为|属于|属|系|：|:|（|\\(|-|—|\\||[ \\t])";
+/** 胶水重复上限，见 GLUE 注释里的表格行推导。 */
+const GLUE_MAX = 3;
+/**
+ * 「星名 → 方位名」之间要求的**方位动词**（「绝命方在西南」「五鬼位落在东南」
+ * 「生气方为东南」）。刻意比 GLUE 严得多：这一向只认显式的方位断言，不认空白与
+ * 表格分隔符——否则「东南：绝命 北：伏位」里的「绝命 北」也会被当成一对。
+ */
+const LOCATIVE = "[ \\t]*(?:落在|位于|在|为|是)[ \\t]*";
 
 /**
- * 方位一致性校验：八方吉凶来自查表，模型输出可机械对拍。
- * 匹配「(\*\*)?<方位名>(\*\*)?<可选量词后缀><可选胶水，可重复若干次><星名>」。
- * 覆盖句式举例：「东南是绝命位」「东南方为绝命」「东南：绝命」「东南（绝命）」
- * 「**东南**是绝命位」「| 东南 | 绝命 |」「东南的绝命位」「东南属于绝命方」
- * 「东南角是绝命位」。
+ * 方位一致性校验：八方吉凶来自查表，模型输出可机械对拍。**双向**匹配，两个分支
+ * 放在同一条正则的 alternation 里，对原文一次非重叠扫描：
  *
- * ⚠️ 已知未覆盖形态：**星名在前**（如「绝命位落在东南」）。本函数不做反向匹配——
- * 星名只有 8 个词，若同时支持「星名+方位名」的反向扫描，会形成两套 alternation
- * 交叉匹配，误伤面显著增大，风险收益比不划算，本次刻意不覆盖。未来若有真实语料
- * 证明这种句式常见，再单独评估一套反向匹配规则。
+ * ① 方位名在前：「(\*\*)?<方位名>(\*\*)?<后缀>?<胶水×0-3>(\*\*)?<星名>(\*\*)?<后缀>?」
+ *   覆盖「东南是绝命位」「东南方为绝命」「- 东南：绝命」「东南（绝命）」
+ *   「**东南**是绝命位」「| 东南 | 绝命 |」「东南的绝命位」「东南属于绝命方」
+ *   「东南角是绝命位」「- **东南**：**绝命**」。
+ * ② 星名在前：「(\*\*)?<星名>(\*\*)?<后缀>?<方位动词>(\*\*)?<方位名>」
+ *   覆盖「绝命方在西南」「五鬼位落在东南」「生气方为东南」——这是八宅最常见的
+ *   中文语序，曾被当作「刻意不覆盖的良性缺口」，实际上它不是不覆盖，是被 ① 系统性
+ *   误配：胶水一旦含分句标点，「…西：绝命方在西南」里的「西：绝命」就会被 ① 吃掉，
+ *   把「西」判成绝命方并改写。所以覆盖 ② 与修 ① 是同一件事。
+ *
+ * 两分支交界处的裁决规则：**① 不得认领一个正在被 ② 认领的星名**——① 结尾挂一条
+ * 否定前瞻，其内容就是 ② 的尾巴片段本身（同一份 `starFirstTail` 生成，capture 与否
+ * 而已，两者不可能不同步）。语义上：中文里「X 方**在** Y」是比前文「Y'：」更强、
+ * 更近的绑定，冲突时让位给它。JS 正则最左优先，若无这条前瞻，「西：绝命方在西南」
+ * 里起点更靠左的 ① 会先赢——分支顺序救不了，必须靠前瞻。
+ *
+ * 无论哪个分支，**锚点都是方位名**（查表的 key），被改写的都是星名。
  *
  * ⚠️ 必须用**单趟组合正则**（一个 alternation 里放全部方位名，长名优先），
  * 不能对每个方位分别单独 `.replace()`：后者各自独立扫描「上一轮已被改写过」的
@@ -121,20 +154,53 @@ export function verifyDirectionConsistency(
 
   const byLabel = sortLabelsLongestFirst(facts.directions);
   const byLabelName = new Map(byLabel.map((d) => [d.label, d]));
+  const dirAlt = byLabel.map((d) => d.label).join("|");
+  const starAlt = ALL_STARS.join("|");
+
+  /**
+   * 分支 ② 的尾巴：「<星名后缀>?<方位动词>(\*\*)?<方位名>」。
+   * capture=true 用于 ② 本体（要拿回各段以便原样重拼），false 用于 ① 的否定前瞻。
+   * `(?!四)`：「东四命 / 西四命 / 东四宅」是八宅的固有词，不能把里面的「东」「西」
+   * 当成方位名——否则「生气方是东四命的最吉方位」会被判成「东 = 生气」并改写。
+   */
+  const starFirstTail = (capture: boolean) => {
+    const g = (name: string) => (capture ? `(?<${name}>` : "(?:");
+    return (
+      `${g("bStarSuffix")}${STAR_SUFFIX})?${g("bGlue")}${LOCATIVE})` +
+      `${g("bDirBold")}${BOLD})?${g("bDir")}${dirAlt})(?!四)`
+    );
+  };
+
   const pattern = new RegExp(
-    `(${BOLD})?(${byLabel.map((d) => d.label).join("|")})(${BOLD})?(${SUFFIX})?((?:${GLUE}){0,6})(${ALL_STARS.join("|")})`,
+    // ① 方位名在前
+    `(?<aDirBoldPre>${BOLD})?(?<aDir>${dirAlt})(?<aDirBoldPost>${BOLD})?(?<aDirSuffix>${DIR_SUFFIX})?` +
+      `(?<aGlue>(?:${GLUE}){0,${GLUE_MAX}})` +
+      `(?<aStarBoldPre>${BOLD})?(?<aStar>${starAlt})(?<aStarBoldPost>${BOLD})?(?<aStarSuffix>${STAR_SUFFIX})?` +
+      // 让位给 ②：这个星名是「X 方在 Y」的主语，它属于后面那个方位名，不属于前面那个
+      `(?!(?:${BOLD})?${starFirstTail(false)})` +
+      "|" +
+      // ② 星名在前
+      `(?<bStarBoldPre>${BOLD})?(?<bStar>${starAlt})(?<bStarBoldPost>${BOLD})?${starFirstTail(true)}`,
     "g",
   );
 
-  const text = markdown.replace(
-    pattern,
-    (match: string, boldBefore: string, label: string, boldAfter: string, suffix: string, glue: string, star: string) => {
-      const d = byLabelName.get(label)!;
-      if (star === d.star) return match;
-      corrections.push({ direction: d.direction, label: d.label, wrote: star, correct: d.star });
-      return `${boldBefore ?? ""}${label}${boldAfter ?? ""}${suffix ?? ""}${glue ?? ""}${d.star}`;
-    },
-  );
+  const text = markdown.replace(pattern, (match: string, ...rest: unknown[]) => {
+    // 有命名捕获组时，replacer 的最后一个实参是 groups 对象（两个分支都有，恒成立）。
+    const g = rest[rest.length - 1] as Record<string, string | undefined>;
+    const dirFirst = g.aDir !== undefined;
+    const label = (dirFirst ? g.aDir : g.bDir)!;
+    const star = (dirFirst ? g.aStar : g.bStar)!;
+    const d = byLabelName.get(label)!;
+    if (star === d.star) return match;
+    corrections.push({ direction: d.direction, label: d.label, wrote: star, correct: d.star });
+    // 「伏位」自带「位」后缀：直接拼会得到「伏位位在北」，正确星名已含该后缀时去重。
+    const suffix = (s: string | undefined) => (s && d.star.endsWith(s) ? "" : (s ?? ""));
+    return dirFirst
+      ? `${g.aDirBoldPre ?? ""}${label}${g.aDirBoldPost ?? ""}${g.aDirSuffix ?? ""}${g.aGlue ?? ""}` +
+          `${g.aStarBoldPre ?? ""}${d.star}${g.aStarBoldPost ?? ""}${suffix(g.aStarSuffix)}`
+      : `${g.bStarBoldPre ?? ""}${d.star}${g.bStarBoldPost ?? ""}${suffix(g.bStarSuffix)}` +
+          `${g.bGlue ?? ""}${g.bDirBold ?? ""}${label}`;
+  });
 
   return { text, corrections };
 }
