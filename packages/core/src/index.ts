@@ -23,6 +23,22 @@ export type { QuestionnaireItem, QuestionnaireAnswers } from "./spirit/questionn
 export { deriveSelfPortrait } from "./spirit/portrait";
 export type { SelfPortrait, SelfPortraitDimension } from "./spirit/portrait";
 
+export {
+  computeFengshui, FENGSHUI_ENGINE_VERSION,
+  deriveMingGua, ganzhiOfYear, directionsFor, elementDirections, adviseObject,
+  buildPersonalRemedies, sortRemedies,
+  DIRECTIONS, DIRECTION_LABEL, OPPOSITE, GUAS, GUA_DIRECTION, DIRECTION_GUA,
+  EIGHT_MANSIONS, AUSPICIOUS_STARS, INAUSPICIOUS_STARS,
+  ENV_PSYCH_ANCHORS, FENGSHUI_GUARDRAILS,
+  OBJECT_CATEGORIES, CATEGORY_LABEL,
+} from "./fengshui/index";
+export type {
+  FengshuiInput, FengshuiChart, MingGua, Gua, Direction, DirectionVerdict,
+  Star as FengshuiStar,
+  ElementAffinity, Remedy, Effort, EnvPsychAnchor,
+  ObjectCategory, ObjectQuery, ObjectAdvice, ObjectAdviceInput,
+} from "./fengshui/index";
+
 export { normalizeBirth } from "./normalize";
 export type { NormalizedBirth } from "./normalize";
 export { computeDailyFortune } from "./daily/index";
