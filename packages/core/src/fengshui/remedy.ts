@@ -1,7 +1,7 @@
 import { DIRECTION_LABEL, type Direction, type ElementAffinity } from "./directions";
 import type { DirectionVerdict } from "./eight-mansions";
 import type { MingGua } from "./ming-gua";
-import { ENV_PSYCH_ANCHORS } from "./env-psych";
+import { ENV_PSYCH_ANCHORS, type Effort } from "./env-psych";
 
 /**
  * 化解方案（EP-fs-03）。两条硬约束：
@@ -9,7 +9,8 @@ import { ENV_PSYCH_ANCHORS } from "./env-psych";
  *  2) 诚实标注 —— evidence='传统象征' 的条目 modern 恒为 null。
  */
 
-export type Effort = "零成本" | "挪动" | "添置" | "装修";
+/** 定义在 env-psych.ts（remedy 依赖它，反向会成环）；此处重新导出保持公开 API 不变。 */
+export type { Effort };
 
 type RemedyBase = {
   id: string;
@@ -127,7 +128,7 @@ export function buildPersonalRemedies(
       id: `fs-anchor-${i}`,
       target: a.traditional,
       action: a.action,
-      effort: a.traditional.includes("绿植") ? "添置" : "零成本",
+      effort: a.effort, // 显式取自锚点，不从文案猜（见 env-psych.ts 的 effort 注释）
       tenancy: "租房可做",
       traditional: a.traditional,
       modern: a.modern,

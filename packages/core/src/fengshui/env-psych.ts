@@ -9,11 +9,23 @@
  * 该标注由 prompt 硬规则 + sanitizeFengshui 双重执行。
  */
 
+/**
+ * 化解成本分级。定义在此（而非 remedy.ts）是因为 remedy 依赖本模块，
+ * 反向依赖会成环；remedy.ts 重新导出以保持公开 API 不变。
+ */
+export type Effort = "零成本" | "挪动" | "添置" | "装修";
+
 type EnvPsychBase = {
   /** 传统风水概念 */
   traditional: string;
   /** 可做的事 */
   action: string;
+  /**
+   * 这条建议实际要花多少代价。**显式标注，不从文案推断** ——
+   * 首发市场租房比例高，成本诚实是对用户的核心承诺，
+   * 靠子串匹配 action/traditional 猜成本会在文案改动时静默标错。
+   */
+  effort: Effort;
 };
 
 /**
@@ -30,54 +42,63 @@ export const ENV_PSYCH_ANCHORS: EnvPsychAnchor[] = [
     traditional: "背后有靠 / 靠山",
     modern: "prospect-refuge：背实墙且前方视野开阔时，环境警觉负荷下降，专注更易维持",
     action: "书桌与床头贴实墙，避免背对门与开阔通道",
+    effort: "挪动",
     evidence: "双重支撑",
   },
   {
     traditional: "藏风聚气",
     modern: "恢复性环境（Kaplan ART）：适度围合感有助注意力恢复",
     action: "为久坐处做出局部围合，避免置身穿堂动线中央",
+    effort: "挪动",
     evidence: "双重支撑",
   },
   {
     traditional: "门冲床 / 床对镜",
     modern: "半醒状态下的突发视觉刺激与夜间惊跳反应，影响睡眠连续性",
     action: "床不正对门；镜面避开床的正面视线",
+    effort: "挪动",
     evidence: "双重支撑",
   },
   {
     traditional: "形煞 / 屋内杂乱",
     modern: "视觉杂乱提升认知负荷，削弱工作记忆可用容量",
     action: "清掉台面与地面动线上的堆积物",
+    effort: "零成本",
     evidence: "双重支撑",
   },
   {
     traditional: "西晒",
     modern: "午后强光照延后褪黑素分泌，影响入睡",
     action: "西向卧室加遮光帘；床头避开西墙",
+    effort: "添置",
     evidence: "双重支撑",
   },
   {
     traditional: "明堂开阔",
     modern: "视觉纵深与开阔视野关联更平稳的情绪基调",
     action: "保持入口与主要窗前的通透，勿堆放高物",
+    effort: "零成本",
     evidence: "双重支撑",
   },
   {
     traditional: "木气生发 / 绿植",
     modern: "biophilia：室内绿植与自然元素关联压力恢复",
     action: "在久处的房间放一两盆好养的绿植",
+    effort: "添置",
     evidence: "双重支撑",
   },
   {
     traditional: "金泄土煞（凶方置金属器物）",
     modern: null,
     action: "在该方位放一件你自己喜欢的金属器物，作为「这一块我已安顿好」的标记",
+    effort: "添置",
     evidence: "传统象征",
   },
   {
     traditional: "凶方宜静宜压",
     modern: null,
     action: "把储物、少用的柜子放在凶方，把久待的活动放到吉方",
+    effort: "挪动",
     evidence: "传统象征",
   },
 ];

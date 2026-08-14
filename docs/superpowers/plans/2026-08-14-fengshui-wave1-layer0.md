@@ -789,6 +789,8 @@ git commit -m "feat(fengshui): 环境心理学对照表 + 守护栏常量 [EP-fs
 
 ---
 
+> **交付后修正（2026-08-14，评审 Important）：** `EnvPsychAnchor` 增加显式 `effort: Effort` 字段，9 条锚点各自标明成本；`Effort` 类型定义下沉到本模块（`remedy.ts` 依赖 `env-psych.ts`，反向会成环），由 `remedy.ts` 重新导出。原因见 Task 5 的同名修正说明。
+
 ## Task 5: 化解方案 `Remedy`
 
 **Files:**
@@ -995,7 +997,7 @@ export function buildPersonalRemedies(
       id: `fs-anchor-${i}`,
       target: a.traditional,
       action: a.action,
-      effort: a.traditional.includes("绿植") ? "添置" : "零成本",
+      effort: a.effort, // 显式取自锚点，不从文案猜（见下方修正说明）
       tenancy: "租房可做",
       traditional: a.traditional,
       modern: a.modern,
@@ -1018,6 +1020,11 @@ Expected: PASS — 5 passed
 git add packages/core/src/fengshui/remedy.ts packages/core/test/fengshui-remedy.test.ts
 git commit -m "feat(fengshui): 化解方案生成与分级排序 [EP-fs-03]"
 ```
+
+> **交付后修正（2026-08-14，评审两条 Important，用户裁定采纳）：**
+> 1. **成本分级不再从文案推断。** 原写法 `a.traditional.includes("绿植") ? "添置" : "零成本"` 嗅探的是 `traditional` 字段，而真正暗示花钱的是 `action`——「西晒」这条的 action 是「加遮光帘」却会被标成零成本；且唯一能命中「绿植」的锚点因循环取满 4 条即 break 而永不可达，`"添置"` 分支实为死代码。改为 `EnvPsychAnchor` 上的显式 `effort` 字段。
+> 2. **补排序第三级测试。** 三级规则里 id 升序那级原先无任何测试覆盖，而真实输出存在 effort 与 evidence 全同的并列条目，顺序正靠它决定。新增打平数据的测试。
+> 另补一条测试断言锚点化解的 effort 必须等于锚点声明值，防止再退回推断式。
 
 ---
 
