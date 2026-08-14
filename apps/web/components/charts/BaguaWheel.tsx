@@ -40,9 +40,16 @@ function sectorColor(v: DirectionVerdict): string {
   return v.auspicious ? "var(--color-cinnabar)" : "var(--color-ink)";
 }
 
-/** 深浅随 rank 分级：1（最吉/最凶）最深，向 4 递浅。 */
+/**
+ * 深浅随 rank 分级：1（最吉/最凶）最深，向 4 递浅。
+ *
+ * ⚠️ 区间下限不能再压低。初版用 0.30−0.05r / 0.16−0.02r，把令牌值对两种主题背景
+ * 做 alpha 混合后实测：凶方四档相邻仅差 ~4 个 RGB 单位、首末跨度 ~12，低于可感知阈值，
+ * 等于 rank 分级白做。现区间实测相邻 9–14、跨度 28–40（暗底与浅底均成立）。
+ * 主吉凶信号另有冗余通道（星名全不透明，朱红 vs 墨灰），本函数只承担次级的档位信息。
+ */
 function sectorOpacity(v: DirectionVerdict): number {
-  return v.auspicious ? 0.3 - v.rank * 0.05 : 0.16 - v.rank * 0.02;
+  return v.auspicious ? 0.46 - v.rank * 0.07 : 0.34 - v.rank * 0.05;
 }
 
 export function BaguaWheel({
