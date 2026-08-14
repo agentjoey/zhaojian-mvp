@@ -34,6 +34,12 @@ export {
 } from "./fengshui/index";
 export type {
   FengshuiInput, FengshuiChart, MingGua, Gua, Direction, DirectionVerdict,
+  /**
+   * ⚠️ 必须保留别名，勿改回 `Star`。`./types/chart` 已经导出紫微星曜的 `Star`
+   * （name/brightness/mutagen），经上面的 `export *` 进入同一 barrel；
+   * 显式导出会静默遮蔽它 —— packages/core 自身编译与单测都不报错，
+   * 只有全 monorepo `pnpm typecheck` 才会在 apps/web 的 ZiweiBoard.tsx 暴露。
+   */
   Star as FengshuiStar,
   ElementAffinity, Remedy, Effort, EnvPsychAnchor,
   ObjectCategory, ObjectQuery, ObjectAdvice, ObjectAdviceInput,

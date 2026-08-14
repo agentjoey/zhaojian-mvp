@@ -29,6 +29,16 @@ describe("EP-fs-03 computeFengshui Layer 0", () => {
     expect(run()).toEqual(run());
   });
 
+  it("纯函数：不改动传入的 birth 与 chart", () => {
+    const b = mk();
+    const chart = computeUnifiedChart(b);
+    const birthSnapshot = structuredClone(b);
+    const chartSnapshot = structuredClone(chart);
+    computeFengshui({ birth: b, chart });
+    expect(b).toEqual(birthSnapshot);
+    expect(chart).toEqual(chartSnapshot);
+  });
+
   it("男女命卦不同 → 方位判语不同", () => {
     const m = run({ gender: "male" });
     const f = run({ gender: "female" });
