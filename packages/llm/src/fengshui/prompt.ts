@@ -35,7 +35,7 @@ export function buildFengshuiSystemPrompt(language: ReadingLanguage = "zh"): str
 }
 
 export function buildFengshuiUserPrompt(facts: FengshuiFacts, opts?: { nickname?: string }): string {
-  const dirLines = facts.directions
+  const dirLines = [...facts.directions] // 必须先复制：sort 原地改数组，会永久打乱调用方 facts 的方位顺序
     .sort((a, b) => Number(b.auspicious) - Number(a.auspicious) || a.rank - b.rank)
     .map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}，第${d.rank}）`)
     .join("\n");
@@ -75,5 +75,7 @@ export function parseFengshuiSections(
     }
     if (current) out[current] += line + "\n";
   }
+  // 与既有 parseSections 一致：逐节 trim，别把首尾空行推给渲染方
+  for (const k of FENGSHUI_SECTION_KEYS) out[k] = out[k].trim();
   return out;
 }
