@@ -14,6 +14,9 @@ const NAV = [
   ...(process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1"
     ? [{ href: "/spirit", char: "灵", key: "nav.spirit" }]
     : []),
+  ...(process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1"
+    ? [{ href: "/fengshui", char: "境", key: "nav.fengshui" }]
+    : []),
   { href: "/profiles", char: "我", key: "nav.profiles" },
 ];
 
@@ -69,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function NavItem({ href, char, label, active }: { href: string; char: string; label: string; active: boolean }) {
   return (
-    <Link href={href} className="zj-nav flex flex-col items-center gap-1 px-2 py-1.5" aria-label={label}>
+    <Link href={href} className="zj-nav flex flex-col items-center gap-1 px-1.5 py-1.5" aria-label={label}>
       <span
         key={active ? "on" : "off"}
         className="inline-flex items-center justify-center font-semibold"
