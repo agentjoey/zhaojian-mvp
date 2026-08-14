@@ -32,7 +32,7 @@ describe("EP-fs-01 本命卦 deriveMingGua", () => {
     expect(g.group).toBe("东四命");
   });
 
-  it("1991 男 → 坎1；1991 女 → 乾6", () => {
+  it("1991 男 → 离9；1991 女 → 乾6", () => {
     expect(gua("1991-06-15", "male").gua).toBe(9);
     expect(gua("1991-06-15", "female").gua).toBe(6);
     expect(gua("1991-06-15", "female").guaName).toBe("乾");
@@ -51,7 +51,7 @@ describe("EP-fs-01 本命卦 deriveMingGua", () => {
     expect(gua("1990-06-15", "female").guaName).toBe("艮");
   });
 
-  it("2000 年后无需换式：2000 男→坎1、2000 女→乾6", () => {
+  it("2000 年后无需换式：2000 男→离9、2000 女→乾6", () => {
     expect(gua("2000-06-15", "male").gua).toBe(9);
     expect(gua("2000-06-15", "female").gua).toBe(6);
   });

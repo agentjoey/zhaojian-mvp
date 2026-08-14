@@ -52,7 +52,7 @@ function lichunYearOf(birth: BirthInput, chart: UnifiedChart): number {
  *
  * 等价于坊间通行的分段写法（男「(100−后两位)÷9 取余」、女「(后两位−4)÷9 取余」），
  * 但把世纪分支消掉了 —— 因 1900 mod 9 = 1、2000 mod 9 = 2，两段折算后同式。
- * 已对拍公开命卦速查表：1984 男兑7/女艮8、1990 男坎1/女艮8、1991 男坎1/女乾6。
+ * 已对拍公开命卦速查表：1984 男兑7/女艮8、1990 男坎1/女艮8、1991 男离9/女乾6。
  */
 function guaNumber(year: number, gender: "male" | "female"): number {
   const raw = gender === "male" ? 2 - year : year - 5;

@@ -272,7 +272,7 @@ describe("EP-fs-01 本命卦 deriveMingGua", () => {
     expect(g.group).toBe("东四命");
   });
 
-  it("1991 男 → 坎1；1991 女 → 乾6", () => {
+  it("1991 男 → 离9；1991 女 → 乾6", () => {
     expect(gua("1991-06-15", "male").gua).toBe(9);
     expect(gua("1991-06-15", "female").gua).toBe(6);
     expect(gua("1991-06-15", "female").guaName).toBe("乾");
@@ -291,7 +291,7 @@ describe("EP-fs-01 本命卦 deriveMingGua", () => {
     expect(gua("1990-06-15", "female").guaName).toBe("艮");
   });
 
-  it("2000 年后无需换式：2000 男→坎1、2000 女→乾6", () => {
+  it("2000 年后无需换式：2000 男→离9、2000 女→乾6", () => {
     expect(gua("2000-06-15", "male").gua).toBe(9);
     expect(gua("2000-06-15", "female").gua).toBe(6);
   });
@@ -373,7 +373,7 @@ function lichunYearOf(birth: BirthInput, chart: UnifiedChart): number {
  *
  * 等价于坊间通行的分段写法（男「(100−后两位)÷9 取余」、女「(后两位−4)÷9 取余」），
  * 但把世纪分支消掉了 —— 因 1900 mod 9 = 1、2000 mod 9 = 2，两段折算后同式。
- * 已对拍公开命卦速查表：1984 男兑7/女艮8、1990 男坎1/女艮8、1991 男坎1/女乾6。
+ * 已对拍公开命卦速查表：1984 男兑7/女艮8、1990 男坎1/女艮8、1991 男离9/女乾6。
  */
 function guaNumber(year: number, gender: "male" | "female"): number {
   const raw = gender === "male" ? 2 - year : year - 5;
@@ -402,7 +402,7 @@ export function deriveMingGua(birth: BirthInput, chart: UnifiedChart): MingGua {
 Run: `pnpm --filter @eamvp/core exec vitest run test/fengshui-ming-gua.test.ts`
 Expected: PASS — 8 passed
 
-> **对拍状态：已完成（2026-08-14，由 controller 在开工前查证）。** 公式与全部测试期望值均对拍自公开命卦速查表（华易网 `k366.com/minggua/`、知乎命卦对照表），六个基准值一致：1984 男兑7 / 女艮8、1990 男坎1 / 女艮8、1991 男坎1 / 女乾6。同来源亦确认立春分界规则（「二月四日或五日之前出生按旧的一年计算」），与本实现一致。**照抄本 Task 的公式与期望值，不要自行改写。**
+> **对拍状态：已完成（2026-08-14，由 controller 在开工前查证）。** 公式与全部测试期望值均对拍自公开命卦速查表（华易网 `k366.com/minggua/`、知乎命卦对照表），六个基准值一致：1984 男兑7 / 女艮8、1990 男坎1 / 女艮8、1991 男离9 / 女乾6。同来源亦确认立春分界规则（「二月四日或五日之前出生按旧的一年计算」），与本实现一致。**照抄本 Task 的公式与期望值，不要自行改写。**
 
 - [ ] **Step 5: 提交**
 
