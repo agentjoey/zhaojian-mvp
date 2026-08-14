@@ -59,6 +59,30 @@ describe("EP-fs-01 八宅游年表", () => {
     expect(z.N).toBe("天医");
   });
 
+  it("离宅逐格：六煞在坤(西南)、祸害在艮(东北)，二者不可互换", () => {
+    const l = EIGHT_MANSIONS["离"];
+    expect(l.SW).toBe("六煞");
+    expect(l.NE).toBe("祸害");
+    expect(l.E).toBe("生气");
+    expect(l.SE).toBe("天医");
+    expect(l.N).toBe("延年");
+    expect(l.S).toBe("伏位");
+    expect(l.NW).toBe("绝命");
+    expect(l.W).toBe("五鬼");
+  });
+
+  it("坤宅逐格：六煞在离(南)、祸害在震(东)，二者不可互换", () => {
+    const k = EIGHT_MANSIONS["坤"];
+    expect(k.S).toBe("六煞");
+    expect(k.E).toBe("祸害");
+    expect(k.NE).toBe("生气");
+    expect(k.W).toBe("天医");
+    expect(k.NW).toBe("延年");
+    expect(k.SW).toBe("伏位");
+    expect(k.N).toBe("绝命");
+    expect(k.SE).toBe("五鬼");
+  });
+
   it("东四命四吉方全落东四方位（坎离震巽）", () => {
     const east = new Set(["N", "S", "E", "SE"]);
     for (const g of ["坎", "离", "震", "巽"] as const) {

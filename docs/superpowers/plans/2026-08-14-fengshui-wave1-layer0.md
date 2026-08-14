@@ -536,9 +536,15 @@ export const AUSPICIOUS_STARS = ["生气", "天医", "延年", "伏位"] as cons
 export const INAUSPICIOUS_STARS = ["绝命", "五鬼", "六煞", "祸害"] as const;
 export type Star = (typeof AUSPICIOUS_STARS)[number] | (typeof INAUSPICIOUS_STARS)[number];
 
-/** 吉方排序（越小越吉）；凶方排序（越小越凶）。 */
-const AUSPICIOUS_RANK: Record<string, number> = { 生气: 1, 天医: 2, 延年: 3, 伏位: 4 };
-const INAUSPICIOUS_RANK: Record<string, number> = { 绝命: 1, 五鬼: 2, 六煞: 3, 祸害: 4 };
+/**
+ * 吉方排序（越小越吉）；凶方排序（越小越凶）。
+ * 用 Record<Star, number> 而非 Record<string, number>：让编译器强制八星齐全，
+ * 键名写错会编译失败，而不是运行期悄悄拿到 undefined。
+ */
+const STAR_RANK: Record<Star, number> = {
+  生气: 1, 天医: 2, 延年: 3, 伏位: 4,
+  绝命: 1, 五鬼: 2, 六煞: 3, 祸害: 4,
+};
 
 /**
  * 以「卦 → 各星所在卦」表达，再展开为方位表。
@@ -590,7 +596,7 @@ export function directionsFor(gua: Gua): Record<Direction, DirectionVerdict> {
   for (const d of DIRECTIONS) {
     const star = row[d];
     const auspicious = (AUSPICIOUS_STARS as readonly string[]).includes(star);
-    out[d] = { direction: d, star, auspicious, rank: (auspicious ? AUSPICIOUS_RANK : INAUSPICIOUS_RANK)[star]! };
+    out[d] = { direction: d, star, auspicious, rank: STAR_RANK[star] };
   }
   return out;
 }
