@@ -187,7 +187,7 @@ export type ElementAffinity = {
   unfavorableDirections: Direction[];
   favorableColors: string[];
   favorableMaterials: string[];
-  avoidColors: string[];
+  unfavorableColors: string[];
 };
 
 const flat = <T,>(els: string[], table: Record<string, T[]>): T[] =>
@@ -202,7 +202,7 @@ export function elementDirections(useful: UsefulElements): ElementAffinity {
     unfavorableDirections: flat(useful.unfavorable, ELEMENT_DIRECTIONS).sort(),
     favorableColors: flat(useful.favorable, ELEMENT_COLORS),
     favorableMaterials: flat(useful.favorable, ELEMENT_MATERIALS),
-    avoidColors: flat(useful.unfavorable, ELEMENT_COLORS),
+    unfavorableColors: flat(useful.unfavorable, ELEMENT_COLORS),
   };
 }
 ```
@@ -953,11 +953,11 @@ export function buildPersonalRemedies(
     });
   }
 
-  if (affinity.avoidColors.length) {
+  if (affinity.unfavorableColors.length) {
     out.push({
       id: "fs-color-avoid",
       target: "配色减法",
-      action: `大面积的${affinity.avoidColors.slice(0, 2).join("、")}少用，尤其是卧室主色`,
+      action: `大面积的${affinity.unfavorableColors.slice(0, 2).join("、")}少用，尤其是卧室主色`,
       effort: "零成本",
       tenancy: "租房可做",
       traditional: `命局忌${affinity.unfavorableElements.join("、")}`,
@@ -1482,7 +1482,7 @@ export type FengshuiFacts = {
   favorableDirections: string[];
   favorableColors: string[];
   favorableMaterials: string[];
-  avoidColors: string[];
+  unfavorableColors: string[];
   remedies: {
     id: string; target: string; action: string; effort: string;
     traditional: string; modern: string | null; evidence: string;
@@ -1506,7 +1506,7 @@ export function extractFengshuiFacts(f: FengshuiChart): FengshuiFacts {
     favorableDirections: f.elementAffinity.favorableDirections.map((d) => DIRECTION_LABEL[d]),
     favorableColors: f.elementAffinity.favorableColors,
     favorableMaterials: f.elementAffinity.favorableMaterials,
-    avoidColors: f.elementAffinity.avoidColors,
+    unfavorableColors: f.elementAffinity.unfavorableColors,
     remedies: f.remedies.map((r) => ({
       id: r.id, target: r.target, action: r.action, effort: r.effort,
       traditional: r.traditional, modern: r.modern, evidence: r.evidence,
@@ -1655,7 +1655,7 @@ export function buildFengshuiUserPrompt(facts: FengshuiFacts, opts?: { nickname?
     `命局喜用五行：${facts.favorableElements.join("、") || "中和，无明显扶抑"}`,
     `命局所忌五行：${facts.unfavorableElements.join("、") || "无"}`,
     `有利方位：${facts.favorableDirections.join("、") || "无"}`,
-    `宜用色：${facts.favorableColors.join("、") || "无"}｜宜用材：${facts.favorableMaterials.join("、") || "无"}｜宜少用色：${facts.avoidColors.join("、") || "无"}`,
+    `宜用色：${facts.favorableColors.join("、") || "无"}｜宜用材：${facts.favorableMaterials.join("、") || "无"}｜宜少用色：${facts.unfavorableColors.join("、") || "无"}`,
     ``,
     `候选化解（只准从这些里挑，可合并同类，不得新增）：`,
     remLines,

@@ -53,7 +53,7 @@ export type ElementAffinity = {
   unfavorableDirections: Direction[];
   favorableColors: string[];
   favorableMaterials: string[];
-  avoidColors: string[];
+  unfavorableColors: string[];
 };
 
 const flat = <T,>(els: string[], table: Record<string, T[]>): T[] =>
@@ -68,6 +68,6 @@ export function elementDirections(useful: UsefulElements): ElementAffinity {
     unfavorableDirections: flat(useful.unfavorable, ELEMENT_DIRECTIONS).sort(),
     favorableColors: flat(useful.favorable, ELEMENT_COLORS),
     favorableMaterials: flat(useful.favorable, ELEMENT_MATERIALS),
-    avoidColors: flat(useful.unfavorable, ELEMENT_COLORS),
+    unfavorableColors: flat(useful.unfavorable, ELEMENT_COLORS),
   };
 }
