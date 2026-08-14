@@ -35,6 +35,19 @@ describe("EP-fs-05 风水 prompt", () => {
     expect(FENGSHUI_GUARDRAILS.join("")).not.toContain("安顿自己的仪式");
   });
 
+  // 发现3：sanitizeFengshui 的语境判定主要靠「传统象征」行内标注命中，但旧版
+  // 输出格式说明只说"必要时"标注——非强制，能否标注取决于模型自愿，与"不依赖模型
+  // 自觉"的反幻觉设计意图相悖。这里把它改成强制措辞，此测试锁定这个变化：
+  // 既要确认强制语气真的换上了，也要确认旧的软化措辞"必要时"真的被替换掉了
+  // （不能只加新句不删旧句，那样模型可能读到自相矛盾的指示）。
+  it("system prompt 对「传统象征」标注改为强制，不再是「必要时」的软约束（发现3）", () => {
+    const s = buildFengshuiSystemPrompt("zh");
+    expect(s).toContain("必须在对应这一条的行内加注「（传统象征）」");
+    expect(s).not.toContain("必要时在括号里标「传统象征」");
+    // 该措辞只存在于本模块（输出格式说明），core 守护栏没有这句强制标注指示
+    expect(FENGSHUI_GUARDRAILS.join("")).not.toContain("必须在对应这一条的行内加注");
+  });
+
   it("user prompt 带入命卦与八方判语", () => {
     const u = buildFengshuiUserPrompt(facts);
     expect(u).toContain("坎");
