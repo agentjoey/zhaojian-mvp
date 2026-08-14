@@ -2164,12 +2164,11 @@ Expected: FAIL — 找不到 aria-label 为「境」的元素
     : []),
 ```
 
-同时把移动端底栏的 `paddingBottom` 一行上方的 `justify-around` 改为在 6 项时收紧间距——将第 49 行改为：
+两个 flag 同开时底栏为 6 项，需为窄屏留出空间：把 `NavItem` 外层 `<Link>` 的 `px-2` 改为 `px-1.5`（第 72 行），其余样式不动。
 
 ```tsx
-            className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-around pt-2.5 md:hidden"
+    <Link href={href} className="zj-nav flex flex-col items-center gap-1 px-1.5 py-1.5" aria-label={label}>
 ```
-保持不变，并把 `NavItem` 的外层 `px-2` 改为 `px-1.5`（第 72 行），为 6 项留出空间。
 
 - [ ] **Step 5: 运行测试确认通过**
 
@@ -2523,7 +2522,7 @@ const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
 
 export default function FengshuiPage() {
   const t = useT();
-  const locale = useLocale();
+  const { locale } = useLocale();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [narrative, setNarrative] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -2589,7 +2588,7 @@ export default function FengshuiPage() {
 
       {narrative && (
         <section className="mt-6">
-          <Markdown>{narrative}</Markdown>
+          <Markdown text={narrative} />
         </section>
       )}
       {failed && !narrative && (
@@ -2637,7 +2636,11 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 ```
 
-> **实现提示：** `useLocale` 若 `@/lib/i18n/I18nProvider` 未导出，改用该模块实际导出的 locale 读取方式（打开文件确认导出名），或直接从 `document.cookie` 读 `zj_locale`，默认 `"zh"`。缓存键必须含 locale，否则切换语言会读到旧语言的报告。
+> **已核实的两个 API（照抄，勿改写）：**
+> - `useLocale()` 返回 **对象** `{ locale, setLocale }`（`apps/web/lib/i18n/I18nProvider.tsx:102`），必须解构取 `locale`，不能直接当字符串用。
+> - `Markdown` 收 **`text` prop**，不是 children（`apps/web/components/Markdown.tsx:49`），写作 `<Markdown text={md} />`。
+>
+> 缓存键必须含 locale，否则切换语言会读到旧语言的报告。
 
 - [ ] **Step 6: 运行测试确认通过**
 
