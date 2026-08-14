@@ -9,15 +9,21 @@
  * 该标注由 prompt 硬规则 + sanitizeFengshui 双重执行。
  */
 
-export type EnvPsychAnchor = {
+type EnvPsychBase = {
   /** 传统风水概念 */
   traditional: string;
-  /** 现代机制；传统象征类恒为 null */
-  modern: string | null;
   /** 可做的事 */
   action: string;
-  evidence: "双重支撑" | "传统象征";
 };
+
+/**
+ * 判别联合而非平铺字段：让「传统象征 ⇒ modern 恒为 null」这条产品硬约束
+ * 由编译器强制，而不是只靠运行期测试守护当下这几条数据。
+ * 配错（如给传统象征条目补上现代机制）会直接编译失败。
+ */
+export type EnvPsychAnchor =
+  | (EnvPsychBase & { evidence: "双重支撑"; modern: string })
+  | (EnvPsychBase & { evidence: "传统象征"; modern: null });
 
 export const ENV_PSYCH_ANCHORS: EnvPsychAnchor[] = [
   {

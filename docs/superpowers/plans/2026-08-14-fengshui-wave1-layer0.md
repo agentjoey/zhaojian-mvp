@@ -692,15 +692,21 @@ Expected: FAIL — `Failed to resolve import "../src/fengshui/env-psych"`
  * 该标注由 prompt 硬规则 + sanitizeFengshui 双重执行。
  */
 
-export type EnvPsychAnchor = {
+type EnvPsychBase = {
   /** 传统风水概念 */
   traditional: string;
-  /** 现代机制；传统象征类恒为 null */
-  modern: string | null;
   /** 可做的事 */
   action: string;
-  evidence: "双重支撑" | "传统象征";
 };
+
+/**
+ * 判别联合而非平铺字段：让「传统象征 ⇒ modern 恒为 null」这条产品硬约束
+ * 由编译器强制，而不是只靠运行期测试守护当下这几条数据。
+ * 配错（如给传统象征条目补上现代机制）会直接编译失败。
+ */
+export type EnvPsychAnchor =
+  | (EnvPsychBase & { evidence: "双重支撑"; modern: string })
+  | (EnvPsychBase & { evidence: "传统象征"; modern: null });
 
 export const ENV_PSYCH_ANCHORS: EnvPsychAnchor[] = [
   {
@@ -873,16 +879,22 @@ import { ENV_PSYCH_ANCHORS } from "./env-psych";
 
 export type Effort = "零成本" | "挪动" | "添置" | "装修";
 
-export type Remedy = {
+type RemedyBase = {
   id: string;
   target: string;
   action: string;
   effort: Effort;
   tenancy: "租房可做" | "需自有";
   traditional: string;
-  modern: string | null;
-  evidence: "双重支撑" | "传统象征";
 };
+
+/**
+ * 与 EnvPsychAnchor 同构的判别联合：「传统象征 ⇒ modern 恒为 null」由编译器强制。
+ * 这是产品的诚实标注约束，不能只靠运行期测试守。
+ */
+export type Remedy =
+  | (RemedyBase & { evidence: "双重支撑"; modern: string })
+  | (RemedyBase & { evidence: "传统象征"; modern: null });
 
 const EFFORT_ORDER: Record<Effort, number> = { 零成本: 0, 挪动: 1, 添置: 2, 装修: 3 };
 
@@ -972,9 +984,15 @@ export function buildPersonalRemedies(
     });
   }
 
-  for (const a of ENV_PSYCH_ANCHORS.filter((x) => x.evidence === "双重支撑").slice(0, 4)) {
+  // 注意：用 continue 收窄而非 .filter —— TS 不会通过 .filter 收窄判别联合，
+  // 那样 a.modern 仍是 string|null，无法匹配 Remedy 的「双重支撑 ⇒ modern: string」分支。
+  let picked = 0;
+  for (const [i, a] of ENV_PSYCH_ANCHORS.entries()) {
+    if (a.evidence !== "双重支撑") continue;
+    if (picked >= 4) break;
+    picked += 1;
     out.push({
-      id: `fs-anchor-${ENV_PSYCH_ANCHORS.indexOf(a)}`,
+      id: `fs-anchor-${i}`,
       target: a.traditional,
       action: a.action,
       effort: a.traditional.includes("绿植") ? "添置" : "零成本",
