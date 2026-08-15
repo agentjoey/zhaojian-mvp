@@ -8,6 +8,8 @@ import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { listDwellings, deleteDwelling, type Dwelling } from "@/lib/dwellings";
 import { Card } from "@/components/ui";
+import { Paywall } from "@/components/Paywall";
+import { supabase } from "@/lib/supabase";
 import { DwellingForm } from "../DwellingForm";
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
@@ -24,6 +26,10 @@ export default function DwellingsPage() {
   const [dwellings, setDwellings] = useState<Dwelling[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // 会员闸门（Task 10，EP-fs-17）：多套居所是会员功能——非会员只能保存一个，第二个
+  // 起触发 Paywall。undefined = 尚未探测/无需探测（还没有任何居所，见下方 effect
+  // 的守卫）。
+  const [entitled, setEntitled] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     if (!ENABLED) return;
@@ -38,6 +44,40 @@ export default function DwellingsPage() {
       .then(setDwellings)
       .catch(() => setDwellings([]));
   }, [profile]);
+
+  // 会员闸门探测：只在已经存在至少 1 个居所时才问服务端——首套永远免费，不需要
+  // 为这个不影响任何渲染结果的信号多发一次请求。与 /fengshui 页面（page.tsx）
+  // 共用同一个 GET /api/fengshui/reading 端点与同一份服务端闸门判断
+  // （isFengshuiEntitled），这里只是另一处消费方。
+  useEffect(() => {
+    if (!dwellings || dwellings.length === 0) {
+      setEntitled(undefined);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        const r = await fetch("/api/fengshui/reading", {
+          method: "GET",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (cancelled) return;
+        if (!r.ok) {
+          setEntitled(false);
+          return;
+        }
+        const data2 = (await r.json().catch(() => null)) as { entitled?: boolean } | null;
+        if (!cancelled) setEntitled(Boolean(data2?.entitled));
+      } catch {
+        if (!cancelled) setEntitled(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dwellings]);
 
   function handleSaved(saved: Dwelling) {
     setDwellings((prev) => {
@@ -129,7 +169,19 @@ export default function DwellingsPage() {
       <section className="mt-8">
         <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.add")}</h2>
         <div className="mt-3">
-          <DwellingForm onSaved={handleSaved} />
+          {/* 会员闸门（Task 10，EP-fs-17）：多套居所是会员功能。没有居所（首套）时
+              永远放行；已有 ≥1 个居所时，未通过 entitled 就把「新增」表单换成
+              Paywall——挡的是新增，不影响上面已经渲染出来的既有居所列表。
+              entitled === undefined（探测尚未落定）时先不展示表单，避免「先给你
+              填、探测完再收回」的糟糕体验；由于探测只在 dwellings.length > 0 时才
+              发起，这个中间态通常很短。 */}
+          {dwellings && dwellings.length > 0 && entitled === undefined ? (
+            <p className="text-[13px] text-muted">{t("common.loading")}</p>
+          ) : dwellings && dwellings.length > 0 && !entitled ? (
+            <Paywall reason="limit" />
+          ) : (
+            <DwellingForm onSaved={handleSaved} />
+          )}
         </div>
       </section>
     </main>

@@ -13,6 +13,8 @@ import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
 import { Markdown } from "@/components/Markdown";
 import { Card } from "@/components/ui";
+import { Paywall } from "@/components/Paywall";
+import { supabase } from "@/lib/supabase";
 import {
   fengshuiFingerprint, readFengshuiReport, saveFengshuiReport, type FengshuiSections,
 } from "@/lib/fengshui-report";
@@ -62,6 +64,24 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
       },
     );
   });
+}
+
+/**
+ * 会员闸门（Task 10，EP-fs-17）用到的两次请求（GET 探测 entitled、POST 生成叙述）
+ * 都要能让服务端识别当前用户。TG 会话走 cookie（同源请求自动带上，这里不用处理）；
+ * 本地匿名 / 邮箱登录走 Authorization Bearer——与 account/page.tsx、SpiritPanel.tsx
+ * 同一手法（读 supabase 会话的 access_token）。取不到会话（真正匿名、从未
+ * ensureSession() 过）时返回空 header，服务端据此按「未登录」处理，等价于非会员——
+ * 这本身就是正确结果，不需要特殊分支。
+ */
+async function fengshuiAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const { data } = await supabase().auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -125,6 +145,11 @@ export default function FengshuiPage() {
   // （命中的话根本不会走到 fetch、也就不会进入 failed/degraded），所以重跑时
   // 该分支自然还是 miss，会照常发起新请求，不需要额外清缓存。
   const [retryNonce, setRetryNonce] = useState(0);
+  // 会员闸门（Task 10，EP-fs-17）：住宅实盘（宅八方）+ 多住客合看是会员功能。
+  // undefined = 尚未探测/无需探测（没有 Layer 1 候选）；探测结果只在存在朝向已知
+  // 的居所时才去问服务端（见下方 effect），避免给绝大多数（尚无居所的）用户
+  // 平白多一次网络往返。
+  const [entitled, setEntitled] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     if (!ENABLED) return;
@@ -203,7 +228,11 @@ export default function FengshuiPage() {
     }));
   }, [dwellingInput, cohabitantProfiles]);
 
-  // 确定性派生：与 LLM 无关，永远可得
+  // 确定性派生：与 LLM 无关，永远可得。⚠️ 故意用「原始」dwellingInput/cohabitantInputs
+  // （不受会员状态影响）——这样 f.layer 能如实反映「是否真的登记了朝向已知的居所」，
+  // UI 才分得清「有居所但被挡」（该显示 Paywall）与「压根没登记居所」（该显示
+  // 「还没登记居所」引导语）这两种对用户完全不同的情况。真正的闸门体现在渲染这一层：
+  // f.layer === 1 且未通过 entitled 时，把宅八方/合看渲染成 Paywall（见下方 JSX）。
   const fs: FengshuiChart | null = useMemo(
     () =>
       profile
@@ -212,10 +241,66 @@ export default function FengshuiPage() {
     [profile, dwellingInput, cohabitantInputs],
   );
 
+  // 会员闸门探测（Task 10，EP-fs-17）。BILLING_ENABLED（无 NEXT_PUBLIC_ 前缀）与
+  // 会员状态（查询需要 service-role key）都是服务端专属信息，客户端读不到，只能
+  // 问服务端——GET /api/fengshui/reading 与下面叙述 POST 共用同一份服务端闸门判断
+  // （isFengshuiEntitled），不重复实现一份规则。只在存在朝向已知的居所
+  // （dwellingInput 非空，即 fs.layer 将会是 1）时才探测——没有居所可看时，
+  // 探测结果不影响任何 UI，没必要多发一次请求。
+  useEffect(() => {
+    if (!dwellingInput) {
+      setEntitled(undefined);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await fengshuiAuthHeader();
+        const r = await fetch("/api/fengshui/reading", { method: "GET", headers });
+        if (cancelled) return;
+        if (!r.ok) {
+          setEntitled(false);
+          return;
+        }
+        const data = (await r.json().catch(() => null)) as { entitled?: boolean } | null;
+        if (!cancelled) setEntitled(Boolean(data?.entitled));
+      } catch {
+        // 探测本身失败（网络异常等）按不放行处理——服务端（POST 侧）仍是最终防线，
+        // 这里只是尽量不让未确认资格的用户先看到一闪而过的付费内容。
+        if (!cancelled) setEntitled(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dwellingInput]);
+
+  // 叙述生成与其缓存指纹要用「有效」居所——非会员时视同没有居所，换来的是一份
+  // Layer 0 叙述（个人层，仍然免费），而不是让服务端直接 402、连累整段叙述
+  // （包括本该免费的个人层部分）都拿不到。一旦 entitled 从 false 变成 true（比如
+  // 升级为会员），effectiveDwellingInput 随之变化，指纹也跟着变，自然触发重新生成
+  // Layer 1 叙述——不需要额外的缓存失效逻辑。
+  const effectiveDwellingInput = entitled ? dwellingInput : undefined;
+  const effectiveCohabitantInputs = entitled ? cohabitantInputs : undefined;
+
+  // 会员闸门（Task 10）：宅层化解（分级化解）与住宅实盘同属会员功能——`fs.remedies`
+  // 在 Layer 1 时是「个人层 + 宅层」合并排序后的单一数组，没法事后从里面摘出「哪些
+  // 属于宅层」。非会员时改用这份单独算出的、保证只含个人层的化解集合（与「盘」tab
+  // 的 Layer 0 引导语是同一个原则：不确定/不满足条件就不展示宅层结论）。
+  const personalOnlyRemedies = useMemo(
+    () => (profile ? computeFengshui({ birth: profile.birthInput, chart: profile.chart }).remedies : []),
+    [profile],
+  );
+
   useEffect(() => {
     // dwellings/cohabitantProfiles 未落定前不发起请求——否则「profile 就绪但居所还在
     // 加载」这个瞬间会先按 Layer 0 请求一次，居所到手后 fs 变成 Layer 1 又请求第二次。
     if (!profile || !fs || dwellings === undefined || cohabitantProfiles === undefined) return;
+    // 会员闸门（Task 10）：同一个道理——有居所时必须等 entitled 探测落定才能发起
+    // 叙述请求，否则会在「entitled 未知」的瞬间先按 Layer 0（未探测=不放行）发一次，
+    // entitled 落定后 effectiveDwellingInput 变化又触发第二次，重演上面注释里
+    // 「Layer 0 先请求一次、居所到手再请求一次」的双倍 LLM 账单问题。
+    if (dwellingInput && entitled === undefined) return;
     // 竞态保护：locale 切换 / 点击重试都会让本 effect 重新跑一遍，可能与上一次
     // 尚未落定的异步链路同时在途。用 `cancelled` 标志确保只有「最新一次」的
     // then/catch 真正写状态，旧的一律作废——否则旧响应可能在新响应之后才落定，
@@ -231,12 +316,15 @@ export default function FengshuiPage() {
     // Task 7/9（EP-fs-16）：报告按指纹持久化到服务端 fengshui_reports。指纹带上
     // 居所关键字段与 memberProfileIds，改朝向/增减同住人都会让旧报告失效——
     // 未形成 Layer 1（facing 未定或无居所）时统一按 Layer 0 算指纹，与波1 等价。
+    // Task 10：这里用 effectiveDwellingInput（而非原始 dwellingInput）——非会员时
+    // 指纹必须与「实际生成的是 Layer 0 叙述」这件事一致，否则一旦日后升级为会员，
+    // 相同指纹会命中一份不含宅层内容的旧缓存，看不到本该有的 Layer 1 叙述。
     const fp = fengshuiFingerprint({
       profileId: profile.id, locale, engineVersion: FENGSHUI_ENGINE_VERSION,
-      dwelling: dwellingInput
-        ? { id: dwellingInput.id, facing: dwellingInput.facing, tenancy: dwellingInput.tenancy, kind: dwellingInput.kind }
+      dwelling: effectiveDwellingInput
+        ? { id: effectiveDwellingInput.id, facing: effectiveDwellingInput.facing, tenancy: effectiveDwellingInput.tenancy, kind: effectiveDwellingInput.kind }
         : null,
-      memberProfileIds: dwellingInput ? (dwelling?.memberProfileIds ?? []) : [],
+      memberProfileIds: effectiveDwellingInput ? (dwelling?.memberProfileIds ?? []) : [],
     });
 
     (async () => {
@@ -252,15 +340,23 @@ export default function FengshuiPage() {
       if (cached) { setSections(cached); return; }
 
       try {
+        // Task 10（EP-fs-17）：dwelling/cohabitants 只在 entitled 时携带——服务端
+        // 收到这两个字段会独立校验会员资格（客户端闸门可绕过，这不是唯一防线，
+        // 只是不希望非会员平白把这次本该成功的 Layer 0 叙述请求打成 402）。
+        // 附带 Authorization：TG 会话走 cookie（同源请求自动带上），本地匿名/邮箱
+        // 登录靠这个 header，服务端才能正确识别出「其实是会员」，不会被误挡。
+        const authHeader = await fengshuiAuthHeader();
         const r = await fetch("/api/fengshui/reading", {
           method: "POST",
-          headers: { "content-type": "application/json", "x-zj-locale": locale },
+          headers: { "content-type": "application/json", "x-zj-locale": locale, ...authHeader },
           body: JSON.stringify({
             ...profile.birthInput,
-            dwelling: dwellingInput,
-            cohabitants: (cohabitantProfiles ?? []).map((p) => ({
-              profileId: p.id, name: p.nickname, birth: p.birthInput,
-            })),
+            dwelling: effectiveDwellingInput,
+            cohabitants: effectiveCohabitantInputs
+              ? (cohabitantProfiles ?? []).map((p) => ({
+                  profileId: p.id, name: p.nickname, birth: p.birthInput,
+                }))
+              : [],
           }),
         });
         if (!r.ok) throw new Error(await r.text());
@@ -273,8 +369,8 @@ export default function FengshuiPage() {
         // 但同样要留痕——写不进去意味着下次加载还得再花一次 LLM 钱。
         if (!data.degraded) {
           await saveFengshuiReport({
-            fingerprint: fp, profileId: profile.id, dwellingId: dwellingInput?.id ?? null,
-            layer: fs.layer, locale, sections: data.sections,
+            fingerprint: fp, profileId: profile.id, dwellingId: effectiveDwellingInput?.id ?? null,
+            layer: effectiveDwellingInput ? 1 : 0, locale, sections: data.sections,
           }).catch((e) => console.warn("[fengshui] 报告持久化失败，下次加载会重新生成", e));
         }
       } catch {
@@ -283,7 +379,9 @@ export default function FengshuiPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [profile, fs, dwelling, dwellingInput, cohabitantProfiles, dwellings, locale, retryNonce]);
+    // entitled 入依赖数组：探测落定/发生变化都要重新评估要不要重新生成叙述
+    // （effectiveDwellingInput/effectiveCohabitantInputs 由 entitled 派生，见上方）。
+  }, [profile, fs, dwelling, dwellingInput, cohabitantProfiles, dwellings, locale, retryNonce, entitled]);
 
   function regenerate() {
     setRetryNonce((n) => n + 1);
@@ -308,10 +406,19 @@ export default function FengshuiPage() {
   }
 
   const f = fs!;
-  const activeCohabitant = f.layer === 1 ? f.cohabitants.find((c) => c.profileId === viewAs) : undefined;
+  // 会员闸门（Task 10）：合看（切视角对照）是会员功能。只在「确实是 Layer 1」且
+  // 「已确认满足会员条件」时才允许挑选同住人视角——未通过时 activeCohabitant 恒为
+  // undefined，下面几个派生量与依赖它们的 chips/对照说明 UI 自然全部回落到「只看
+  // 自己」，不需要在每处 JSX 分别再判一次 entitled。
+  const cohabitantsEntitled = f.layer === 1 && entitled === true;
+  const activeCohabitant = cohabitantsEntitled ? f.cohabitants.find((c) => c.profileId === viewAs) : undefined;
   const activeMingGua = activeCohabitant?.mingGua ?? f.mingGua;
   const activeVerdicts = activeCohabitant ? directionsFor(activeCohabitant.mingGua.guaName) : f.personalDirections;
-  const hasCohabitants = f.layer === 1 && f.cohabitants.length > 0;
+  const hasCohabitants = cohabitantsEntitled && f.cohabitants.length > 0;
+  // 化解 tab：非会员时只给个人层（宅层分级化解属会员功能，见 personalOnlyRemedies
+  // 的注释）。entitled === undefined（探测尚未落定）时同样保守地按未通过处理，
+  // 避免先闪一下完整列表、探测结果出来后又收窄。
+  const remediesForDisplay = f.layer === 1 && entitled !== true ? personalOnlyRemedies : f.remedies;
 
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
@@ -411,23 +518,33 @@ export default function FengshuiPage() {
           </section>
 
           {f.layer === 1 && (
-            <section className="mt-8 flex flex-col items-center">
-              <h2 className="self-start text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-                {t("fengshui.dwellingTitle")}
-              </h2>
-              <div className="mt-4 flex flex-col items-center">
-                <BaguaWheel verdicts={f.dwelling.sectors} centerLabel={`${f.dwelling.guaName}宅`} ariaLabel="房屋八方吉凶盘" />
-                <p className="mt-2 text-[13px] text-ink-2">
-                  {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
-                </p>
-                {/* 复审必修3：同屏已并排显示「本命卦（东/西四命）」与「宅卦（东/西四命）」
-                    两个标签，此前从不说这俩合不合——而 core 的 buildDwellingRemedies 早已
-                    在用这个判语生成宅层化解。措辞非决定论：「相冲」≠「这房子不能住」。 */}
-                <p className="mt-1 text-[13px] text-ink-2">
-                  {t(`fengshui.matchNote.${f.dwelling.matchWithPerson}`)}
-                </p>
-              </div>
-            </section>
+            entitled === true ? (
+              <section className="mt-8 flex flex-col items-center">
+                <h2 className="self-start text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                  {t("fengshui.dwellingTitle")}
+                </h2>
+                <div className="mt-4 flex flex-col items-center">
+                  <BaguaWheel verdicts={f.dwelling.sectors} centerLabel={`${f.dwelling.guaName}宅`} ariaLabel="房屋八方吉凶盘" />
+                  <p className="mt-2 text-[13px] text-ink-2">
+                    {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
+                  </p>
+                  {/* 复审必修3：同屏已并排显示「本命卦（东/西四命）」与「宅卦（东/西四命）」
+                      两个标签，此前从不说这俩合不合——而 core 的 buildDwellingRemedies 早已
+                      在用这个判语生成宅层化解。措辞非决定论：「相冲」≠「这房子不能住」。 */}
+                  <p className="mt-1 text-[13px] text-ink-2">
+                    {t(`fengshui.matchNote.${f.dwelling.matchWithPerson}`)}
+                  </p>
+                </div>
+              </section>
+            ) : (
+              // 会员闸门（Task 10，EP-fs-17）：有居所（Layer 1）但未通过 entitled——
+              // 住宅实盘（宅八方）与合看都是会员功能，整块换成 Paywall，而不是悄悄
+              // 隐藏（用户能看见「有东西在这里，需要会员才能看」，而不是以为自己压根
+              // 没登记居所——那会误导去 /fengshui/dwellings 重复登记）。
+              <section className="mt-8">
+                <Paywall reason="limit" />
+              </section>
+            )
           )}
 
           {f.layer === 0 && dwellings !== undefined && (
@@ -471,7 +588,7 @@ export default function FengshuiPage() {
             render={(s) => <div className="reading-prose mt-2"><Markdown text={s.actions} /></div>}
           />
           <ul className="mt-3 flex flex-col gap-3">
-            {f.remedies.map((r) => (
+            {remediesForDisplay.map((r) => (
               <Card key={r.id} className="p-4">
                 <div className="flex items-center gap-2 text-[12px] text-muted">
                   <span>{t(`fengshui.effortLabel.${r.effort}`)}</span>

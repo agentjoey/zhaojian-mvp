@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { BirthInputSchema, computeUnifiedChart } from "@eamvp/core";
 import type { Dwelling } from "@/lib/dwellings";
 
@@ -15,6 +15,17 @@ vi.mock("@/lib/profiles", () => ({
   getActiveProfileId: () => "p1",
 }));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
+
+/**
+ * Task 10（EP-fs-17 会员闸门）：本页新增直接 import `@/lib/supabase`（读会话
+ * access_token，附到 /api/fengshui/reading 的闸门探测请求头上）。真实实现在没配
+ * NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时会抛错（同 lib/__tests__/dwellings.test.ts、
+ * fengshui/__tests__/page.test.tsx 踩过的同一个坑），必须 mock 掉。返回
+ * `session: null` 即可——本文件既有测试不关心「服务端具体怎么识别身份」。
+ */
+vi.mock("@/lib/supabase", () => ({
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: null } })) } }),
+}));
 
 /**
  * `DwellingForm`（本页下半部分永远渲染）也从 `@/lib/dwellings` 取
@@ -51,11 +62,25 @@ async function renderPage() {
   function Wrapper({ children }: { children: React.ReactNode }) {
     return <I18nProvider locale="zh">{children}</I18nProvider>;
   }
-  return render(<Page />, { wrapper: Wrapper });
+  // Task 10：新增的会员闸门探测 effect 是又一条异步 setState 链路（继 profile/
+  // dwellings 加载之后）。用 `await act(async () => { render(...) })` 让 act 显式
+  // 排空 render 触发的首批微任务再返回——与 fengshui/__tests__/page.test.tsx 的
+  // renderPage() 同一个理由、同一个手法（见该文件顶部注释：加这层包裹前大量用例
+  // 会报 "not wrapped in act"，加之后清零）。
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(<Page />, { wrapper: Wrapper });
+  });
+  return result;
 }
 
 const D1: Dwelling = { id: "d1", name: "家A", kind: "home", tenancy: "rent", facing: "S", memberProfileIds: [] };
 const D2: Dwelling = { id: "d2", name: "家B", kind: "office", tenancy: "own", facing: null, memberProfileIds: [] };
+
+/** 会员闸门探测（Task 10）响应；route 现在返回 JSON `{ entitled }`。 */
+function jsonResponse(body: unknown, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, ...init });
+}
 
 beforeEach(() => {
   vi.resetModules();
@@ -63,6 +88,10 @@ beforeEach(() => {
   listDwellings.mockReset().mockResolvedValue([]);
   deleteDwelling.mockReset().mockResolvedValue(undefined);
   vi.stubGlobal("confirm", vi.fn(() => true));
+  // 默认 entitled:true（对应「未开闸」或「已是会员」——本页分不清也不需要分清这两种；
+  // 哪种具体情形由本文件末尾「会员闸门」describe 块专门覆盖）。这保证了 Task 10
+  // 之前就存在的既有测试（含下面用到 2 个居所的「列表渲染」测试）无需逐个改动。
+  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
 });
 
 describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
@@ -131,5 +160,58 @@ describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
     expect(deleteDwelling).toHaveBeenCalledTimes(1);
     resolveDelete();
     await waitFor(() => expect(screen.queryByText("家A")).toBeNull());
+  });
+});
+
+/**
+ * 会员闸门（Task 10，EP-fs-17）。spec §11 边界：多套居所是会员功能——非会员只能
+ * 保存一个，第二个起触发 Paywall；已保存的第一个不受影响（本页不删列表，只挡
+ * 「新增」区域）。全程受 BILLING_ENABLED 门控（无 NEXT_PUBLIC_ 前缀，页面读不到，
+ * 只能靠 GET /api/fengshui/reading 返回的 entitled 布尔值）。
+ *
+ * 没有居所（首套）时不发起闸门探测——首套永远免费，探测结果不影响任何 UI，见
+ * page.tsx 里 `if (!dwellings || dwellings.length === 0)` 的守卫；下面专门有一条
+ * 测试锁定「不该发起这次请求」，防止这个「减少无意义请求」的设计被悄悄破坏。
+ */
+describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二个触发 Paywall", () => {
+  it("已有 1 个居所且非会员：「新增」区域显示 Paywall，不显示表单；已保存的居所不受影响", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: false })));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
+    // 挡的是「新增」，不是已经保存的居所——列表仍然完整可见
+    expect(screen.getByText("家A")).toBeInTheDocument();
+  });
+
+  it("已有 1 个居所且是会员：「新增」区域正常显示表单，不显示 Paywall", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("route 判定 entitled:true（对应 BILLING_ENABLED 关闭，或已是会员）：即使已有多个居所，新增表单也不受限——对照组", async () => {
+    // 与上一条「非会员 → Paywall」用相同的居所数量级（这里甚至更多，2 个），
+    // 唯一变量是 entitled 的值——证明真正决定渲染结果的是这个信号，不是别的。
+    listDwellings.mockResolvedValue([D1, D2]);
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("没有居所（首套）：即使 route 判定 entitled:false，表单仍正常显示——首套免费，且根本不该发起闸门探测请求", async () => {
+    listDwellings.mockResolvedValue([]);
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: false }));
+    vi.stubGlobal("fetch", fetchSpy);
+    await renderPage();
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

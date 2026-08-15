@@ -61,6 +61,30 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 /**
+ * Task 10（EP-fs-17 会员闸门）：page.tsx 现在会对同一个 URL
+ * （/api/fengshui/reading）发两种请求——GET（闸门探测，只在存在朝向已知的居所时
+ * 才发起）与 POST（叙述生成，既有行为）。全局 `fetch` 桩必须按 method 分流，
+ * 否则「只匹配 URL、不管 method」的旧式桩会把 GET 也答成叙述 JSON（缺 entitled
+ * 字段 → 被判定未订阅 → 大量既有 Layer 1 测试假阳性失败），或者把 POST 也答成
+ * entitled 探测响应（叙述内容对不上）。本文件其余测试统一通过它构造 fetch 桩，
+ * 不再直接摆一个不区分 method 的裸 `vi.fn`。
+ */
+function methodRouter(handlers: {
+  GET?: () => Response | Promise<Response>;
+  POST?: () => Response | Promise<Response>;
+}) {
+  return vi.fn(async (_url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (method === "POST") {
+      if (handlers.POST) return handlers.POST();
+      throw new Error(`methodRouter: 未预期的 POST 调用（未提供 POST handler）`);
+    }
+    if (handlers.GET) return handlers.GET();
+    throw new Error(`methodRouter: 未预期的 ${method} 调用（未提供 GET handler）`);
+  });
+}
+
+/**
  * `dwellingsFixture`/`profilesById` 用 `vi.hoisted` 声明（同下面 `reportStore` 的理由）：
  * 让被提升到文件顶部的 `vi.mock` 工厂能安全闭包到它们。每条测试在 `beforeEach` 里
  * 重置，需要 Layer 1 的测试再显式塞入居所/同住人档案。
@@ -91,6 +115,19 @@ vi.mock("@/lib/dwellings", () => ({
 }));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
+
+/**
+ * Task 10（EP-fs-17 会员闸门）：page.tsx 新增直接 import `@/lib/supabase`（读会话
+ * access_token，附到 /api/fengshui/reading 的请求头上，供服务端识别非 TG 用户）。
+ * `@/lib/supabase` 的真实实现会在没配置 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时抛错
+ * （见 lib/__tests__/dwellings.test.ts 顶部注释，同一个坑），测试环境没配这两个
+ * env，必须 mock 掉。返回 `session: null`——本文件所有既有测试都不关心「服务端
+ * 具体怎么识别身份」这件事（那由 route.test.ts 独立覆盖），这里只要不抛错、
+ * 不附带 Authorization 头即可，行为等价于「未登录/本地匿名」。
+ */
+vi.mock("@/lib/supabase", () => ({
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: null } })) } }),
+}));
 
 /**
  * `@/lib/fengshui-report` 的服务端读写（`readFengshuiReport`/`saveFengshuiReport`）本
@@ -160,7 +197,16 @@ beforeEach(() => {
   dwellingsFixture.error = null;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
-  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false })));
+  // 默认：entitled:true（对应「未开闸」或「已是会员」——page.tsx 分不清、也不需要
+  // 分清这两种；哪种具体情形由本文件末尾「会员闸门」describe 块专门覆盖）。
+  // 这保证了本文件其余（Task 10 之前就存在的）Layer 1 测试无需逐个改动。
+  vi.stubGlobal(
+    "fetch",
+    methodRouter({
+      GET: () => jsonResponse({ entitled: true }),
+      POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+    }),
+  );
 });
 
 describe("EP-fs-07 /fengshui Layer 0", () => {
@@ -302,7 +348,16 @@ describe("EP-fs-15 Layer 1 与 Tab", () => {
 
   it("LLM 失败时宅八方与化解清单仍完整渲染（波1 性质不得回退）", async () => {
     dwellingsFixture.current = [dwellingL1()];
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 503 })));
+    // entitled 探测（GET）与叙述生成（POST）是两件独立的事——这条测试测的是「叙述
+    // 生成失败」，entitled 探测本身必须成功，否则会连累骨架被 Paywall 挡住，
+    // 测的就不再是这条测试自己声称要测的东西了。
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: true }),
+        POST: () => new Response("boom", { status: 503 }),
+      }),
+    );
     await renderPage();
     await waitFor(() => expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument());
 
@@ -337,13 +392,17 @@ describe("EP-fs-15 Layer 1 指纹与缓存（复审必修1：指纹须真正随�
       memberProfileIds: dwelling.memberProfileIds,
     });
     reportStore.set(fp, { situation: "L1-FP-HIT", youAndSpace: "y", actions: "a" });
-    const fetchSpy = vi.fn(async () => new Response("不该被调用到"));
+    // entitled 探测（GET）与「报告是否命中缓存」是两件独立的事——即使叙述报告命中
+    // 缓存、不需要发起叙述 POST，entitled 探测仍然要发生（它决定宅八方/合看要不要
+    // 渲染，与叙述缓存命中与否无关）。这里只断言"POST 没有发生"，不再断言
+    // "fetch 完全没被调用过"。
+    const fetchSpy = methodRouter({ GET: () => jsonResponse({ entitled: true }) });
     vi.stubGlobal("fetch", fetchSpy);
 
     await renderPage();
 
     await waitFor(() => expect(screen.getByText("L1-FP-HIT")).toBeInTheDocument());
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fetchSpy.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
   });
 
   it("朝向变化后不再命中旧指纹（旧报告按朝向「南」缓存，实际居所朝向已变成「北」），重新发起请求且请求恰好一次", async () => {
@@ -354,16 +413,22 @@ describe("EP-fs-15 Layer 1 指纹与缓存（复审必修1：指纹须真正随�
       memberProfileIds: dwelling.memberProfileIds,
     });
     reportStore.set(staleFp, { situation: "STALE-FACING", youAndSpace: "y", actions: "a" });
-    const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
+    const fetchSpy = methodRouter({
+      GET: () => jsonResponse({ entitled: true }),
+      POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+    });
     vi.stubGlobal("fetch", fetchSpy);
 
     await renderPage();
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const postCalls = () => fetchSpy.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+    await waitFor(() => expect(postCalls().length).toBeGreaterThan(0));
     expect(screen.queryByText("STALE-FACING")).toBeNull();
     // 顺带修：Layer 1 有专门的守卫防止「居所未落定先按 Layer 0 请求一次、居所到手
-    // 再请求一次」的双倍 LLM 账单，但该守卫此前零断言。这里锁定恰好一次。
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // 再请求一次」的双倍 LLM 账单，但该守卫此前零断言。这里锁定叙述 POST 恰好一次
+    // （entitled 探测 GET 是另一件独立的事，不计入这个「恰好一次」——它本身没有
+    // 这种双请求风险，见 page.tsx 里对 GET 的守卫只依赖 dwellingInput）。
+    expect(postCalls()).toHaveLength(1);
   });
 
   it("同住人集合变化后不再命中旧指纹（旧报告按「无同住人」缓存，实际已有同住人 p2），重新发起请求", async () => {
@@ -374,12 +439,17 @@ describe("EP-fs-15 Layer 1 指纹与缓存（复审必修1：指纹须真正随�
       memberProfileIds: [],
     });
     reportStore.set(staleFp, { situation: "STALE-MEMBERS", youAndSpace: "y", actions: "a" });
-    const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
+    const fetchSpy = methodRouter({
+      GET: () => jsonResponse({ entitled: true }),
+      POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+    });
     vi.stubGlobal("fetch", fetchSpy);
 
     await renderPage();
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(fetchSpy.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true),
+    );
     expect(screen.queryByText("STALE-MEMBERS")).toBeNull();
   });
 });
@@ -691,5 +761,175 @@ describe("EP-fs-07 /fengshui Layer 0 — locale 切换时的状态重置与竞�
     await waitFor(() => expect(screen.getByText("EN-SITUATION-OK")).toBeInTheDocument());
     // en 的可信缓存应当正常显示，不能被 zh 遗留下来的 degraded 提示挡住
     expect(screen.queryByText(/auto-corrected/)).toBeNull();
+  });
+});
+
+/**
+ * 会员闸门（Task 10，EP-fs-17）。spec §11 边界：Layer 0（本命方位、物件顾问弱版）
+ * 永远免费；住宅实盘（宅八方）+ 分级化解、多住客合看是会员功能。page.tsx 自己不
+ * 知道 BILLING_ENABLED（服务端专属 env，无 NEXT_PUBLIC_ 前缀）也不能直接查会员表
+ * （getEntitlement 需要 service-role key）——它只认 GET /api/fengshui/reading
+ * 返回的 `entitled` 布尔值，这里通过 methodRouter 的 GET handler 直接控制。
+ *
+ * ⚠️ 「BILLING_ENABLED 关闭」这条测试特意与「开闸 + 非会员」那条测试成对出现、
+ * 用同一份居所夹具（dwellingL1(["p2"])）——如果闸门逻辑被写反或被删掉，这两条中
+ * 至少有一条会变红；单独测「关闭时不限制」这一条不足以证明闸门本身是对的
+ * （测试环境本来就没开闸的话，随便怎么判都会通过）。
+ */
+describe("EP-fs-17 会员闸门（Task 10）", () => {
+  const dwellingBody = { id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "S" as const };
+  /** Layer 1（含宅层）与 Layer 0（个人层）化解集合，用来精确核对「化解 tab 究竟展示了哪些条目」，
+   *  而不是只看数量或存在性。 */
+  const l1 = computeFengshui({ birth, chart: profile.chart, dwelling: dwellingBody });
+  const dwellingOnlyRemedyIds = new Set(l1.remedies.map((r) => r.id));
+  fs.remedies.forEach((r) => dwellingOnlyRemedyIds.delete(r.id));
+
+  it("宅层化解集合非空（前提校验）：若这个前提不成立，下面「只显示个人层」的测试会失去意义", () => {
+    expect(dwellingOnlyRemedyIds.size).toBeGreaterThan(0);
+  });
+
+  it("BILLING_ENABLED 关闭（route 对任何人都返回 entitled:true，pre-prod 默认态）：非会员也能看到宅八方与合看，不做任何限制", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: true }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("房屋八方")).toBeInTheDocument());
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+    expect(screen.getByText("坎宅")).toBeInTheDocument();
+    expect(screen.getByText("以谁的视角看")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "阿乙" })).toBeInTheDocument();
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("开闸 + 非会员：Layer 0 内容（本命卦、本命八方）与物件顾问入口照常可见——免费层不能被误伤", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "添置" }));
+    expect(screen.getByText("我想添置…")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "看看放哪儿好" })).toBeInTheDocument();
+  });
+
+  it("开闸 + 非会员：宅八方与合看被 Paywall 取代", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+
+    // 宅八方消失
+    expect(screen.queryByText("房屋八方")).toBeNull();
+    expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
+    expect(screen.queryByText("坎宅")).toBeNull();
+    // 合看（切视角 chips + 对照说明）一并消失——不能只挡宅盘、漏了合看
+    expect(screen.queryByText("以谁的视角看")).toBeNull();
+    expect(screen.queryByRole("button", { name: "阿乙" })).toBeNull();
+    // Layer 0（本命八方）不受影响——它是免费内容
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+  });
+
+  it("开闸 + 会员：宅八方与合看正常渲染", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: true }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("房屋八方")).toBeInTheDocument());
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+    expect(screen.getByText("坎宅")).toBeInTheDocument();
+    expect(screen.getByText("以谁的视角看")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "阿乙" })).toBeInTheDocument();
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("开闸 + 非会员 + 有宅：化解 tab 只显示个人层化解，宅层分级化解不可见", async () => {
+    dwellingsFixture.current = [dwellingL1()];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+    for (const r of l1.remedies) {
+      if (dwellingOnlyRemedyIds.has(r.id)) expect(screen.queryByText(r.action)).toBeNull();
+    }
+  });
+
+  it("开闸 + 会员 + 有宅：化解 tab 显示完整化解（含宅层分级化解）", async () => {
+    dwellingsFixture.current = [dwellingL1()];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: true }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    expect(l1.remedies.length).toBeGreaterThan(fs.remedies.length);
+    for (const r of l1.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
+
+  it("开闸 + 非会员 + 有宅：叙述请求仍会发出，但降级为 Layer 0（不携带 dwelling/cohabitants）——免费层的叙述不因居所被挡而整体消失", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    // methodRouter 不记录请求体，这里改用一个能记录 POST body 的裸 vi.fn，
+    // 直接核对「非会员 + 有宅」时叙述请求到底带没带 dwelling/cohabitants。
+    const postBodies: Record<string, unknown>[] = [];
+    const fetchSpy = vi.fn(async (_url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "POST") {
+        postBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ sections: SECTIONS, degraded: false });
+      }
+      return jsonResponse({ entitled: false });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+
+    expect(postBodies).toHaveLength(1);
+    expect(postBodies[0]).not.toHaveProperty("dwelling");
+    const cohab = postBodies[0]!.cohabitants as unknown[] | undefined;
+    expect(cohab === undefined || cohab.length === 0).toBe(true);
+    // 叙述照常显示——不是被 402 打成一整段"叙述暂时生成不出来"
+    expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
   });
 });
