@@ -8,7 +8,12 @@ import type { MingGua } from "./ming-gua";
  * 宅八方吉凶复用同一张 EIGHT_MANSIONS 查表（`directionsFor`），只是入参换成宅卦。
  */
 
-/** 用户填的居所信息。facing 为 null 表示「不确定」→ 调用方降级回 Layer 0。 */
+/**
+ * 传给引擎的居所信息。**`facing` 不可为 null** —— 朝向未知就根本不该走到这里。
+ * 「不确定」这个状态只存在于 web 层的 `Dwelling`（其 `facing: Direction | null`），
+ * 由调用方在边界处判断：facing 为 null 时**不传 dwelling**，直接降级回 Layer 0。
+ * 这样引擎侧不必到处处理「有居所但不知朝向」这种半吊子状态。
+ */
 export type DwellingInput = {
   id: string;
   name: string;
