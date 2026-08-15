@@ -1,5 +1,17 @@
 import { supabase, ensureSession } from "@/lib/supabase";
 import type { Direction } from "@eamvp/core";
+import { hasTgSession } from "@/lib/tg/client";
+import {
+  tgListDwellings, tgCreateDwelling, tgUpdateDwelling, tgDeleteDwelling,
+} from "@/lib/tg/fengshui";
+
+/**
+ * 居所 CRUD（EP-fs-14）。**分流点在本层**（EP-fs-tg，spec §3.2）：TG 会话下走
+ * `/api/tg/fengshui` 中介（service_role + 服务端归属校验），否则走 Supabase 匿名
+ * 客户端 + RLS。页面只调 `listDwellings()`，不感知自己在哪个宿主里。
+ * TG 分支存在的原因：TG 用户没有 Supabase 匿名会话，直连路径拿不到正确的 uid，
+ * 居所增删改查在 TG 内原本整条不工作。
+ */
 
 export type Dwelling = {
   id: string; name: string;
@@ -23,6 +35,7 @@ const toDwelling = (r: Row): Dwelling => ({
 });
 
 export async function listDwellings(): Promise<Dwelling[]> {
+  if (hasTgSession()) return tgListDwellings();
   await ensureSession();
   const { data, error } = await supabase()
     .from("dwellings").select("*").order("created_at", { ascending: true });
@@ -31,6 +44,7 @@ export async function listDwellings(): Promise<Dwelling[]> {
 }
 
 export async function createDwelling(d: Omit<Dwelling, "id">): Promise<Dwelling> {
+  if (hasTgSession()) return tgCreateDwelling(d);
   const uid = await ensureSession();
   const { data, error } = await supabase().from("dwellings").insert({
     uid, name: d.name, kind: d.kind, tenancy: d.tenancy,
@@ -41,6 +55,7 @@ export async function createDwelling(d: Omit<Dwelling, "id">): Promise<Dwelling>
 }
 
 export async function updateDwelling(id: string, patch: Partial<Omit<Dwelling, "id">>): Promise<void> {
+  if (hasTgSession()) return tgUpdateDwelling(id, patch);
   await ensureSession();
   const { error } = await supabase().from("dwellings").update({
     ...(patch.name !== undefined && { name: patch.name }),
@@ -54,6 +69,7 @@ export async function updateDwelling(id: string, patch: Partial<Omit<Dwelling, "
 }
 
 export async function deleteDwelling(id: string): Promise<void> {
+  if (hasTgSession()) return tgDeleteDwelling(id);
   await ensureSession();
   const { error } = await supabase().from("dwellings").delete().eq("id", id);
   if (error) throw error;

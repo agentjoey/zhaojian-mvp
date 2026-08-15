@@ -1,50 +1,18 @@
-import { z } from "zod";
-import { computeUnifiedChart, computeFengshui, BirthInputSchema } from "@eamvp/core";
-import { generateFengshuiReading, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { isLlmConfigured, resolveLlmConfig } from "@eamvp/llm";
 import { localeFromRequest } from "@/lib/i18n/server";
-import { getEntitlement, isMember } from "@/lib/entitlements";
-// 同住人上限的**单一事实源**（最终评审 I1）。此前这个常量只存在于本文件里，
-// 客户端选择器不设限 → 用户勾满 9 个存下来，之后每次加载 /fengshui 都被下面这条
-// `.max()` 打成 400，且无法自解。上限现在与 DwellingForm 的选择器同源。
-import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
+// 校验 schema / 会员闸门 / 生成逻辑与 TG 中介端点（api/tg/fengshui 的 reading action）
+// 共用同一份实现（EP-fs-tg），见 lib/fengshui-reading.ts 顶部注释——闸门规则只写一份。
+import {
+  ReadingRequestSchema,
+  generateFengshuiSections,
+  isFengshuiEntitledForUid,
+  wantsLayer1,
+} from "@/lib/fengshui-reading";
 import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { supabaseAdmin } from "@/lib/tg/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/**
- * 居所/合看成员校验（Task 9，EP-fs-15）。用 `.extend()` 而不是套一层
- * `{ birth, dwelling, cohabitants }`——请求体本体仍然就是 `BirthInput`，
- * `dwelling`/`cohabitants` 是两个新增的可选字段。这样波1 已有的调用方式
- * （body 就是 BirthInput 本身）在两个新字段缺省时保持逐字节兼容，
- * route.test.ts 里波1 就有的 Layer 0 路径测试不必跟着改。
- *
- * 方位枚举直接字面量列出（而非从 core 的 `DIRECTIONS` 常量派生）：`DIRECTIONS`
- * 是 `as const` 的只读元组，`z.enum` 的类型签名要求可写元组，两者对不上时容易
- * 引出与本路由无关的类型体操；核心真值仍是 core 的 `DIRECTIONS`，这里只是照抄
- * 其字面量集合做输入校验，不是重新定义方位。
- */
-const DirectionSchema = z.enum(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
-
-const DwellingBodySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  kind: z.enum(["home", "office"]),
-  tenancy: z.enum(["rent", "own"]),
-  facing: DirectionSchema,
-});
-
-const CohabitantBodySchema = z.object({
-  profileId: z.string(),
-  name: z.string(),
-  birth: BirthInputSchema,
-});
-
-const ReadingRequestSchema = BirthInputSchema.extend({
-  dwelling: DwellingBodySchema.optional(),
-  cohabitants: z.array(CohabitantBodySchema).max(MAX_COHABITANTS).optional(),
-});
 
 /**
  * 从请求里解析 uid（Task 10，EP-fs-17 会员闸门）。手法与 billing/status/route.ts
@@ -77,20 +45,12 @@ async function resolveUserId(req: Request): Promise<string | undefined> {
 }
 
 /**
- * 会员闸门（Task 10，EP-fs-17）。spec §11 边界：Layer 0（本命方位、物件顾问弱版）
- * 永远免费；住宅实盘（dwelling）+ 分级化解、多住客合看（cohabitants）、多套居所是
- * 会员功能。`BILLING_ENABLED` 关闭时（pre-prod 默认态）永远放行——与
- * `lib/entitlements.ts` 的 `consumeLlm()` 同一手法（`if (BILLING_ENABLED !== "1")
- * return 放行`），避免闸门判断在两处各写一份、其中一处忘了同步。未能解析出 uid
- * （未登录/身份不明）与非会员同等对待：都视为不满足。
- *
+ * 会员闸门（Task 10，EP-fs-17）。规则本体在 `isFengshuiEntitledForUid`
+ * （lib/fengshui-reading.ts），这里只负责「从请求解出 uid」这一入口特有的一步。
  * GET（闸门探测）与 POST（叙述生成的服务端校验）共用这一份实现，不重复。
  */
 async function isFengshuiEntitled(req: Request): Promise<boolean> {
-  if (process.env.BILLING_ENABLED !== "1") return true;
-  const uid = await resolveUserId(req);
-  if (!uid) return false;
-  return isMember(await getEntitlement(uid));
+  return isFengshuiEntitledForUid(await resolveUserId(req));
 }
 
 /**
@@ -145,10 +105,7 @@ export async function POST(req: Request): Promise<Response> {
     return new Response(parsed.error.issues.map((i) => i.message).join("; "), { status: 400 });
   }
 
-  const { dwelling, cohabitants, ...birth } = parsed.data;
-
-  const wantsLayer1 = !!dwelling || !!(cohabitants && cohabitants.length > 0);
-  if (wantsLayer1 && !(await isFengshuiEntitled(req))) {
+  if (wantsLayer1(parsed.data) && !(await isFengshuiEntitled(req))) {
     return new Response(JSON.stringify({ error: "paywall" }), {
       status: 402,
       headers: { "content-type": "application/json" },
@@ -156,19 +113,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const chart = computeUnifiedChart(birth);
-    const fs = computeFengshui({
-      birth,
-      chart,
-      dwelling,
-      cohabitants: cohabitants?.map((c) => ({
-        profileId: c.profileId, name: c.name, birth: c.birth, chart: computeUnifiedChart(c.birth),
-      })),
-    });
-    const r = await generateFengshuiReading(fs, {
-      language: localeFromRequest(req),
-      nickname: birth.nickname,
-    });
+    const r = await generateFengshuiSections(parsed.data, localeFromRequest(req));
     return Response.json({ sections: r.sections, degraded: r.degraded });
   } catch (e) {
     return new Response(`风水报告生成失败：${e instanceof Error ? e.message : String(e)}`, { status: 500 });
