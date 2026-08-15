@@ -73,3 +73,40 @@ describe("EP-fs-04 物件顾问（弱版）", () => {
     expect(a.recommendedDirections.length).toBeGreaterThan(0);
   });
 });
+
+describe("EP-fs-18 物件顾问强版（有居所）", () => {
+  const dwellingSectors = directionsFor("乾"); // 西四宅：吉方 NW/W/NE/SW
+
+  it("不传 dwellingSectors 时行为与波1 完全一致", () => {
+    const weak = adviseObject(base, { category: "desk", material: "原木" });
+    const same = adviseObject({ ...base, dwellingSectors: undefined }, { category: "desk", material: "原木" });
+    expect(same).toEqual(weak);
+    expect(same.dwellingNote).toBeNull();
+  });
+
+  it("有居所时推荐方位必须同时是命卦吉方与宅卦吉方", () => {
+    const withHouse = directionsFor("坎"); // 东四宅，与坎命同组 → 交集非空
+    const a = adviseObject({ ...base, dwellingSectors: withHouse }, { category: "desk", material: "原木" });
+    for (const r of a.recommendedDirections) {
+      expect(base.verdicts[r.direction].auspicious).toBe(true);
+      expect(withHouse[r.direction].auspicious).toBe(true);
+    }
+    expect(a.recommendedDirections.length).toBeGreaterThan(0);
+  });
+
+  it("命宅异组导致交集为空时，退回命卦吉方并在 dwellingNote 说明", () => {
+    // 坎命(东四) × 乾宅(西四)：四吉方分属两组，交集必空
+    const a = adviseObject({ ...base, dwellingSectors: dwellingSectors }, { category: "desk", material: "原木" });
+    expect(a.recommendedDirections.length).toBeGreaterThan(0);
+    for (const r of a.recommendedDirections) {
+      expect(base.verdicts[r.direction].auspicious).toBe(true); // 仍是命卦吉方
+    }
+    expect(a.dwellingNote).toBeTruthy();
+    expect(a.dwellingNote).toMatch(/房子|宅/);
+  });
+
+  it("dwellingNote 在交集非空时为 null（没话说就不说）", () => {
+    const withHouse = directionsFor("坎");
+    expect(adviseObject({ ...base, dwellingSectors: withHouse }, { category: "desk" }).dwellingNote).toBeNull();
+  });
+});

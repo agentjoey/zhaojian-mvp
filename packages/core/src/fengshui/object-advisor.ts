@@ -61,11 +61,15 @@ export type ObjectAdvice = {
   personalFit: string;
   /** 用户指定了摆放方位时，该方位的八宅判语 */
   intendedVerdict: DirectionVerdict | null;
+  /** 命宅异组、交集为空时的说明；没话说则为 null */
+  dwellingNote: string | null;
 };
 
 export type ObjectAdviceInput = {
   verdicts: Record<Direction, DirectionVerdict>;
   affinity: ElementAffinity;
+  /** Layer 1 起可选传入宅卦八方；不传 = 波1 弱版行为，逐字节不变 */
+  dwellingSectors?: Record<Direction, DirectionVerdict>;
 };
 
 function elementOf(q: ObjectQuery): string | null {
@@ -75,16 +79,25 @@ function elementOf(q: ObjectQuery): string | null {
 }
 
 export function adviseObject(input: ObjectAdviceInput, q: ObjectQuery): ObjectAdvice {
-  const { verdicts, affinity } = input;
+  const { verdicts, affinity, dwellingSectors } = input;
   const el = elementOf(q);
   const all = Object.values(verdicts);
   const good = all.filter((v) => v.auspicious).sort((a, b) => a.rank - b.rank);
   const bad = all.filter((v) => !v.auspicious).sort((a, b) => a.rank - b.rank);
 
+  // Layer 1：推荐位需同时是命卦吉方与宅卦吉方。交集为空说明这套房子在这件物件上
+  // 帮不上忙——此时退回命卦吉方（人比房子更要紧），并显式说明，而不是给空数组。
+  const houseGood = dwellingSectors ? good.filter((v) => dwellingSectors[v.direction].auspicious) : good;
+  const usable = houseGood.length ? houseGood : good;
+  const dwellingNote =
+    dwellingSectors && houseGood.length === 0
+      ? "这套房子的吉方与你的命卦吉方不重合，以下按你自己的吉方给建议——人比房子要紧，先顾好你久待的那几处。"
+      : null;
+
   // 物件五行自身的方位（若可判），与四吉方取交集优先
   const elDirs = el ? (ELEMENT_DIRECTIONS[el] ?? []) : [];
-  const preferred = good.filter((v) => elDirs.includes(v.direction));
-  const picked = (preferred.length ? preferred : good).slice(0, 3);
+  const preferred = usable.filter((v) => elDirs.includes(v.direction));
+  const picked = (preferred.length ? preferred : usable).slice(0, 3);
 
   const isFavorable = el ? affinity.favorableElements.includes(el) : false;
   const isUnfavorable = el ? affinity.unfavorableElements.includes(el) : false;
@@ -114,5 +127,6 @@ export function adviseObject(input: ObjectAdviceInput, q: ObjectQuery): ObjectAd
           ? `物件五行为${el}，属你命局所忌，宜节制体量与面积，少作主色。`
           : `物件五行为${el}，对你不偏不倚，按方位与用途安排即可。`,
     intendedVerdict: q.intendedDirection ? verdicts[q.intendedDirection] : null,
+    dwellingNote,
   };
 }
