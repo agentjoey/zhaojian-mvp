@@ -14,6 +14,19 @@ import {
 } from "@/lib/fengshui-cache";
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
+const SPIRIT_ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
+
+/**
+ * 「和 Mira 聊聊这条」链接携带的动作文本上限（最终评审 Blocking 2）。当前化解数据
+ * （remedy.ts / env-psych.ts）里最长的 action 也就三四十字，80 是留了充足余量的
+ * 保守上限——真正起作用的是防止未来新增更长文案时把 query string 无限拉长。
+ */
+const SPIRIT_QUERY_MAX_LEN = 80;
+
+/** 供 /spirit 端拼出「关于这条化解的提问」的原始素材；超限截断，避免 URL 无限增长。 */
+export function truncateForSpiritQuery(text: string, max = SPIRIT_QUERY_MAX_LEN): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
 
 /**
  * 叙述分节的标题键。**不要借用 directionsTitle / affinityTitle** ——
@@ -189,13 +202,15 @@ export default function FengshuiPage() {
               {r.modern && (
                 <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
               )}
-              <Link
-                href={`/spirit?topic=fengshui:${encodeURIComponent(r.id)}`}
-                className="mt-3 inline-block text-[13px]"
-                style={{ color: "var(--color-cinnabar)" }}
-              >
-                {t("fengshui.askMira")}
-              </Link>
+              {SPIRIT_ENABLED && (
+                <Link
+                  href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                  className="mt-3 inline-block text-[13px]"
+                  style={{ color: "var(--color-cinnabar)" }}
+                >
+                  {t("fengshui.askMira")}
+                </Link>
+              )}
             </Card>
           ))}
         </ul>

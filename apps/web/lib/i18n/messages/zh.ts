@@ -288,6 +288,10 @@ export const zh = {
     share: "分享",
     talkAboutPortrait: "和本命之灵聊聊这个",
     talkPortraitMessage: "我想聊聊我的自我画像",
+    // 最终评审 Blocking 2：/spirit?topic=fengshui&q=<动作文本> 落地时，用这句模板把
+    // 「境」页某条化解的动作文本拼成一句自然的开场提问，复用 talkPortraitMessage
+    // 同一套 autoSend 机制（见 apps/web/app/spirit/page.tsx）。
+    talkFengshuiMessage: "我想聊聊这条建议：{action}",
     portraitNoteTitle: "本命之灵的观察",
     viewPortrait: "查看自我画像 →",
 

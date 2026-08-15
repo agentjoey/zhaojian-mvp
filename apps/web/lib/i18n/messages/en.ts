@@ -301,6 +301,7 @@ export const en: Messages = {
     share: "Share",
     talkAboutPortrait: "Talk to your Natal Spirit about this",
     talkPortraitMessage: "I want to talk about my self-portrait",
+    talkFengshuiMessage: "I'd like to talk about this suggestion: {action}",
     portraitNoteTitle: "Your Natal Spirit's observation",
     viewPortrait: "View Self-Portrait →",
 

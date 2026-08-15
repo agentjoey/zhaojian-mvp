@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { BirthInputSchema, computeUnifiedChart, FENGSHUI_ENGINE_VERSION } from "@eamvp/core";
+import { BirthInputSchema, computeUnifiedChart, computeFengshui, FENGSHUI_ENGINE_VERSION } from "@eamvp/core";
 import { fengshuiCacheKey } from "@/lib/fengshui-cache";
 
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
+// 与 page.tsx 内部完全相同的计算（birth + chart 一致），用来独立算出 fs.remedies 的真实
+// 顺序与内容，而不是靠猜测某条化解「恒为第一条」——那类假设已经在最终评审 Blocking 2
+// 的排查中被证明不可靠（sortRemedies 的实际结果并不是本文件旧注释所声称的那样）。
+const fs = computeFengshui({ birth, chart: profile.chart });
 
 /**
  * 三分节报告桩数据（Task 14 复审后：route 契约改为 JSON，客户端直接消费已切好的
@@ -94,12 +98,53 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     expect(screen.queryByLabelText("八方吉凶盘")).toBeNull();
   });
 
-  it("每条化解带「和 Mira 聊聊这条」链接指向 /spirit", async () => {
+});
+
+describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得动实际内容，且受「灵」flag 门控", () => {
+  // 复审指出：此前 href 只带 remedyId（如 `?topic=fengshui:fs-desk-sheng`），
+  // /spirit 只认 topic==="portrait"，id 被解析出来即丢弃，用户落进空白通用聊天——
+  // 是「复用了 URL 形状，没复用机制」。下面的测试断言行为（q 参数真的带着这条化解
+  // 的动作文本、灵关闭时链接压根不存在），不再只断言 href 正则（那样的断言即使
+  // /spirit 端完全不解析这个 id 也照样通过，抓不住这个 bug）。
+
+  it("灵开启时，每条化解链接指向 /spirit?topic=fengshui&q=<那一条自己的动作文本>（不是无意义的 id）", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "1");
+    const { truncateForSpiritQuery } = await import("../page");
     await renderPage();
     // 等叙述结算完（而非只等盘图），让本测试内该请求的 .then 在测试结束前跑完，避免遗留到下一条测试才 resolve。
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
     const links = screen.getAllByText("和 Mira 聊聊这条");
-    expect(links[0]!.closest("a")!.getAttribute("href")).toMatch(/^\/spirit\?topic=fengshui:/);
+    // page.tsx 按 fs.remedies 数组原序 .map 渲染卡片，不重新排序——逐条按位置对拍，
+    // 不假设某条化解「恒为第一条」（sortRemedies 的实际输出顺序不是这么回事）。
+    expect(links.length).toBe(fs.remedies.length);
+    links.forEach((link, i) => {
+      const href = link.closest("a")!.getAttribute("href")!;
+      const url = new URL(href, "http://localhost");
+      expect(url.pathname).toBe("/spirit");
+      expect(url.searchParams.get("topic")).toBe("fengshui");
+      // q 必须是这条化解自己的动作文本（截断规则与 page.tsx 用同一个函数），
+      // 而不是像此前那样只带一个 /spirit 端根本不认得的 remedyId。
+      expect(url.searchParams.get("q")).toBe(truncateForSpiritQuery(fs.remedies[i]!.action));
+    });
+  });
+
+  it("灵未开启时不渲染「和 Mira 聊聊这条」链接，避免把用户送进 /spirit 的「尚未开启」死胡同", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", ""); // 显式关闭；与「未设置」等价，但意图更明确
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    expect(screen.queryByText("和 Mira 聊聊这条")).toBeNull();
+  });
+
+  it("动作文本较长时对 q 参数做合理截断，不放任 URL 无限增长", async () => {
+    const { truncateForSpiritQuery } = await import("../page");
+    const long = "久".repeat(200);
+    const truncated = truncateForSpiritQuery(long);
+    expect(truncated.length).toBeLessThan(long.length);
+    expect(truncated.length).toBeLessThanOrEqual(81); // 80 字符上限 + 1 个省略号
+    expect(truncated.endsWith("…")).toBe(true);
+
+    const short = "久坐处朝向调到东南";
+    expect(truncateForSpiritQuery(short)).toBe(short); // 未超限时原样返回，不画蛇添足
   });
 });
 
