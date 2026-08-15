@@ -70,7 +70,11 @@ export const en: Messages = {
     yearly: "$99/year",
     comingSoon: "Payments coming soon",
     telegramIAP: "Telegram in-app purchases coming soon",
-    subtitleLimit: "Profile limit reached. Upgrade to save more.",
+    // Deliberately entity-agnostic (was "Profile limit reached"): this key's only
+    // call site is the add-dwelling slot on /fengshui/dwellings, where the thing at
+    // its limit is a *dwelling*, not a profile. Kept generic rather than renamed to
+    // "dwelling" so the next free-tier count limit can reuse it.
+    subtitleLimit: "Free plan limit reached. Upgrade to save more.",
     subtitleQuota: "Free quota used. Upgrade to continue chatting.",
     subtitleMember: "This part is a member feature. Upgrade to unlock it.",
   },

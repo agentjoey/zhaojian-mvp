@@ -935,9 +935,10 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
   });
 
   it("开闸 + 非会员：付费墙用的是「这是会员功能」文案，不是「档案已达上限」（修复单 Important 5）", async () => {
-    // 宅盘所在的位置既没有"档案"也没有要"保存"的东西——reason="limit" 的文案
-    // （zh「档案已达上限，升级会员后可继续保存。」/ en「Profile limit reached.」）
-    // 用在这里是错的，不只是不精确。
+    // 宅盘所在的位置既没有"上限"也没有要"保存"的东西，reason="limit" 用在这里是错的。
+    // ⚠️ 下面第二条断言必须写**当前**的 subtitleLimit 文案。原来写的是改文案前的
+    // 「档案已达上限…」，而那个字符串现已不存在于代码库任何角落——断言会恒真，
+    // 抓不到「改回 reason="limit"」这个它唯一要防的回归。
     dwellingsFixture.current = [dwellingL1(["p2"])];
     vi.stubGlobal(
       "fetch",
@@ -948,7 +949,7 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     );
     await renderPage();
     await waitFor(() => expect(screen.getByText("这块内容属于会员功能，升级后即可解锁。")).toBeInTheDocument());
-    expect(screen.queryByText("档案已达上限，升级会员后可继续保存。")).toBeNull();
+    expect(screen.queryByText("已达免费版上限，升级会员后可继续保存。")).toBeNull();
   });
 
   it("开闸 + 非会员：付费墙取代宅盘的同时，绝不能改口说「还没登记居所」或「朝向未确定」", async () => {

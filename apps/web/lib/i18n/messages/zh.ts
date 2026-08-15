@@ -66,7 +66,10 @@ export const zh = {
     yearly: "$99/年",
     comingSoon: "支付即将开放，敬请期待",
     telegramIAP: "Telegram 内购即将开放",
-    subtitleLimit: "档案已达上限，升级会员后可继续保存。",
+    // 措辞刻意不点名具体实体（原文是「档案已达上限」）：本 key 目前唯一的调用点是
+    // /fengshui/dwellings 的新增居所位，那里达上限的是**居所**不是档案，说「档案」是错的。
+    // 保持泛化而非改成「居所」，是为了下一个「免费版数量上限」场景能直接复用。
+    subtitleLimit: "已达免费版上限，升级会员后可继续保存。",
     subtitleQuota: "免费额度已用尽，升级会员后可继续对话。",
     // reason="member"（Task 10 修复单 Important 5）：用在「这块内容本身属于会员功能」
     // 的位置（如 /fengshui 的宅八方），那里既没有"档案"也没有要"保存"的东西——
