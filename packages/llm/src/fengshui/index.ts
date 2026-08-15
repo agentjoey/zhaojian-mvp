@@ -103,17 +103,24 @@ export async function generateFengshuiReading(
  * prompt 构建委托给 `buildObjectAdviceSystemPrompt`/`buildObjectAdviceUserPrompt`
  * （见 prompt.ts），本函数只做编排：解析配置 → 建两条消息 → 调 LLM → trim。
  *
- * ⚠️ 反幻觉只有 prompt 硬规则这**一道**，不是 `generateFengshuiReading` 那样的
- * facts → prompt → sanitize → 方位对拍四道链路。这不是遗漏，是这里另外两道机械净化
- * 天然对不上号，原样接上只会空转、不提供实际保护：
- * - `sanitizeFengshui` 只读 `FengshuiFacts.remedies`（找 evidence 为「传统象征」的
- *   条目做伪科学措辞清除）；`ObjectAdvice` 没有 `remedies` 字段——物件建议的落位
- *   结论本来就不含「传统象征」化解内容，接上这道等于对着不存在的输入空转。
- * - `verifyDirectionConsistency` 需要一份 `FengshuiFacts`（八方查表结果）作为比对
- *   基准；`ObjectAdvice` 的形状（recommendedDirections/avoid/intendedVerdict）
- *   构造不出 `FengshuiFacts`，没有可供对拍的基准。
- * 因此这里的可信度完全依赖 prompt 硬规则本身（含 core `FENGSHUI_GUARDRAILS` +
- * 物件专属约束）说到做到——后人扩展本函数时，不要想当然地以为四道防线都在。
+ * ⚠️ 反幻觉当前只有 prompt 硬规则这**一道**，不是 `generateFengshuiReading` 那样的
+ * facts → prompt → sanitize → 方位对拍四道链路。两道机械校验的现状**不同**，
+ * 别把它们归为同一类（原注释把二者都说成「天然对不上号」，那是过度推论）：
+ *
+ * - `sanitizeFengshui` **确实不适用**：它只读 `FengshuiFacts.remedies`，找 evidence
+ *   为「传统象征」的条目清除伪科学措辞。`ObjectAdvice` 不含化解内容（无 remedies
+ *   字段，见下），本来就不存在需要被净化的对象，接上等于空转。
+ *
+ * - `verifyDirectionConsistency` **是可以构造的，只是还没做**。它需要方位↔星名的
+ *   基准来对拍，而 `ObjectAdvice` 里其实有：`intendedVerdict` 本身就是一条
+ *   （direction, star）事实，`recommendedDirections[].reason` 与 `avoid[].reason`
+ *   里也嵌着星名。针对这 5–6 个被点名的方位做**局部**对拍是成立的——只是覆盖面
+ *   小于主报告的全八方，需要一个窄口径的比对基准而非完整 `FengshuiFacts`。
+ *   最终评审已指出这一点；**不要再拿「构造不出 facts」当作不做的理由**，
+ *   波 2 接住居所层时应一并补上。
+ *
+ * 在补上之前，这里的可信度完全依赖 prompt 硬规则本身（含 core `FENGSHUI_GUARDRAILS`
+ * + 物件专属约束）说到做到——后人扩展本函数时，不要想当然地以为四道防线都在。
  */
 export async function adviseObjectText(
   advice: ObjectAdvice,

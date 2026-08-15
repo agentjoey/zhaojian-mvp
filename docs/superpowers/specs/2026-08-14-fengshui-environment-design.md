@@ -208,9 +208,15 @@ adviseObject(chart: FengshuiChart, query: {
   avoid: Array<{ direction: Direction; reason: string }>;
   categoryRules: string[];
   personalFit: string;
-  remedies: Remedy[];
+  intendedVerdict: DirectionVerdict | null;   // 用户指定了摆放方位时，该方位的八宅判语
 }
 ```
+
+> **修订（2026-08-15，波 1 交付后）：初稿此处写的是 `remedies: Remedy[]`，实际交付未含该字段，本 spec 已按交付修正。**
+> 原因：Layer 0 的化解是**人身层面**的（命卦四吉方摆位、用神色材），与具体物件无关，且已在「境」主页完整渲染；物件顾问在 Layer 0 是**落位推荐器**，独立的物件级化解要到 Layer 1 有了居所与房间上下文才谈得上（「这面镜子只能挂西南，那怎么补救」需要知道西南是哪个房间）。
+> **但要记住这个字段缺失带来的两个后果**，波 2 接住居所层时一并处理：
+> 1. **产品**：物件建议目前只回答「行不行」，不回答「不行的话怎么办」——而 §7 开头把物件顾问定位为**回访钩子**，回访动力有相当部分来自「问了能解决问题」。
+> 2. **架构**：`adviseObjectText` 曾用「`ObjectAdvice` 没有 remedies、构造不出 `FengshuiFacts`」论证跳过全部机械校验。前半句成立（`sanitizeFengshui` 确实无对象可净化），**后半句不成立**——`intendedVerdict` 与各 `reason` 里嵌着方位↔星名事实，局部对拍是构造得出来的。该注释已在 `packages/llm/src/fengshui/index.ts` 更正，不要再据此免除校验。
 
 **全部确定性计算，LLM 只负责说成人话。**
 
