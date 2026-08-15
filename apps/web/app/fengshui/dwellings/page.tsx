@@ -22,6 +22,8 @@ export default function DwellingsPage() {
   const t = useT();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [dwellings, setDwellings] = useState<Dwelling[] | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ENABLED) return;
@@ -49,9 +51,22 @@ export default function DwellingsPage() {
   }
 
   async function handleDelete(id: string) {
+    // 删除不可逆且级联（相关报告一并失效）。防重复：进行中时再次触发（如快速双击）直接忽略，
+    // 不重新弹确认框、不重复发请求。
+    if (deletingId === id) return;
     if (!confirm(t("fengshui.dwelling.deleteConfirm"))) return;
-    await deleteDwelling(id);
-    setDwellings((prev) => (prev ? prev.filter((d) => d.id !== id) : prev));
+    setDeleteError(null);
+    setDeletingId(id);
+    try {
+      await deleteDwelling(id);
+      setDwellings((prev) => (prev ? prev.filter((d) => d.id !== id) : prev));
+    } catch {
+      // 失败不能静默：既不让 rejection 逃逸成未捕获异常，也不能把这一项从列表里摘掉——
+      // 没删成功，列表就不该表现得像删成功了一样。给用户看得见的反馈，让 ta 可以重试。
+      setDeleteError(t("fengshui.dwelling.deleteFailed"));
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   if (!ENABLED) return <Centered>{t("fengshui.notEnabled")}</Centered>;
@@ -71,6 +86,9 @@ export default function DwellingsPage() {
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
       <h1 className="mt-3 text-[22px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.title")}</h1>
+      {deleteError && (
+        <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>{deleteError}</p>
+      )}
 
       <section className="mt-6">
         {dwellings === null ? (
@@ -95,7 +113,8 @@ export default function DwellingsPage() {
                   <button
                     type="button"
                     onClick={() => handleDelete(d.id)}
-                    className="text-[13px]"
+                    disabled={deletingId === d.id}
+                    className="text-[13px] disabled:opacity-50"
                     style={{ color: "var(--color-cinnabar)" }}
                   >
                     {t("common.delete")}

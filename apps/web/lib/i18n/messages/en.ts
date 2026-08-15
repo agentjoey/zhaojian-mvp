@@ -376,6 +376,7 @@ export const en: Messages = {
       saving: "Saving…",
       empty: "No dwellings registered yet. Add a facing direction to see how the eight directions play out for you in this home.",
       deleteConfirm: "Delete this dwelling? Related reports will also become invalid.",
+      deleteFailed: "Deletion failed, please try again",
       membersLabel: "Housemates",
       membersHint: "The same home favors each person differently — add housemates to compare.",
     },

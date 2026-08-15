@@ -56,3 +56,30 @@ describe("EP-fs-14 居所录入", () => {
     expect(createDwelling.mock.calls[0]![0]).toMatchObject({ tenancy: "rent" });
   });
 });
+
+describe("复审必修1：未选朝向时保存被禁用（touchedFacing 的覆盖缺口）", () => {
+  // 此前 5 条测试全部先点方位/不确定再点保存，从未验证「什么都不碰直接点保存」这条路径——
+  // 那样的话即便 disabled={saving || !touchedFacing} 退化成 disabled={saving}（禁用逻辑
+  // 整个失效），5 条测试照样全绿。touchedFacing 存在的意义是区分「用户没选」与「用户主动选
+  // 了不确定」——两者的 facing 最终都是 null，保存载荷里完全看不出差别，唯一能守住这个区分的
+  // 就是禁用态本身。下面两条分别验证禁用态的「有」与「能解除」，缺一不可（否则要么按钮形同虚设，
+  // 要么按钮永久锁死也能"通过"只测其中一半的用例）。
+
+  it("不碰朝向直接点保存：按钮处于 disabled，且不触发 createDwelling", () => {
+    const onSaved = vi.fn();
+    render(<DwellingForm onSaved={onSaved} />, { wrapper: Wrapper });
+    const saveButton = screen.getByText("保存");
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(createDwelling).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("点「不确定」之后保存按钮从禁用变为可用（证明 touchedFacing 真的在区分两种状态，不是永久禁用）", () => {
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    const saveButton = screen.getByText("保存");
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /不确定/ }));
+    expect(saveButton).not.toBeDisabled();
+  });
+});

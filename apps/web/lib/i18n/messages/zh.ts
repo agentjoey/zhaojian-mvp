@@ -368,6 +368,7 @@ export const zh = {
       saving: "保存中…",
       empty: "还没有登记居所。填一个朝向，就能看到这套房子对你的八方吉凶。",
       deleteConfirm: "删除这个居所？相关报告也会一并失效。",
+      deleteFailed: "删除失败，请重试",
       membersLabel: "同住人",
       membersHint: "同一套房子对每个人的吉凶不同——加进来可以看对照。",
     },
