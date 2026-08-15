@@ -3,11 +3,20 @@ import type { ReactNode } from "react";
 /**
  * 轻量 markdown 渲染（无依赖）——覆盖 LLM 解读实际产出的子集：
  * 段落、**加粗**、`- `/`* ` 无序列表、`1. ` 有序列表、`> ` 引用。与照见排版一致。
+ *
+ * `keyPrefix` 用来在「同一个块内对多行分别调用 inline()」的场景（见下面 Block 的
+ * 段落分支）里拼出跨行唯一的 key——`inline()` 每次调用内部下标都从 0 计数，块内
+ * 两行都不含加粗时会各自产出一个 key="0" 的 <span>，作为 flatMap 出来的兄弟节点
+ * 就会撞 key。ul/ol/blockquote 分支不受影响（各自的 inline() 调用已经被外层
+ * key={i} 的 <li> 或单次调用天然隔开），无需传 keyPrefix。
  */
-function inline(s: string): ReactNode[] {
-  return s.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((p, i) =>
-    p.startsWith("**") && p.endsWith("**") ? <strong key={i} className="font-semibold text-ink">{p.slice(2, -2)}</strong> : <span key={i}>{p}</span>,
-  );
+function inline(s: string, keyPrefix: string | number = ""): ReactNode[] {
+  return s.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((p, i) => {
+    const key = `${keyPrefix}-${i}`;
+    return p.startsWith("**") && p.endsWith("**")
+      ? <strong key={key} className="font-semibold text-ink">{p.slice(2, -2)}</strong>
+      : <span key={key}>{p}</span>;
+  });
 }
 
 function Block({ raw }: { raw: string }) {
@@ -41,7 +50,7 @@ function Block({ raw }: { raw: string }) {
   }
   return (
     <p className="my-2 leading-[1.85]">
-      {lines.flatMap((l, i) => (i ? [<br key={`br${i}`} />, ...inline(l)] : inline(l)))}
+      {lines.flatMap((l, i) => (i ? [<br key={`br${i}`} />, ...inline(l, i)] : inline(l, 0)))}
     </p>
   );
 }

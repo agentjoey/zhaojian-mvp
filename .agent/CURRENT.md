@@ -2,13 +2,14 @@
 
 Version:        v0.1.0（线上 MVP + 引擎深化 v2 + 时序层 + UI v2 素白；未走 release.sh）
 Sprint:         001
-Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵陪伴层已交付（flag 默认关）**
-Last Updated:   2026-06-28 by claude-opus-4-8（pact 编排：claude 核心+review / kimi 前端 / opencode 后端）
+Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵（flag 默认关）** + 🧭 **风水「境」波1（flag 默认关，待合并）**
+Last Updated:   2026-08-15 by claude-opus-5（SDD 编排：15 task，每 task 独立 review + 最终全分支 review）
 线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai
-测试:           core 55 · llm 39（全绿）
+测试:           core 122 · llm 130 · web 65（全绿；`pnpm typecheck` 三包全绿）
 
 > ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 > 🌙 **本命之灵（EP-spirit，Phase1+2+3 全交付）**已合 main，但由 `NEXT_PUBLIC_SPIRIT_ENABLED` flag **默认关闭**，对外不可见、不破坏冻结。准备好收集反馈时设 `=1` 即开（命盘页对话面板+问卷+自我画像，日历每日问今）。
+> 🧭 **风水「境」波1（EP-fs，分支 `feat/fengshui-wave1`，39 commits）**：`NEXT_PUBLIC_FENGSHUI_ENABLED` flag **默认关闭**，**无数据库迁移**（仍封顶 0010）。已验证 flag 关闭时既有产品不受影响：AppShell 零新增 import、无既有文件引用风水代码、core barrel 纯新增。**开启前必读下方「已知限制」——两道机械反幻觉校验目前仅对中文输出有效。**
 
 ## 产品现状（一句话）
 东方命理（八字+紫微）× 西方心理占星（利兹·格林）双引擎，已上线完整闭环：
@@ -41,6 +42,24 @@ spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md` · pla
 - **Phase3** 问卷+画像：`profiles.questionnaire` 列 + `PROFILE_QUESTIONNAIRE`(最小5题) UI + 问卷注入灵上下文(EP-spirit-07,东西互证实跑验证) + `deriveSelfPortrait` 自我画像可视化(EP-spirit-08)。
 - 开关：`NEXT_PUBLIC_SPIRIT_ENABLED=1` 开启（默认未设=关，生产不可见）。Supabase 三迁移 `0002~0004` 已对线上 apply。
 - **反馈迭代(2026-06-28)**：①全面中文化（LLM 输出 zh + 原型名/画像维度/问卷题库）；②独立入口 `/spirit` 页 + 导航「灵」(flag 门控)，从 /chart 移出，日历问今详谈链接指 /spirit。
+
+## 风水「境」波1 · Layer 0（EP-fs，2026-08-15，flag 默认关）
+spec `docs/superpowers/specs/2026-08-14-fengshui-environment-design.md` · plan `docs/superpowers/plans/2026-08-14-fengshui-wave1-layer0.md` · 架构 `docs/architecture.md` §7b
+
+补齐「命·运·**境**」第三条线。**零新用户输入**——全部从已有出生数据派生：本命卦、八方吉凶、用神喜用的色与材、按成本分级的居家调整、物件顾问（「这张书桌放哪儿」）。
+- **定位**：派生层而非第四引擎，与 `deriveSpirit` 同层，不进冻结命盘、无迁移。
+- **诚实标注**：`evidence: '传统象征' ⇒ modern: null` 由**判别联合编译期强制**——传统有说法但现代机制无对应解释的做法不假装有科学依据。这是产品可信度的核心，不是可选项。
+- **反幻觉四道全在真实调用路径上**：facts 白名单 → prompt 硬规则 → `sanitizeFengshui` → `verifyDirectionConsistency`（方位吉凶来自查表，模型输出可**机械对拍**）。`degraded` 信号传到页面，纠正只救得回星名、救不回建立在错方位上的整段叙述。
+- **降级是设计内路径**：盘图/着色/化解清单/物件建议全确定性，LLM 挂了页面仍完整可用。
+
+**⚠️ 开启 flag 前必须先处理（否则英文市场是裸奔的）**
+1. **两道机械校验仅中文有效**——`verifyDirectionConsistency` 与 `sanitizeFengshui` 都是中文匹配，`en` 输出完全不被校验，诚实标注只剩一条中文写的 prompt 规则兜底。而 CLAUDE.md 写明首发海外、英文优先。
+2. **`buildFengshuiSystemPrompt("en")` 仍是「中文指令 + 末尾一句 English」**——该反模式已在 `buildObjectAdviceSystemPrompt` 修好并写进测试注释当反例，主报告这条却没改。
+3. **英文页面的确定性内容基本还是中文**：化解 action/traditional/modern、`personalFit`、方位理由、物件品类与材质、`吉/凶`、`东四命/西四命`（`fengshui.group.*` 键存在但未接线）。
+
+**其他已知限制（不阻塞合并）**：`corrections` 到 route 边界即丢弃、无日志（该失败模式会自我掩盖）；`ObjectQuery.color` 收下但从不读取；`Remedy.tenancy` 端到端是死字段（波2 勿假设它有信号）；重试无次数上限；6 组 i18n 死键待清理；`sessionStorage` 未补 polyfill（同样的 Node 22+ 问题，波及既有 account/calendar 页的未来测试）。
+
+**spec↔交付分歧**：spec §7 承诺 `adviseObject` 返回 `remedies[]`，交付的 `ObjectAdvice` 无该字段。最终评审判定不阻塞（Layer 0 的化解是人身层面的、已在主页渲染），但应修 spec 而非补代码。注意其二阶后果：`adviseObjectText` 用「无 remedies」论证跳过整个机械层，而 `intendedVerdict` 与各 `reason` 里其实嵌着方位↔星名事实，波2 可构造出局部校验。
 
 ## Open Bugs / 已知限制
 🟢 无 P0/P1。
@@ -82,3 +101,4 @@ spec `docs/superpowers/specs/2026-06-28-natal-spirit-companion-design.md` · pla
 | 🔑 账号与登录体系 | 2026-07-01 | EP-account(spec/plan `*-account-login-system*`)：方案A(auth.users 为账号)。①邮箱魔法链接(匿名→邮箱 linking)+/account+/auth/callback+导航；②用 Telegram 登录(core `verifyTelegramLogin` SHA256-secret 含 5 单测 + `/api/auth/telegram`→resolveOrCreateTgUser→`zj_tg`+`zj_tg_hint` cookie + Login Widget@analyst_helen_bot)；③`isTelegram()`→`hasTgSession()` 泛化数据路径(web-TG 登录复用中介，UI/chrome 仍 isTelegram)；④匿名→TG 档案归并(profiles+spirit_messages 双表重挂,幂等)；⑤/account 三态+双模式登出。core66/llm39 绿,6 路由 200。⚠️前置:BotFather /setdomain 已设；待用户在 Supabase 开 Email auth+加 /auth/callback 到 redirect 白名单。付费基座/账号管理完整化留后续。 |
 | 🎨 TG 原生 UI Round2 | 2026-06-30 | EP-tg-ui-r2(plan `2026-06-30-tg-native-ui-round2.md`)：①暗态根因 bug 修复——`@theme inline`→`@theme`(工具类改引用变量，全站跟随暗态，修白卡/白按钮)+panel-strong 强调面板令牌(八字柱头/紫微中宫暗态深墨)+geocode 按钮令牌化；②深色版专图机制(运势/hero `-dark` 变体+缺图 onError 回退滤镜，真图后补)；③起盘表单深度原生(分段性别/暗态输入/geocode cell)；④TG 导航(全局 BackButton 接 TgUiProvider+首页原生 hub)。非 TG 零变化(6 路由 200)。core61/llm39 绿。 |
 | ✈️ Telegram 前端 P3 | 2026-06-29 | EP-tg P3 上线：每日推送。/subscribe /unsubscribe /settings；/api/tg/cron(Bearer CRON_SECRET)；dueUsers/pushDailyTo(五维+问今，不耗用户额度，按本地日期幂等)。⚠️ Hobby 计划 cron 限每日一次→vercel.json `0 0 * * *`(北京08:00)，暂忽略 push_hour(升 Pro 可恢复按时区每小时)。endpoint 401/200 验证；真机待订阅者 /subscribe。 |
+| 🧭 风水「境」波1 | 2026-08-15 | EP-fs-01~08：命·运·境第三条线。零新输入从出生数据派生本命卦/八方吉凶/用神色材/分级化解/物件顾问；派生层非第四引擎、无迁移；诚实标注由判别联合编译期强制；反幻觉四道 + degraded 降级信号；flag 默认关。SDD 编排 15 task，每 task 独立 review + 最终全分支 review。core122/llm130/web65。⚠️ 开 flag 前须先补英文侧机械校验 |

@@ -15,6 +15,14 @@ export type { ReadingOptions } from "./reading";
 export { polishDailyFortune, dailyBehaviorAdvice } from "./daily";
 export { extractTimelineFacts, generateTimeline } from "./timeline";
 export type { TimelineFacts } from "./timeline";
+export {
+  generateFengshuiReading, adviseObjectText, extractFengshuiFacts,
+  buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections,
+  sanitizeFengshui, verifyDirectionConsistency, FENGSHUI_SECTION_KEYS,
+} from "./fengshui/index";
+export type {
+  FengshuiFacts, FengshuiReading, FengshuiReadingOptions, FengshuiSectionKey, DirectionCorrection,
+} from "./fengshui/index";
 export { scoreReading } from "./eval/score";
 export type { Verdict } from "./eval/score";
 export { runEval } from "./eval/run";

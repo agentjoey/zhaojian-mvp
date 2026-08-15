@@ -14,12 +14,20 @@ const NAV = [
   ...(process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1"
     ? [{ href: "/spirit", char: "灵", key: "nav.spirit" }]
     : []),
+  ...(process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1"
+    ? [{ href: "/fengshui", char: "境", key: "nav.fengshui" }]
+    : []),
   { href: "/profiles", char: "我", key: "nav.profiles" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
+
+// spec §10：导航项内边距只在「≥6 项」时收紧（52px→48px 触控目标，仍高于 44px 下限）。
+// 两个 flag 都关闭时 NAV.length=4，绝不能被这条收紧规则波及——那会是本分支对自己
+// 「flag 关闭时产品行为完全不变」这条约束的字面违反（最终评审 Blocking 4）。
+const NAV_COMPACT = NAV.length >= 6;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -40,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <BellLogo size={30} />
             </Link>
             {NAV.slice(1).map((item) => (
-              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} />
+              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} compact={NAV_COMPACT} />
             ))}
           </nav>
 
@@ -56,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             }}
           >
             {NAV.map((item) => (
-              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} />
+              <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} compact={NAV_COMPACT} />
             ))}
           </nav>
         </>
@@ -67,9 +75,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NavItem({ href, char, label, active }: { href: string; char: string; label: string; active: boolean }) {
+function NavItem({ href, char, label, active, compact }: { href: string; char: string; label: string; active: boolean; compact: boolean }) {
   return (
-    <Link href={href} className="zj-nav flex flex-col items-center gap-1 px-2 py-1.5" aria-label={label}>
+    <Link href={href} className={cn("zj-nav flex flex-col items-center gap-1 py-1.5", compact ? "px-1.5" : "px-2")} aria-label={label}>
       <span
         key={active ? "on" : "off"}
         className="inline-flex items-center justify-center font-semibold"

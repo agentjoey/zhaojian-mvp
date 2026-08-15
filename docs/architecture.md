@@ -111,5 +111,31 @@ UnifiedChart.bazi + date → computeDailyFortune(流日×命主十神 → 五维
 - ✅ EP-521 `computeZiweiHoroscope` 大限/流年四化 → **时序声部** `generateTimeline`，已接入 /chart「当下时序」卡（按年缓存、非事件预测、东西时序共振）。
 - ✅ EP-522 `computeWesternChart(…, houseSystem)` 可选 Placidus（默认 whole-sign）。
 
+## 7b. 风水「境」波 1 · Layer 0（✅ 已实施，2026-08，见 `superpowers/specs/2026-08-14-fengshui-environment-design.md`）
+
+补齐「命·运·**境**」第三条线：人与居住空间的关系。**全程 `NEXT_PUBLIC_FENGSHUI_ENABLED` flag 门控，默认关闭。**
+
+**定位：派生层，不是第四个排盘引擎。** 不需要新的天文历法计算，输入全部来自已有 `UnifiedChart` + `BirthInput`，与 `deriveSpirit` 同层——纯函数、不进冻结命盘、零数据库迁移。
+
+**`packages/core/src/fengshui/`（确定性，7 模块）**
+- `ming-gua` 本命卦：三元式 男 `(2−Y) mod 9` / 女 `(Y−5) mod 9`，5 为中宫则男寄坤、女寄艮。**立春年不重算**——从已算好的 `chart.bazi.pillars.year` 干支在公历年 ±1 窗口内反查，天然与八字引擎一致。
+- `eight-mansions` 八宅游年 8×8 查表（依大游年歌，逐格对拍）→ 每方位 生气/天医/延年/伏位 · 绝命/五鬼/六煞/祸害。
+- `directions` 方位基础 + 五行→方位/色/材；`env-psych` 风水↔环境心理学对照表 + `FENGSHUI_GUARDRAILS`。
+- `remedy` 化解方案：**成本分级**（零成本/挪动/添置/装修）+ 租房可行性，零成本优先排序。
+- `object-advisor` 物件顾问：物件五行 × 品类硬规则 × 命卦吉方。
+- `index` `computeFengshui` 汇总（复用传入命盘的 `chart.bazi`，不重复排盘）。
+
+**诚实标注（产品核心可信度）**：`Remedy` / `EnvPsychAnchor` 均为**判别联合**——`evidence: '传统象征' ⇒ modern: null`，由编译器强制。传统有说法、现代机制没有对应解释的做法（金泄五黄、水景催财），不假装有科学依据，改用「仪式与掌控感」框架呈现。
+
+**`packages/llm/src/fengshui/`（解说层，反幻觉四道全在真实路径上）**
+`extractFengshuiFacts`（字段白名单闸门，新增字段会让测试失败）→ prompt 硬规则（复用 core 守护栏 + 八星白名单）→ `sanitizeFengshui`（删「传统象征」条目上的伪科学措辞）→ `verifyDirectionConsistency`（方位吉凶来自查表，**模型输出可机械对拍**，不符即纠正并记 `corrections`）。
+- `generateFengshuiReading` 返回 `degraded`（= `corrections` 非空）：纠正只救得回星名、救不回建立在错方位上的整段叙述，调用方据此降级或重生成。
+- ⚠️ 两道机械校验目前**仅中文有效**，`en` 输出不被校验；`adviseObjectText` 只有 prompt 硬规则这一道（`ObjectAdvice` 无 remedies、无 facts 可对拍，已在 JSDoc 写明）。
+
+**`apps/web`**：`/fengshui`（八方位盘图 `BaguaWheel` + 分节叙述 + 化解清单）、`/fengshui/object`（物件顾问）、两个 API route（JSON 契约）。报告按 `(profileId, FENGSHUI_ENGINE_VERSION, locale)` 存 localStorage（波 1 无服务端持久化）。
+**降级是设计内路径**：盘图、着色、化解清单、物件建议全部确定性计算，LLM 挂了页面仍完整可用，只少叙述文字。
+
+**波 2（Layer 1 住宅实盘）** 未实施：`dwellings` / `fengshui_reports` 表、宅卦、多住客合看、租房过滤。schema 已在 spec 中定型并为玄空飞星预留可空字段。
+
 ## 8. 非 MVP（后续评估）
 关系合盘(synastry×合婚)、规则引擎(YAML)+RAG 知识库、大限/流年时序解读、账号升级(跨设备同步)、建档心理问卷。详见 `.agent/BACKLOG.md`。
