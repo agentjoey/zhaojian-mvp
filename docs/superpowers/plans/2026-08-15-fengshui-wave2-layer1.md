@@ -1600,6 +1600,85 @@ git commit -m "feat(fengshui): 「境」页 Tab 化 + 宅八方 + 合看 chips [
 
 ---
 
+## Task 9b: 同住人选择 UI（计划遗漏，Task 9 交付后补入）
+
+**Files:**
+- Modify: `apps/web/app/fengshui/DwellingForm.tsx`、`apps/web/app/fengshui/__tests__/DwellingForm.test.tsx`
+- Test: 同上
+
+**Interfaces:**
+- Consumes: `listProfiles()`（`@/lib/profiles`）、`Dwelling.memberProfileIds`（Task 7）
+- Produces: 无新导出
+
+> **为什么有这个 task：** 原计划的 Task 8 在 i18n 里加了 `membersLabel` / `membersHint` 两个键，却**没有任何 task 负责建对应的界面**。结果是：Task 4 的合看引擎、Task 9 的 chips 切换全部实现完整、测试齐备，但 `DwellingForm` 只把 `initial?.memberProfileIds` 原样透传、没有设置入口——**生产环境 `memberProfileIds` 恒为空数组，合看功能用户永远触达不到**。
+> 而合看正是波 2 的招牌演示（「同一套房子对你和对他不一样」）。这是 controller 的计划漏洞，Task 9 的实施者在自查中发现并上报。
+
+- [ ] **Step 1: 写失败测试**
+
+在 `DwellingForm.test.tsx` 追加（`listProfiles` 需 mock，返回主档案 + 两个其他档案）：
+
+```tsx
+it("列出可选的同住人（当前档案之外的其他档案），默认都不勾选", async () => {
+  render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByText("同住人")).toBeInTheDocument());
+  expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^阿丙$/ })).toBeInTheDocument();
+  // 主档案自己不该出现在同住人候选里——他是「我」，不是同住人
+  expect(screen.queryByRole("button", { name: /^阿甲$/ })).toBeNull();
+});
+
+it("勾选的同住人进入保存载荷的 memberProfileIds", async () => {
+  render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: /^阿乙$/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+  fireEvent.click(screen.getByText("保存"));
+  await waitFor(() => expect(createDwelling).toHaveBeenCalled());
+  expect(createDwelling.mock.calls[0]![0]).toMatchObject({ memberProfileIds: ["p2"] });
+});
+
+it("再次点击取消勾选，不残留在载荷里", async () => { /* 勾选后再点一次，断言 memberProfileIds 为 [] */ });
+
+it("编辑既有居所时回显已勾选的同住人", async () => {
+  render(<DwellingForm initial={{ id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "S", memberProfileIds: ["p3"] }} onSaved={vi.fn()} />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByRole("button", { name: /^阿丙$/ })).toBeInTheDocument());
+  // 回显必须是「已选中」态而非全部未选——否则一次编辑会静默清空同住人
+  fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+  fireEvent.click(screen.getByText("保存"));
+  await waitFor(() => expect(updateDwelling).toHaveBeenCalled());
+  expect(updateDwelling.mock.calls[0]![1]).toMatchObject({ memberProfileIds: ["p3"] });
+});
+
+it("没有其他档案时不渲染同住人区块（不给一个空壳）", async () => { /* listProfiles 只返回主档案 */ });
+```
+
+> ⚠️ **档案昵称可能重名或互为子串**，按名字查元素必须精确匹配（`^…$` 锚定）。中文方位名嵌套已在本项目咬过三次，同一个坑不要在昵称上再踩一次。
+
+- [ ] **Step 2: 跑到失败** → `pnpm --filter @eamvp/web exec vitest run app/fengshui/__tests__/DwellingForm.test.tsx`
+
+- [ ] **Step 3: 实现**
+
+在 `DwellingForm` 中：`useEffect` 里 `listProfiles()`，过滤掉当前活跃档案（用 `getActiveProfileId()`）得到候选；用与方位/租售相同的按钮选中样式渲染多选 chips；state 为 `string[]`，点击切换；`save()` 时把它写进 `memberProfileIds`。文案用已存在的 `fengshui.dwelling.membersLabel` / `membersHint`（两个键 Task 8 已加进 zh/en，无需新增）。
+
+- [ ] **Step 4: 跑到通过**
+
+- [ ] **Step 5: 变异验证**（写进报告）
+  - 把 `memberProfileIds` 恒写成 `[]` → 「勾选进入载荷」与「编辑回显」两条必须红
+  - 去掉「过滤主档案」→ 第一条的 `queryByRole(阿甲)` 必须红
+
+- [ ] **Step 6: 端到端确认合看真的可达**
+
+改完后手工确认链路闭合：`DwellingForm` 存出非空 `memberProfileIds` → `listDwellings()` 读回 → `page.tsx` 的 `cohabitantInputs` 非空 → `computeFengshui` 产出 `cohabitants` → chips 渲染。**这是本 task 的存在意义——不要只让单测绿而链路仍断。**
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add apps/web
+git commit -m "feat(fengshui): 居所表单加同住人选择，让合看真正可达 [EP-fs-13/14]"
+```
+
+---
+
 ## Task 10: 会员闸门
 
 **Files:**
