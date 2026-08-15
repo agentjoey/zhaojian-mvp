@@ -109,9 +109,14 @@ export default function FengshuiPage() {
     });
 
     (async () => {
-      // 服务端读取失败（未登录/网络）按 cache miss 处理，不阻断下面的重新生成——
-      // 与波1 readFengshuiCache 的 try/catch 静默降级是同一个防御姿态（现由 .catch(() => null) 承担）。
-      const cached = await readFengshuiReport(fp).catch(() => null);
+      // 服务端读取失败（未登录/网络）按 cache miss 处理，不阻断下面的重新生成。
+      // ⚠️ 但**不能静默**：这已不是波1 那个客户端缓存，而是服务端持久化路径。
+      // Supabase 若持续故障，表现是「每次加载都重新调一次 LLM」——花着钱、用户无感、
+      // 我们也无从察觉。降级照旧，但必须留下可排查的痕迹。
+      const cached = await readFengshuiReport(fp).catch((e) => {
+        console.warn("[fengshui] 报告读取失败，按未命中处理（将重新生成）", e);
+        return null;
+      });
       if (cancelled) return;
       if (cached) { setSections(cached); return; }
 
@@ -126,14 +131,14 @@ export default function FengshuiPage() {
         if (cancelled) return;
         setSections(data.sections);
         setDegraded(data.degraded);
-        // 不可信叙述不落盘，避免一份带瑕疵的报告被永久复用（沿用波1的约束）；
-        // 持久化失败不影响本次已经展示出来的结果（state 已在上面 setSections 时更新），
-        // 这里 await 只是让本次 effect 的异步链路干净收尾，失败静默吞掉即可。
+        // 不可信叙述不落盘，避免一份带瑕疵的报告被永久复用（沿用波1的约束）。
+        // 持久化失败不影响本次已展示的结果（state 上面已更新），所以不改 UI；
+        // 但同样要留痕——写不进去意味着下次加载还得再花一次 LLM 钱。
         if (!data.degraded) {
           await saveFengshuiReport({
             fingerprint: fp, profileId: profile.id, dwellingId: null,
             layer: 0, locale, sections: data.sections,
-          }).catch(() => {});
+          }).catch((e) => console.warn("[fengshui] 报告持久化失败，下次加载会重新生成", e));
         }
       } catch {
         if (!cancelled) setFailed(true);
