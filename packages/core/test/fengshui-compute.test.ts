@@ -55,3 +55,56 @@ describe("EP-fs-03 computeFengshui Layer 0", () => {
     expect(f.mingGua.gua).toBeGreaterThan(0);
   });
 });
+
+describe("EP-fs-12 computeFengshui Layer 1", () => {
+  const dwelling = {
+    id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "S" as const,
+  };
+  const runL1 = () => {
+    const b = mk();
+    return computeFengshui({ birth: b, chart: computeUnifiedChart(b), dwelling });
+  };
+
+  it("给了居所 → layer 1，且 dwelling 字段齐备", () => {
+    const f = runL1();
+    expect(f.layer).toBe(1);
+    if (f.layer !== 1) throw new Error("unreachable");
+    expect(f.dwelling.guaName).toBe("坎");        // 向南 → 坐北 → 坎宅
+    expect(f.dwelling.name).toBe("家");
+    expect(Object.keys(f.dwelling.sectors)).toHaveLength(8);
+    expect(["相配", "相冲"]).toContain(f.dwelling.matchWithPerson);
+  });
+
+  it("不给居所 → 仍是 layer 0，dwelling 为 undefined（波1 行为不变）", () => {
+    const f = run();
+    expect(f.layer).toBe(0);
+    expect(f.dwelling).toBeUndefined();
+  });
+
+  it("命卦八方与宅卦八方是两套，互不覆盖", () => {
+    const f = runL1();
+    if (f.layer !== 1) throw new Error("unreachable");
+    // 1990 男 = 坎命；本例宅卦也是坎 → 两套恰好相同。换个朝向即应不同。
+    const other = computeFengshui({ birth: mk(), chart: computeUnifiedChart(mk()), dwelling: { ...dwelling, facing: "SE" } });
+    if (other.layer !== 1) throw new Error("unreachable");
+    expect(other.dwelling.guaName).toBe("乾");
+    expect(other.personalDirections.SE.star).toBe(f.personalDirections.SE.star); // 命卦不受居所影响
+    expect(other.dwelling.sectors.SE.star).not.toBe(f.dwelling.sectors.SE.star); // 宅卦随朝向变
+  });
+
+  it("Layer 1 的化解里含宅层条目（target 提到宅或方位），且仍全部合法", () => {
+    const f = runL1();
+    expect(f.remedies.length).toBeGreaterThan(run().remedies.length);
+    for (const r of f.remedies) {
+      if (r.evidence === "传统象征") expect(r.modern).toBeNull();
+    }
+  });
+
+  it("引擎版本已递增到 fs-2（化解生成规则变了，旧报告必须失效）", () => {
+    expect(FENGSHUI_ENGINE_VERSION).toBe("fs-2");
+  });
+
+  it("纯函数：Layer 1 同输入两次调用深度相等", () => {
+    expect(runL1()).toEqual(runL1());
+  });
+});

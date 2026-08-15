@@ -68,3 +68,41 @@ describe("EP-fs-03 化解方案", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe("EP-fs-12 租房折叠", () => {
+  const own: Remedy = {
+    id: "fs-own", target: "t", action: "改门", effort: "装修",
+    tenancy: "需自有", traditional: "t", modern: null, evidence: "传统象征",
+  };
+  const rentOk: Remedy = {
+    id: "fs-rent", target: "t", action: "挪桌", effort: "挪动",
+    tenancy: "租房可做", traditional: "t", modern: "m", evidence: "双重支撑",
+  };
+
+  it("租住时「需自有」条目降级排到最后，但不丢弃", () => {
+    const sorted = sortRemedies([own, rentOk], { tenancy: "rent" });
+    expect(sorted.map((r) => r.id)).toEqual(["fs-rent", "fs-own"]);
+    expect(sorted).toHaveLength(2); // 折叠 ≠ 删除
+  });
+
+  it("自有时不降级，仍按成本排序（装修在挪动之后）", () => {
+    const sorted = sortRemedies([own, rentOk], { tenancy: "own" });
+    expect(sorted.map((r) => r.id)).toEqual(["fs-rent", "fs-own"]);
+  });
+
+  it("自有时「需自有」的零成本条目能排到「租房可做」的装修条目之前", () => {
+    const ownCheap: Remedy = { ...own, id: "fs-own-cheap", effort: "零成本" };
+    const rentPricey: Remedy = { ...rentOk, id: "fs-rent-pricey", effort: "装修" };
+    expect(sortRemedies([rentPricey, ownCheap], { tenancy: "own" }).map((r) => r.id))
+      .toEqual(["fs-own-cheap", "fs-rent-pricey"]);
+    // 租住时反过来：需自有的再便宜也排后面
+    expect(sortRemedies([rentPricey, ownCheap], { tenancy: "rent" }).map((r) => r.id))
+      .toEqual(["fs-rent-pricey", "fs-own-cheap"]);
+  });
+
+  it("不传 opts 时行为与波1 完全一致（不按 tenancy 分组）", () => {
+    const ownCheap: Remedy = { ...own, id: "a", effort: "零成本" };
+    const rentPricey: Remedy = { ...rentOk, id: "b", effort: "装修" };
+    expect(sortRemedies([rentPricey, ownCheap]).map((r) => r.id)).toEqual(["a", "b"]);
+  });
+});

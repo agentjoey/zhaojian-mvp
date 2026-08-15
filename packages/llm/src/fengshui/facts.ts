@@ -22,7 +22,7 @@ import {
  */
 
 export type FengshuiFacts = {
-  layer: 0;
+  layer: 0 | 1;
   mingGua: string;          // 「坎1（东四命）」
   guaGroup: string;
   bestDirection: string;    // 生气方中文名
@@ -53,7 +53,7 @@ export function extractFengshuiFacts(f: FengshuiChart): FengshuiFacts {
   });
   const sheng = dirs.find((d) => d.star === "生气");
   return {
-    layer: 0,
+    layer: f.layer,
     mingGua: `${f.mingGua.guaName}${f.mingGua.gua}`,
     guaGroup: f.mingGua.group,
     bestDirection: sheng?.label ?? "",
