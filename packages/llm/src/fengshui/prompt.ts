@@ -36,27 +36,36 @@ export function buildFengshuiSystemPrompt(language: ReadingLanguage = "zh"): str
   ].join("\n");
 }
 
-export function buildFengshuiUserPrompt(facts: FengshuiFacts, opts?: { nickname?: string }): string {
-  const dirLines = [...facts.directions] // 必须先复制：sort 原地改数组，会永久打乱调用方 facts 的方位顺序
+/**
+ * 把一组方位判语排成提示行：吉方在前、同吉凶内按 rank 升序。
+ *
+ * ⚠️ `[...sectors]` 的复制不能省。`Array.prototype.sort` 是**原地**排序，
+ * 直接排会永久打乱调用方 `facts` 里那个数组的顺序——而 facts 在本项目是
+ * 「算一次、下游只读」的东西。波 1 曾栽在这里，有专门测试锁定。
+ *
+ * 本命八方与房屋八方共用本函数，但它们是两套彼此独立的判语，
+ * 只是**呈现格式**相同，语义上不可互推（见 system prompt 的硬规则）。
+ */
+function formatSectorLines(sectors: FengshuiFacts["directions"]): string[] {
+  return [...sectors]
     .sort((a, b) => Number(b.auspicious) - Number(a.auspicious) || a.rank - b.rank)
-    .map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}，第${d.rank}）`)
-    .join("\n");
+    .map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}，第${d.rank}）`);
+}
+
+export function buildFengshuiUserPrompt(facts: FengshuiFacts, opts?: { nickname?: string }): string {
+  const dirLines = formatSectorLines(facts.directions).join("\n");
   const remLines = facts.remedies
     .map((r) => `- [${r.effort}][${r.evidence}] ${r.action}｜传统依据：${r.traditional}｜现代机制：${r.modern ?? "无（不得编造）"}`)
     .join("\n");
   // Layer 1 专属：居所与宅八方。宅八方与上面的本命八方是两套独立判语（各自由命卦/宅卦定），
-  // 不得混用，故标题里显式互相点名提醒。⚠️ sort 前必须 .slice() 复制——不然会原地
-  // 打乱 facts.dwelling.sectors 的顺序，重蹈 dirLines 同款 bug（波 1 已有专门测试锁定）。
+  // 不得混用，故标题里显式互相点名提醒。排序与格式化走 formatSectorLines（内含必要的复制）。
   const dwellingBlock = facts.dwelling ? [
     ``,
     `居所：${facts.dwelling.name}（${facts.dwelling.kind === "home" ? "住宅" : "办公"}，${facts.dwelling.tenancy === "rent" ? "租住" : "自有"}）`,
     `坐向：坐${facts.dwelling.sittingLabel}向${facts.dwelling.facingLabel} → ${facts.dwelling.guaName}宅（${facts.dwelling.group}）`,
     `与你：${facts.dwelling.matchWithPerson}`,
     `房屋八方判语（与上面的本命八方是两套，勿混用）：`,
-    ...facts.dwelling.sectors
-      .slice()
-      .sort((a, b) => Number(b.auspicious) - Number(a.auspicious) || a.rank - b.rank)
-      .map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}，第${d.rank}）`),
+    ...formatSectorLines(facts.dwelling.sectors),
   ] : [];
 
   const cohabBlock = facts.cohabitants.length ? [

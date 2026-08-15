@@ -168,8 +168,22 @@ describe("EP-fs-16 Layer 1 提示", () => {
   });
 
   it("Layer 0 的 user prompt 不出现宅相关段落（不给模型无中生有的余地）", () => {
-    const u = buildFengshuiUserPrompt(extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth) })));
-    expect(u).not.toContain("宅卦");
+    const l0 = extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth) }));
+    const u = buildFengshuiUserPrompt(l0);
+    // ⚠️ 断言必须挑**实现真的会输出**的字符串。原先查的是「宅卦」——那两个字只出现在
+    // system prompt 里，user prompt 无论哪一层都不会有，所以就算 Layer 0 漏出整个
+    // 居所段落，那条断言也照样通过。这里改查 dwellingBlock 实际会产出的标记。
+    expect(u).not.toContain("房屋八方判语");
+    expect(u).not.toContain("居所：");
+    expect(u).not.toContain("坐向：");
+    // 同时确认它并非因为 prompt 是空的才"不含"——本命段落必须照常在
+    expect(u).toContain("本命八方判语");
+
+    // 对照组：Layer 1 下这三个标记都必须出现，证明上面查的确实是活的标记而非死字符串
+    const l1 = buildFengshuiUserPrompt(l1Facts);
+    expect(l1).toContain("房屋八方判语");
+    expect(l1).toContain("居所：");
+    expect(l1).toContain("坐向：");
   });
 
   it("system prompt 明令命卦八方与宅卦八方不得混用", () => {
