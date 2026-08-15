@@ -58,11 +58,13 @@ vi.mock("@/lib/supabase", () => ({
  */
 const listDwellings = vi.fn(async (): Promise<Dwelling[]> => []);
 const deleteDwelling = vi.fn<(id: string) => Promise<void>>(async () => {});
+// updateDwelling 提升为可断言句柄（spec §4.2 编辑入口测试要断言 id+patch）。
+const updateDwelling = vi.fn<(id: string, patch: unknown) => Promise<void>>(async () => {});
 vi.mock("@/lib/dwellings", () => ({
   listDwellings: () => listDwellings(),
   deleteDwelling: (id: string) => deleteDwelling(id),
   createDwelling: vi.fn(async (d: unknown) => ({ id: "new", ...(d as object) })),
-  updateDwelling: vi.fn(async () => {}),
+  updateDwelling: (id: string, patch: unknown) => updateDwelling(id, patch),
 }));
 
 /**
@@ -105,6 +107,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   listDwellings.mockReset().mockResolvedValue([]);
   deleteDwelling.mockReset().mockResolvedValue(undefined);
+  updateDwelling.mockReset().mockResolvedValue(undefined);
   supabaseSession.current = null;
   tgEnv.inTg = false;
   delete (window as any).Telegram;
@@ -340,5 +343,67 @@ describe("EP-fs-tg TG 会话：原生列表 + 页内两步确认", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认" }));
     await waitFor(() => expect(deleteDwelling).toHaveBeenCalledWith("d1"));
     await waitFor(() => expect(screen.queryByText("家A")).toBeNull());
+  });
+});
+
+/**
+ * spec §4.2 / 评审必修1：编辑居所入口。此前 `DwellingForm` 的 `initial` 编辑回显
+ * 实现了、有单测，但没有任何调用方——生产不可达的死代码，而它是用户修正「同住人
+ * 超限的历史居所」的唯一入口。现在 web（点「编辑」）与 TG（点 Cell）都能进入。
+ *
+ * 变异验证（实跑过）：把 page.tsx 的编辑入口（Cell onClick + web「编辑」按钮）
+ * 去掉，本 describe 三条全红。
+ */
+describe("EP-fs-tg spec §4.2：编辑居所入口（web + TG）", () => {
+  it("web：点「编辑」→ 底部换成带回显的编辑表单，保存走 updateDwelling", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    // 回显：名称输入框拿到既有值；新增标题被编辑标题替换
+    await waitFor(() => expect(screen.getByDisplayValue("家A")).toBeInTheDocument());
+    expect(screen.getByText("编辑居所")).toBeInTheDocument();
+    expect(screen.queryByText("添加居所")).toBeNull();
+    // 改朝向（南→北），保存。方位按钮精确匹配——「北」是「东北」的子串。
+    fireEvent.click(screen.getByRole("button", { name: new RegExp("^北$") }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() =>
+      expect(updateDwelling).toHaveBeenCalledWith("d1", expect.objectContaining({ facing: "N" })),
+    );
+    // 保存后回到新增态，列表里的副标题同步成新朝向
+    await waitFor(() => expect(screen.getByText("添加居所")).toBeInTheDocument());
+    expect(screen.getByText("住宅 · 租住 · 北")).toBeInTheDocument();
+  });
+
+  it("web：编辑中点「取消」→ 回到新增表单，不发任何写请求", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    await waitFor(() => expect(screen.getByDisplayValue("家A")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByText("添加居所")).toBeInTheDocument();
+    expect(updateDwelling).not.toHaveBeenCalled();
+  });
+
+  it("TG：点居所 Cell 进入编辑（onClick 挂上后 chevron 才有正当性）", async () => {
+    tgEnv.inTg = true;
+    (window as any).Telegram = {
+      WebApp: {
+        initData: "x",
+        MainButton: {
+          setText: vi.fn(), enable: vi.fn(), disable: vi.fn(),
+          show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn(),
+        },
+        BackButton: { show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn() },
+        HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+      },
+    };
+    listDwellings.mockResolvedValue([D1]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("家A"));
+    await waitFor(() => expect(screen.getByDisplayValue("家A")).toBeInTheDocument());
+    expect(screen.getByText("编辑居所")).toBeInTheDocument();
   });
 });

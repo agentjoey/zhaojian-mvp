@@ -51,6 +51,12 @@ export default function DwellingsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // 页内两步确认（EP-fs-tg）：点「删除」只进入确认态，再点「确认」才真正删。
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // 编辑入口（spec §4.2 / 评审必修1）：DwellingForm 的 `initial` 编辑回显此前没有
+  // 任何调用方——生产不可达的死代码，且是用户修正「同住人超限的历史居所」的唯一
+  // 入口（见 DwellingForm 截断逻辑注释）。TG 点 Cell、web 点「编辑」进入编辑态，
+  // 底部表单区整个换成带回显的编辑表单（同一时刻只渲染一个 DwellingForm，
+  // 避免 TG 下两个 MainButton 钩子互相抢）。
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -71,6 +77,7 @@ export default function DwellingsPage() {
   }, [profile]);
 
   function handleSaved(saved: Dwelling) {
+    setEditingId(null);
     setDwellings((prev) => {
       if (!prev) return [saved];
       const idx = prev.findIndex((d) => d.id === saved.id);
@@ -157,6 +164,11 @@ export default function DwellingsPage() {
     } · ${d.facing ? DIRECTION_LABEL[d.facing] : t("fengshui.dwelling.facingUnknown")}`;
   }
 
+  // 编辑目标。editingId 指向的居所已被删掉（比如刚删完）时回落新增表单。
+  const editingDwelling = editingId
+    ? (dwellings ?? []).find((d) => d.id === editingId) ?? null
+    : null;
+
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
@@ -175,7 +187,13 @@ export default function DwellingsPage() {
           <Group>
             {dwellings.map((d) => (
               <div key={d.id}>
-                <Cell icon={d.name.slice(0, 1)} title={d.name} subtitle={subtitleOf(d)} />
+                {/* 点 Cell 进入编辑（spec §4.2）；chevron 只在有 onClick 时渲染（M2）。 */}
+                <Cell
+                  icon={d.name.slice(0, 1)}
+                  title={d.name}
+                  subtitle={subtitleOf(d)}
+                  onClick={() => { haptics.light(); setEditingId(d.id); setConfirmDeleteId(null); }}
+                />
                 <div className="flex items-center justify-end gap-3 px-[14px] pb-[14px]">
                   {deleteControls(d)}
                 </div>
@@ -191,7 +209,16 @@ export default function DwellingsPage() {
                     <p className="text-[15px] text-ink">{d.name}</p>
                     <p className="mt-1 text-[13px] text-ink-2">{subtitleOf(d)}</p>
                   </div>
-                  <div className="flex items-center gap-3">{deleteControls(d)}</div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setEditingId(d.id); setConfirmDeleteId(null); }}
+                      className="text-[13px] text-[var(--color-muted)]"
+                    >
+                      {t("common.edit")}
+                    </button>
+                    {deleteControls(d)}
+                  </div>
                 </div>
               </Card>
             ))}
@@ -200,13 +227,33 @@ export default function DwellingsPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.add")}</h2>
         {/* 新增居所无数量限制、无闸门、无探测（最终评审 I2，理由见文件顶部注释）。
             本页因此不发起任何网络请求——`DwellingForm` 自己会在渲染同住人选择器时
-            探测一次合看的会员资格，那是另一条闸门，与「能存几套居所」无关。 */}
-        <div className="mt-3">
-          <DwellingForm onSaved={handleSaved} />
-        </div>
+            探测一次合看的会员资格，那是另一条闸门，与「能存几套居所」无关。
+            编辑态（spec §4.2）共用同一个表单组件，整个区块换成带回显的编辑表单。 */}
+        {editingDwelling ? (
+          <>
+            <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.editTitle")}</h2>
+            <div className="mt-3">
+              {/* key 强制重挂载：切到另一套居所时表单 state 整个重置，不回串 */}
+              <DwellingForm key={editingDwelling.id} initial={editingDwelling} onSaved={handleSaved} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingId(null)}
+              className="mt-3 text-[13px] text-[var(--color-muted)]"
+            >
+              {t("common.cancel")}
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.add")}</h2>
+            <div className="mt-3">
+              <DwellingForm onSaved={handleSaved} />
+            </div>
+          </>
+        )}
       </section>
     </main>
   );

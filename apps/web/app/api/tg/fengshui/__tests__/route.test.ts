@@ -326,3 +326,21 @@ describe("EP-fs-tg 报告生成（reading action）", () => {
     expect(r.status).toBe(500);
   });
 });
+
+describe("EP-fs-tg 评审 M3：重复 memberProfileIds 按集合语义校验", () => {
+  it("[\"p2\",\"p2\"] 且 p2 属于本人 → 放行（.in() 去重不应误杀合法重复）", async () => {
+    db.results["profiles"] = { data: [{ id: "p2" }], error: null };
+    db.results["dwellings"] = {
+      data: {
+        id: "d9", name: "家", kind: "home", tenancy: "rent", facing: "S",
+        member_profile_ids: ["p2", "p2"],
+      },
+      error: null,
+    };
+    const r = await POST(post({
+      action: "dwellings.create",
+      dwelling: { ...VALID_DWELLING, memberProfileIds: ["p2", "p2"] },
+    }));
+    expect(r.status).toBe(200);
+  });
+});

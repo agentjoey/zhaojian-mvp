@@ -524,6 +524,8 @@ export default function FengshuiPage() {
             options={TABS.map((tb) => ({ value: tb, label: t(`fengshui.tabs.${tb}`) }))}
             value={tab}
             onChange={setTab}
+            idBase="fs"
+            ariaLabel={t("fengshui.title")}
           />
         </div>
       ) : (
@@ -546,7 +548,7 @@ export default function FengshuiPage() {
       )}
 
       {tab === "chart" && (
-        <>
+        <div role="tabpanel" id="fs-panel-chart" aria-labelledby="fs-tab-chart">
           <NarrativeStatus
             t={t}
             sections={sections}
@@ -704,11 +706,11 @@ export default function FengshuiPage() {
               )}
             </section>
           )}
-        </>
+        </div>
       )}
 
       {tab === "remedy" && (
-        <section className="mt-6">
+        <section className="mt-6" role="tabpanel" id="fs-panel-remedy" aria-labelledby="fs-tab-remedy">
           <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.remedyTitle")}</h2>
           <NarrativeStatus
             t={t}
@@ -783,7 +785,7 @@ export default function FengshuiPage() {
       )}
 
       {tab === "object" && (
-        <section className="mt-6">
+        <section className="mt-6" role="tabpanel" id="fs-panel-object" aria-labelledby="fs-tab-object">
           <Card className="p-5">
             <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.object.title")}</h2>
             <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.object.subtitle")}</p>

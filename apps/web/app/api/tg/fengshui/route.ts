@@ -143,8 +143,10 @@ export async function POST(req: Request): Promise<Response> {
         return new Response(parsed.error.issues.map((i) => i.message).join("; "), { status: 400 });
       }
       // 同住人档案 id 归属校验：客户端传什么都不信，只接受确属当前用户的档案。
-      const owned = await ownedProfileIds(s.uid, parsed.data.memberProfileIds);
-      if (owned.length !== parsed.data.memberProfileIds.length) {
+      // 按集合语义比对（评审 M3）：`.in()` 查询会去重，`["p2","p2"]` 只回一行——
+      // 用长度比对会把合法重复误判成 400，与 web 侧（RLS 不查重）产生宿主分歧。
+      const owned = new Set(await ownedProfileIds(s.uid, parsed.data.memberProfileIds));
+      if (!parsed.data.memberProfileIds.every((id) => owned.has(id))) {
         return new Response("同住人档案不存在或不属于当前用户", { status: 400 });
       }
       const d = parsed.data;
@@ -165,8 +167,8 @@ export async function POST(req: Request): Promise<Response> {
       }
       const p = parsed.data;
       if (p.memberProfileIds) {
-        const owned = await ownedProfileIds(s.uid, p.memberProfileIds);
-        if (owned.length !== p.memberProfileIds.length) {
+        const owned = new Set(await ownedProfileIds(s.uid, p.memberProfileIds));
+        if (!p.memberProfileIds.every((id) => owned.has(id))) {
           return new Response("同住人档案不存在或不属于当前用户", { status: 400 });
         }
       }
@@ -217,6 +219,12 @@ export async function POST(req: Request): Promise<Response> {
     case "reading": {
       // 与 /api/fengshui/reading 同一契约与顺序：先 503（LLM 未配置），再 400（入参），
       // 再 402（Layer 1 会员闸门），最后生成（500）。uid 来自 TG session，不信任 body。
+      //
+      // 计量决定（评审 必修2，选 a）：本 action **不做** consumeQuota/consumeLlm——
+      // 与 web 侧风水路由保持一致（那边同样没有计量），而同样的花费在本端点出现之前
+      // 就能带同一个 TG cookie 打到 web 路由，不是新开的洞。只给 TG 侧加计量会造出
+      // 「TG 用户有上限、web 用户没有」的反向不一致。风水全链路的统一计量留到接
+      // 支付（billing T5/T6）时一起做，届时 web/TG 两条路由应挂同一份计量逻辑。
       const cfg = resolveLlmConfig();
       if (!isLlmConfigured(cfg)) {
         return new Response("LLM 未配置：请在环境变量设置 LLM_API_KEY（默认 provider=minimax, model=MiniMax-M3）。", {
