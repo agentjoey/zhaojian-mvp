@@ -15,9 +15,15 @@ import {
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
 
+/**
+ * 叙述分节的标题键。**不要借用 directionsTitle / affinityTitle** ——
+ * 那两个描述的是下方确定性区块（八方吉凶、宜用色与材），与叙述分节语义不同。
+ * 本页只渲染前两节：第三节「可做的事」由下方确定性化解清单承担，
+ * 它带成本分级与传统/现代对照，比叙述版更有信息量。
+ */
 const SECTION_HEADING_KEY = {
-  situation: "fengshui.directionsTitle",
-  youAndSpace: "fengshui.affinityTitle",
+  situation: "fengshui.narrativeSections.situation",
+  youAndSpace: "fengshui.narrativeSections.youAndSpace",
 } as const;
 
 /**

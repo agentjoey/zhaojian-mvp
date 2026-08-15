@@ -327,6 +327,11 @@ export const en: Messages = {
     directionsTitle: "The eight directions",
     affinityTitle: "Colors & materials that suit you",
     remedyTitle: "Things you can try",
+    narrativeSections: {
+      situation: "The Layout",
+      youAndSpace: "You and Your Space",
+      actions: "What You Can Do",
+    },
     effortLabel: { 零成本: "Free", 挪动: "Rearrange", 添置: "Buy", 装修: "Renovate" },
     evidenceSymbolic: "Traditional symbolism",
     evidenceBoth: "Traditional + modern",

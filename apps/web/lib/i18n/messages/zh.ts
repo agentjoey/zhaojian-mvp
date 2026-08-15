@@ -314,6 +314,13 @@ export const zh = {
     directionsTitle: "八方吉凶",
     affinityTitle: "宜用色与材",
     remedyTitle: "可做的事",
+    // 叙述三分节的标题。与上面几个键不同：那些描述确定性区块，这三个描述 LLM 叙述分节，
+    // 语义不可互借（见 packages/llm/src/fengshui/prompt.ts 的输出契约）
+    narrativeSections: {
+      situation: "形势",
+      youAndSpace: "境与你",
+      actions: "可做的事",
+    },
     effortLabel: { 零成本: "零成本", 挪动: "挪动", 添置: "添置", 装修: "装修" },
     evidenceSymbolic: "传统象征",
     evidenceBoth: "传统 + 现代",

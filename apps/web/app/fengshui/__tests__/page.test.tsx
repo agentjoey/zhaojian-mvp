@@ -68,9 +68,12 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     expect(screen.getByText("乙")).toBeInTheDocument();
     // 复审必修1核心回归：三个 H2 标题必须走 i18n 渲染成真正的标题元素，
     // 绝不能把 "## 形势" 这种字面 markdown 语法原样打印到页面上。
-    expect(screen.getByText("八方吉凶")).toBeInTheDocument();
-    expect(screen.getByText("宜用色与材")).toBeInTheDocument();
+    expect(screen.getByText("形势")).toBeInTheDocument();
+    expect(screen.getByText("境与你")).toBeInTheDocument();
     expect(screen.queryByText(/##/)).toBeNull();
+    // 叙述分节标题不得借用描述确定性区块的键（八方吉凶 / 宜用色与材），二者语义不同
+    expect(screen.queryByText("八方吉凶")).toBeNull();
+    expect(screen.queryByText("宜用色与材")).toBeNull();
   });
 
   it("LLM 失败时仍渲染盘与化解，并显示降级提示", async () => {
