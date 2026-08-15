@@ -73,6 +73,50 @@ export function Cell({
   );
 }
 
+/**
+ * iOS 风格分段选择器（EP-fs-tg）。用于 TG 内替换 web 的下划线 Tab 行
+ * （/fengshui）等「少量互斥选项」场景。颜色全部走 CSS 令牌，跟随 TG 明/暗主题。
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: React.ReactNode }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      className="flex gap-[2px] p-[2px]"
+      style={{ background: "var(--color-bg2)", borderRadius: "var(--radius-button)" }}
+    >
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.value)}
+            className="flex-1 px-3 py-1.5 text-[13px]"
+            style={{
+              borderRadius: "calc(var(--radius-button) - 2px)",
+              background: active ? "var(--color-paper)" : "transparent",
+              color: active ? "var(--color-ink)" : "var(--color-muted)",
+              boxShadow: active ? "var(--shadow-card)" : "none",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Bubble({
   role,
   children,

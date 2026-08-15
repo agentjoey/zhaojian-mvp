@@ -9,11 +9,12 @@ import {
 import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
 import { listDwellings, type Dwelling } from "@/lib/dwellings";
 import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
-import { hasTgSession, tgGetProfile, tgListProfiles } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgGetProfile, tgListProfiles } from "@/lib/tg/client";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
 import { Markdown } from "@/components/Markdown";
 import { Card } from "@/components/ui";
+import { Group, Cell, Segmented } from "@/components/tg/native";
 import { Paywall } from "@/components/Paywall";
 import { supabase } from "@/lib/supabase";
 import {
@@ -175,6 +176,10 @@ export default function FengshuiPage() {
   // narrative 的 retryNonce 相同的手法：不改变 profile 也能强制重新跑一遍。
   const [dwellingsRetryNonce, setDwellingsRetryNonce] = useState(0);
   const [tab, setTab] = useState<Tab>("chart");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // EP-fs-tg：TG 会话下 Tab 行换原生分段观感、化解清单换 Group+Cell；web 路径零变化。
+  const inTg = mounted && isTelegram();
   const [viewAs, setViewAs] = useState<string>("main");
   const [sections, setSections] = useState<FengshuiSections | null>(null);
   const [failed, setFailed] = useState(false);
@@ -513,22 +518,32 @@ export default function FengshuiPage() {
       <h1 className="text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.title")}</h1>
       <p className="mt-1 text-[13px] text-muted">{t("fengshui.subtitle")}</p>
 
-      <div className="mt-5 flex gap-1 border-b" style={{ borderColor: "var(--color-line)" }}>
-        {TABS.map((tb) => (
-          <button
-            key={tb}
-            type="button"
-            onClick={() => setTab(tb)}
-            className="px-3 py-2 text-[14px]"
-            style={{
-              color: tab === tb ? "var(--color-cinnabar)" : "var(--color-ink-2)",
-              borderBottom: tab === tb ? "2px solid var(--color-cinnabar)" : "2px solid transparent",
-            }}
-          >
-            {t(`fengshui.tabs.${tb}`)}
-          </button>
-        ))}
-      </div>
+      {inTg ? (
+        <div className="mt-5">
+          <Segmented
+            options={TABS.map((tb) => ({ value: tb, label: t(`fengshui.tabs.${tb}`) }))}
+            value={tab}
+            onChange={setTab}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 flex gap-1 border-b" style={{ borderColor: "var(--color-line)" }}>
+          {TABS.map((tb) => (
+            <button
+              key={tb}
+              type="button"
+              onClick={() => setTab(tb)}
+              className="px-3 py-2 text-[14px]"
+              style={{
+                color: tab === tb ? "var(--color-cinnabar)" : "var(--color-ink-2)",
+                borderBottom: tab === tb ? "2px solid var(--color-cinnabar)" : "2px solid transparent",
+              }}
+            >
+              {t(`fengshui.tabs.${tb}`)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === "chart" && (
         <>
@@ -703,6 +718,41 @@ export default function FengshuiPage() {
             onRetry={regenerate}
             render={(s) => <div className="reading-prose mt-2"><Markdown text={s.actions} /></div>}
           />
+          {inTg ? (
+            // TG：化解清单用原生 Group+Cell。诚实标注（传统象征 vs 传统+现代）与
+            // 成本分级一并保留在副标题——它们是产品可信度的核心，不能在原生化的
+            // 名义下丢掉。
+            <div className="mt-3">
+            <Group>
+              {f.remedies.map((r) => (
+                <Cell
+                  key={r.id}
+                  icon={t(`fengshui.effortLabel.${r.effort}`).slice(0, 1)}
+                  title={r.action}
+                  subtitle={
+                    <span className="flex flex-col gap-1 pt-0.5">
+                      <span>
+                        {t(`fengshui.effortLabel.${r.effort}`)} ·{" "}
+                        {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
+                      </span>
+                      <span>{t("fengshui.traditionalLabel")}：{r.traditional}</span>
+                      {r.modern && <span>{t("fengshui.modernLabel")}：{r.modern}</span>}
+                      {SPIRIT_ENABLED && (
+                        <Link
+                          href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                          className="inline-block"
+                          style={{ color: "var(--color-cinnabar)" }}
+                        >
+                          {t("fengshui.askMira")}
+                        </Link>
+                      )}
+                    </span>
+                  }
+                />
+              ))}
+            </Group>
+            </div>
+          ) : (
           <ul className="mt-3 flex flex-col gap-3">
             {f.remedies.map((r) => (
               <Card key={r.id} className="p-4">
@@ -728,6 +778,7 @@ export default function FengshuiPage() {
               </Card>
             ))}
           </ul>
+          )}
         </section>
       )}
 

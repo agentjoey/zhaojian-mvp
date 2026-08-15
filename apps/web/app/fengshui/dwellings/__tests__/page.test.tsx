@@ -14,7 +14,12 @@ vi.mock("@/lib/profiles", () => ({
   listProfiles: vi.fn(async () => [profile]),
   getActiveProfileId: () => "p1",
 }));
-vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
+vi.mock("@/lib/tg/client", () => ({
+  hasTgSession: () => false,
+  isTelegram: () => false,
+  tgGetProfile: vi.fn(),
+  tgListProfiles: vi.fn(async () => []),
+}));
 
 /**
  * `@/lib/supabase` 的真实实现在没配 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时会抛错
@@ -96,7 +101,6 @@ beforeEach(() => {
   listDwellings.mockReset().mockResolvedValue([]);
   deleteDwelling.mockReset().mockResolvedValue(undefined);
   supabaseSession.current = null;
-  vi.stubGlobal("confirm", vi.fn(() => true));
   // 默认 entitled:true。本页自己已不发请求（I2），这个桩留着是给 `DwellingForm`
   // 内部那条合看闸门探测兜底——本文件的 listProfiles 只返回主档案自己，选择器不
   // 渲染、探测也不会发起，但桩在这里意味着即使将来夹具变了也不会打到真 fetch。
@@ -123,21 +127,29 @@ describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
     expect(screen.getByText("办公 · 自有 · 不确定")).toBeInTheDocument();
   });
 
-  it("确认框取消 → deleteDwelling 未被调用，列表不变", async () => {
+  // EP-fs-tg：原生 confirm() 已改为页内两步确认（web 与 TG 一致，spec §4）。
+  // 「点删除 → 出现确认行 → 点确认才删」这个两步结构本身是被断言守护的——
+  // 若退化回单击直删，第一条测试当场变红（变异验证过）。
+  it("两步确认：点「删除」只是进入确认态，不发起删除；点「取消」退出确认态", async () => {
     listDwellings.mockResolvedValue([D1]);
-    vi.stubGlobal("confirm", vi.fn(() => false));
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    // 单击不删——这是两步确认的全部意义
+    expect(deleteDwelling).not.toHaveBeenCalled();
+    expect(screen.getByText("删除这个居所？相关报告也会一并失效。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByText("删除这个居所？相关报告也会一并失效。")).toBeNull();
     expect(deleteDwelling).not.toHaveBeenCalled();
     expect(screen.getByText("家A")).toBeInTheDocument();
   });
 
-  it("确认框接受 → deleteDwelling 被调用，该项从列表移除", async () => {
+  it("两步确认：点「删除」再点「确认」→ deleteDwelling 被调用，该项从列表移除", async () => {
     listDwellings.mockResolvedValue([D1]);
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认" }));
     await waitFor(() => expect(deleteDwelling).toHaveBeenCalledWith("d1"));
     await waitFor(() => expect(screen.queryByText("家A")).toBeNull());
   });
@@ -148,13 +160,14 @@ describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认" }));
     await waitFor(() => expect(deleteDwelling).toHaveBeenCalledWith("d1"));
     await waitFor(() => expect(screen.getByText("删除失败，请重试")).toBeInTheDocument());
     // 失败必须不能悄悄把这条从列表里摘掉——摘掉了就是在向用户撒谎说"删除成功了"
     expect(screen.getByText("家A")).toBeInTheDocument();
   });
 
-  it("Minor：删除进行中按钮禁用，快速二次点击不会对同一 id 发两次删除请求", async () => {
+  it("Minor：删除进行中确认按钮禁用，快速二次点击不会对同一 id 发两次删除请求", async () => {
     listDwellings.mockResolvedValue([D1]);
     let resolveDelete!: () => void;
     deleteDwelling.mockImplementationOnce(
@@ -162,10 +175,11 @@ describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
     );
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
-    const btn = screen.getByRole("button", { name: "删除" });
-    fireEvent.click(btn);
-    await waitFor(() => expect(btn).toBeDisabled());
-    fireEvent.click(btn); // 删除进行中再点一次：按钮应已禁用，不应再发起第二次请求
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    const confirmBtn = screen.getByRole("button", { name: "确认" });
+    fireEvent.click(confirmBtn);
+    await waitFor(() => expect(confirmBtn).toBeDisabled());
+    fireEvent.click(confirmBtn); // 删除进行中再点一次：按钮应已禁用，不应再发起第二次请求
     expect(deleteDwelling).toHaveBeenCalledTimes(1);
     resolveDelete();
     await waitFor(() => expect(screen.queryByText("家A")).toBeNull());

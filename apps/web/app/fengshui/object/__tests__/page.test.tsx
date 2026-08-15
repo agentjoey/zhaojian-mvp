@@ -56,7 +56,12 @@ vi.mock("@/lib/dwellings", () => ({
     return dwellingsFixture.current;
   }),
 }));
-vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
+vi.mock("@/lib/tg/client", () => ({
+  hasTgSession: () => false,
+  isTelegram: () => false,
+  tgGetProfile: vi.fn(),
+  tgListProfiles: vi.fn(async () => []),
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui/object" }));
 
 /**

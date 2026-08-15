@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DIRECTION_LABEL } from "@eamvp/core";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
+import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
+import { haptics } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { listDwellings, deleteDwelling, type Dwelling } from "@/lib/dwellings";
 import { Card } from "@/components/ui";
+import { Group, Cell } from "@/components/tg/native";
 import { DwellingForm } from "../DwellingForm";
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
@@ -32,6 +34,14 @@ const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
  * 日后若真的实现居所切换器，多居所才重新成为一项会员权益、闸门才值得加回来——
  * 但那时还需要一条服务端写入路径：`createDwelling` 目前是浏览器直写 supabase，
  * 客户端闸门可以被直接绕过。别只把付费墙贴回来就当数。
+ *
+ * ── EP-fs-tg ─────────────────────────────────────────────────────────────
+ * ① 删除确认从原生 `confirm()` 改为**页内两步确认**（与 profiles/page.tsx 同一模式：
+ * 点删除 → 原地出现「确认删除?」+ 确认/取消）。原生阻塞对话框在 TG webview 里表现
+ * 很差；页内确认在两个宿主里都不差于原生弹窗，所以 **web 与 TG 都改**（spec §4）。
+ * ② TG 会话下列表渲染为 `<Group>` + `<Cell>` 原生观感（web 路径保持 Card 列表不变）。
+ * ③ 数据层分流不在本页：`listDwellings`/`deleteDwelling` 内部已按 hasTgSession()
+ * 分流到 /api/tg/fengshui 中介（见 lib/dwellings.ts）。
  */
 export default function DwellingsPage() {
   const t = useT();
@@ -39,6 +49,12 @@ export default function DwellingsPage() {
   const [dwellings, setDwellings] = useState<Dwelling[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // 页内两步确认（EP-fs-tg）：点「删除」只进入确认态，再点「确认」才真正删。
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  const inTg = mounted && isTelegram();
 
   useEffect(() => {
     if (!ENABLED) return;
@@ -67,9 +83,8 @@ export default function DwellingsPage() {
 
   async function handleDelete(id: string) {
     // 删除不可逆且级联（相关报告一并失效）。防重复：进行中时再次触发（如快速双击）直接忽略，
-    // 不重新弹确认框、不重复发请求。
+    // 不重复发请求。
     if (deletingId === id) return;
-    if (!confirm(t("fengshui.dwelling.deleteConfirm"))) return;
     setDeleteError(null);
     setDeletingId(id);
     try {
@@ -81,6 +96,7 @@ export default function DwellingsPage() {
       setDeleteError(t("fengshui.dwelling.deleteFailed"));
     } finally {
       setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   }
 
@@ -97,6 +113,50 @@ export default function DwellingsPage() {
     );
   }
 
+  /** 删除按钮 / 两步确认行（web 与 TG 两个分支共用同一个状态机）。 */
+  function deleteControls(d: Dwelling) {
+    const confirming = confirmDeleteId === d.id;
+    return confirming ? (
+      <>
+        <span className="text-[12px]" style={{ color: "var(--color-cinnabar)" }}>
+          {t("fengshui.dwelling.deleteConfirm")}
+        </span>
+        <button
+          type="button"
+          onClick={() => { haptics.medium(); handleDelete(d.id); }}
+          disabled={deletingId === d.id}
+          className="text-[13px] disabled:opacity-50"
+          style={{ color: "var(--color-cinnabar)" }}
+        >
+          {t("common.confirm")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmDeleteId(null)}
+          className="text-[13px] text-[var(--color-muted)]"
+        >
+          {t("common.cancel")}
+        </button>
+      </>
+    ) : (
+      <button
+        type="button"
+        onClick={() => { haptics.light(); setConfirmDeleteId(d.id); }}
+        disabled={deletingId === d.id}
+        className="text-[13px] disabled:opacity-50"
+        style={{ color: "var(--color-cinnabar)" }}
+      >
+        {t("common.delete")}
+      </button>
+    );
+  }
+
+  function subtitleOf(d: Dwelling): string {
+    return `${d.kind === "home" ? t("fengshui.dwelling.kindHome") : t("fengshui.dwelling.kindOffice")} · ${
+      d.tenancy === "rent" ? t("fengshui.dwelling.tenancyRent") : t("fengshui.dwelling.tenancyOwn")
+    } · ${d.facing ? DIRECTION_LABEL[d.facing] : t("fengshui.dwelling.facingUnknown")}`;
+  }
+
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
@@ -110,6 +170,18 @@ export default function DwellingsPage() {
           <p className="text-[13px] text-muted">{t("common.loading")}</p>
         ) : dwellings.length === 0 ? (
           <p className="text-[13px] text-muted">{t("fengshui.dwelling.empty")}</p>
+        ) : inTg ? (
+          // TG：原生列表观感（Group + Cell，与 profiles 页同模式）；操作行贴着对应 Cell。
+          <Group>
+            {dwellings.map((d) => (
+              <div key={d.id}>
+                <Cell icon={d.name.slice(0, 1)} title={d.name} subtitle={subtitleOf(d)} />
+                <div className="flex items-center justify-end gap-3 px-[14px] pb-[14px]">
+                  {deleteControls(d)}
+                </div>
+              </div>
+            ))}
+          </Group>
         ) : (
           <ul className="flex flex-col gap-3">
             {dwellings.map((d) => (
@@ -117,23 +189,9 @@ export default function DwellingsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[15px] text-ink">{d.name}</p>
-                    <p className="mt-1 text-[13px] text-ink-2">
-                      {d.kind === "home" ? t("fengshui.dwelling.kindHome") : t("fengshui.dwelling.kindOffice")}
-                      {" · "}
-                      {d.tenancy === "rent" ? t("fengshui.dwelling.tenancyRent") : t("fengshui.dwelling.tenancyOwn")}
-                      {" · "}
-                      {d.facing ? DIRECTION_LABEL[d.facing] : t("fengshui.dwelling.facingUnknown")}
-                    </p>
+                    <p className="mt-1 text-[13px] text-ink-2">{subtitleOf(d)}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(d.id)}
-                    disabled={deletingId === d.id}
-                    className="text-[13px] disabled:opacity-50"
-                    style={{ color: "var(--color-cinnabar)" }}
-                  >
-                    {t("common.delete")}
-                  </button>
+                  <div className="flex items-center gap-3">{deleteControls(d)}</div>
                 </div>
               </Card>
             ))}
