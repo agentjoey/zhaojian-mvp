@@ -248,9 +248,14 @@ describe("EP-fs-18 物件顾问强版（宅八方）", () => {
 
     expect(readDirections("推荐方位")).toEqual(EXPECTED_PICKS);
     expect(screen.queryByText("关于这套房子")).toBeNull();
-    // 落到线上的那份 advice 里 dwellingNote 必须是 null——组件万一给 adviseObject
-    // 传了个非 undefined 的 dwellingSectors（哪怕只是个空对象/命卦自身），
-    // 这个字段就会变，光看 UI 未必察觉。
+    // 冗余守卫：**发到线上那份**载荷（POST body，也就是 LLM 润色的输入）里
+    // dwellingNote 仍是 null——渲染与上行用的是同一个 advice 对象，这条守的是后者。
+    //
+    // ⚠️ 别高估它的判别力（这里原先的注释吹过了）：只有当组件凭空造出一份**异组**的
+    //    dwellingSectors 时它才会红。传命卦自身（`fs.personalDirections`）时
+    //    `houseGood === good` ⇒ dwellingNote 仍是 null，这条照绿；传空对象 `{}` 则是在
+    //    core 里 `dwellingSectors[v.direction].auspicious` 抛 TypeError，也不是靠这条
+    //    字段变化被发现的。真正与「同不同组」无关的判别力在上面那句入参断言。
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)) as { dwellingNote: unknown };
     expect(body.dwellingNote).toBeNull();
@@ -275,6 +280,29 @@ describe("EP-fs-18 物件顾问强版（宅八方）", () => {
     expect(screen.getByText("关于这套房子")).toBeInTheDocument();
     expect(screen.getByText(/吉方与你的命卦吉方不重合/)).toBeInTheDocument();
     expect(screen.getByText(/人比房子要紧/)).toBeInTheDocument();
+  });
+
+  /**
+   * 提示块必须排在 LLM 润色文案**之前**——这不是排版偏好，是提示词里写死的一句话：
+   * `packages/llm/src/fengshui/prompt.ts` 告诉模型这条宅局提示「已原样展示在你这段话
+   * 上方」，并据此要求模型的措辞与它一致。两块一旦调换顺序，提示词就在对模型说假话
+   * （而模型看不见 DOM，无从察觉）。已实测：把 `dwellingNote` 块移到 `{prose && …}`
+   * 下面，五个 app/fengshui 测试文件 104/104 全绿——没有任何断言看顺序。
+   *
+   * 断言用 `compareDocumentPosition` 而不是比对 `textContent` 里的字符串下标：中文方位名
+   * 与文案彼此互为子串，本仓库已因字符串包含匹配出过三次 bug，能不做子串匹配就不做。
+   */
+  it("宅局提示排在 LLM 润色文案之前（prompt.ts 对模型声称的顺序）", async () => {
+    render(<ObjectAdvisorForm fs={fs} dwellingSectors={clashSectors} />, { wrapper: Wrapper });
+    submitDeskInWood();
+    // 润色文案是异步来的（beforeEach 里的 fetch 桩返回这句），等它到位两块才同时在场。
+    await waitFor(() => expect(screen.getByText("放东边靠墙就好。")).toBeInTheDocument());
+
+    const note = screen.getByText(/吉方与你的命卦吉方不重合/);
+    const prose = screen.getByText("放东边靠墙就好。");
+    const pos = note.compareDocumentPosition(prose);
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING, "润色文案应排在宅局提示之后").toBeTruthy();
+    expect(pos & Node.DOCUMENT_POSITION_PRECEDING, "宅局提示不该被排到润色文案之后").toBeFalsy();
   });
 
   it("英文 locale 下说明卡的小标题走 i18n（正文仍是 core 产出的中文）", async () => {

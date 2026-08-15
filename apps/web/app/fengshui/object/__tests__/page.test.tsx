@@ -254,7 +254,60 @@ describe("EP-fs-18 /fengshui/object 强版接线（会员 + 居所）", () => {
     // 与「同不同组」无关的硬证据：宅八方压根没交给 adviseObject。
     expect(lastAdviseInput().dwellingSectors).toBeUndefined();
     // 不设付费墙：弱版就是完整产品，不该出现任何「升级会员」的推销。
-    expect(screen.queryByText("会员")).toBeNull();
+    //
+    // ⚠️ 这里**必须**用正则（子串匹配）。`queryByText(string)` 比的是元素归一化后的
+    //    **完整文本**、不匹配子串；本页与 `Paywall` 里没有任何元素的文本恰好等于
+    //    「会员」（真实文案是「升级会员，解锁无限」「升级会员」「这块内容属于会员功能，
+    //    升级后即可解锁。」），所以原先写的 `queryByText("会员")` 是一条不可能失败的
+    //    断言——已实测：往本页插一个完整的 `<Paywall reason="member" />`，12/12 全绿。
+    // ⚠️ 用 queryAllByText 而不是 queryByText：`Paywall` 里「升级会员」同时出现在标题
+    //    与按钮两处，单数版撞上多个命中会抛「找到多个元素」，把一条本该清晰的失败
+    //    变成一个看不懂的报错。
+    expect(screen.queryAllByText(/升级会员/)).toHaveLength(0);
+  });
+
+  /**
+   * 「探测尚在途 → 弱版」。页面 docstring（`object/page.tsx:28-30`）把它列进弱版情形，
+   * 而它曾是那张清单上**唯一零覆盖**的一条：守它的是 `useState(false)` 这个初值。
+   *
+   * 已实测：把该初值翻成 `useState(true)`，五个 app/fengshui 测试文件 104/104 全绿——
+   * 因为其余每条测试都先等探测落定再提交，没有任何人在窗口里按过按钮。
+   *
+   * 具体的失败场景：有人为「消除闪烁」把初值改成乐观值（`useState(cachedEntitled)`
+   * 之类），于是一个**已确认的非会员**配一套异组居所，在整个探测往返期间都会拿到
+   * `dwellingSectors` 并看到会员专属的 `dwellingNote`，而全套测试照绿。
+   *
+   * 手法：GET 交给一个我们自己攥着的 promise，`waitFor(probeCalls === 1)` 之后就正处在
+   * 「已发出、未结算」的窗口里（探测 effect 以 `facing` 为前提，所以这一刻居所已到手，
+   * 唯一悬着的就是资格），此时提交。
+   */
+  it("探测尚在途（GET 未结算）时提交 → 弱版；探测答「是」之后再提交才升级", async () => {
+    dwellingsFixture.current = [CLASH_DWELLING];
+    let resolveProbe!: (r: Response) => void;
+    const probeGate = new Promise<Response>((res) => { resolveProbe = res; });
+    const spy = methodRouter({ GET: () => probeGate, POST: () => new Response("好的。") });
+    vi.stubGlobal("fetch", spy);
+
+    await renderPage();
+    await waitFor(() => expect(probeCalls(spy)).toBe(1));
+    await settle();
+    submitDesk();
+
+    await waitFor(() => expect(screen.getByText("推荐方位")).toBeInTheDocument());
+    // 在途 = 还不知道，不知道一律按弱版。
+    expect(lastAdviseInput().dwellingSectors).toBeUndefined();
+    expect(screen.queryByText(NOTE_TITLE)).toBeNull();
+    // 「暂时确认不了」是**探测失败**才给的交代；还在路上不是失败，不该提前下这个结论。
+    expect(screen.queryByText("重新确认")).toBeNull();
+
+    // 对照组（关键）：同一份夹具、同一次渲染，探测一答「是」再提交就升级了。它证明
+    // 上面那个 undefined 来自「在途」，而不是这套夹具本来就不具备升级条件——少了这一半，
+    // 前一半会在任何「永远不升级」的实现下同样为真。
+    await act(async () => { resolveProbe(jsonResponse({ entitled: true })); });
+    await settle();
+    submitDesk();
+    await waitFor(() => expect(screen.getByText(NOTE_TITLE)).toBeInTheDocument());
+    expect(lastAdviseInput().dwellingSectors).toEqual(CLASH_SECTORS);
   });
 
   it("无居所 → 弱版，行为与波1 一致；且根本不发闸门探测请求", async () => {
