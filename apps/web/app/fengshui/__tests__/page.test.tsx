@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { BirthInputSchema, computeUnifiedChart, computeFengshui, FENGSHUI_ENGINE_VERSION } from "@eamvp/core";
-import { fengshuiCacheKey } from "@/lib/fengshui-cache";
+import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
 
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
@@ -16,7 +16,18 @@ const fs = computeFengshui({ birth, chart: profile.chart });
  * 出现的独有标记字符，用来断言「叙述本体是否被渲染」。
  */
 const SECTIONS = { situation: "甲", youAndSpace: "乙", actions: "丙" };
-const CACHE_KEY_ZH = fengshuiCacheKey("p1", FENGSHUI_ENGINE_VERSION, "zh");
+
+/**
+ * Task 7（EP-fs-16）：波1 的 localStorage 缓存键（fengshuiCacheKey）已废弃，报告改按
+ * 指纹持久化到服务端 `fengshui_reports`。本页尚未接入居所 Tab（留给 Task 9），页面
+ * 内部恒定按 Layer 0 算指纹（`dwelling: null, memberProfileIds: []`）——这里用同样的
+ * 入参独立调用真实的 `fengshuiFingerprint`（纯函数，未 mock）算出预期指纹，
+ * 与 page.tsx 内部实际使用的值保持一致。
+ */
+const fpFor = (locale: string, engineVersion: string = FENGSHUI_ENGINE_VERSION) =>
+  fengshuiFingerprint({ profileId: "p1", locale, engineVersion, dwelling: null, memberProfileIds: [] });
+const FP_ZH = fpFor("zh");
+const FP_EN = fpFor("en");
 
 /** route 现在返回 JSON（`{ sections, degraded }`），而不是纯 markdown 文本 + 自定义响应头。 */
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -29,6 +40,29 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 vi.mock("@/lib/profiles", () => ({ getActiveProfile: vi.fn(async () => profile) }));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
+
+/**
+ * `@/lib/fengshui-report` 的服务端读写（`readFengshuiReport`/`saveFengshuiReport`）本
+ * 该打 Supabase，测试里用一个模块级 Map 顶替「服务端存储」。`reportStore` 用
+ * `vi.hoisted` 声明，是为了让下面 `vi.mock` 工厂（会被提升到本文件所有 import 之前
+ * 执行）能安全闭包到它——工厂内部只在 `vi.fn` 的回调里读写 `reportStore`，真正调用
+ * 发生在测试运行时（模块早已加载完毕），不是工厂函数体自身执行的那一刻，所以不存在
+ * 暂时性死区问题；用 `vi.hoisted` 是让这份保证显式、不依赖记住这套时序细节。
+ * `fengshuiFingerprint` 保留真实实现（未 mock）：`...actual` 透传，只覆盖两个
+ * 网络函数——这样 `FP_ZH`/`FP_EN` 与 page.tsx 内部算出来的指纹必然一致。
+ */
+const { reportStore } = vi.hoisted(() => ({ reportStore: new Map<string, FengshuiSections>() }));
+
+vi.mock("@/lib/fengshui-report", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/fengshui-report")>();
+  return {
+    ...actual,
+    readFengshuiReport: vi.fn(async (fp: string) => reportStore.get(fp) ?? null),
+    saveFengshuiReport: vi.fn(async (args: { fingerprint: string; sections: FengshuiSections }) => {
+      reportStore.set(args.fingerprint, args.sections);
+    }),
+  };
+});
 
 /**
  * 已知陷阱：`page.tsx` 组件体内直接调用 `useT()`/`useLocale()`。一旦某条测试
@@ -54,6 +88,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   localStorage.clear();
+  reportStore.clear();
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false })));
 });
 
@@ -149,14 +184,16 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
 });
 
 describe("EP-fs-07 /fengshui Layer 0 — 报告缓存", () => {
-  it("成功且未降级时叙述正常渲染，并写入 localStorage 缓存供下次直读", async () => {
+  it("成功且未降级时叙述正常渲染，并持久化到服务端供下次直读", async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
-    expect(JSON.parse(localStorage.getItem(CACHE_KEY_ZH) ?? "null")).toEqual(SECTIONS);
+    // 直接查 reportStore（saveFengshuiReport mock 的落点），而不是只断言它「被调用过」——
+    // 后者抓不住「指纹算错」或「sections 传错」这类问题（弱断言在本项目已连续栽过跟头）。
+    expect(reportStore.get(FP_ZH)).toEqual(SECTIONS);
   });
 
-  it("已有缓存时直接读取渲染，不发起网络请求", async () => {
-    localStorage.setItem(CACHE_KEY_ZH, JSON.stringify({ situation: "缓存内容", youAndSpace: "y", actions: "a" }));
+  it("已有服务端报告时直接读取渲染，不发起网络请求", async () => {
+    reportStore.set(FP_ZH, { situation: "缓存内容", youAndSpace: "y", actions: "a" });
     const fetchSpy = vi.fn(async () => new Response("不该被调用到"));
     vi.stubGlobal("fetch", fetchSpy);
     await renderPage();
@@ -179,7 +216,7 @@ describe("EP-fs-07 /fengshui Layer 0 — 报告缓存", () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "重新生成叙述" })).toBeInTheDocument();
-    expect(localStorage.getItem(CACHE_KEY_ZH)).toBeNull();
+    expect(reportStore.has(FP_ZH)).toBe(false);
   });
 });
 
@@ -197,8 +234,8 @@ describe("EP-fs-07 /fengshui Layer 0 — degraded 报告的消费", () => {
     expect(screen.getByText("可做的事")).toBeInTheDocument();
     // 叙述本体（含被机械纠正过星名、但周边论述仍可能建立在错误方位上）不能被当作正常结果直接渲染
     expect(screen.queryByText("甲")).toBeNull();
-    // 不可信叙述不落盘缓存，避免一份带瑕疵的报告被永久复用
-    expect(localStorage.getItem(CACHE_KEY_ZH)).toBeNull();
+    // 不可信叙述不落盘持久化，避免一份带瑕疵的报告被永久复用
+    expect(reportStore.has(FP_ZH)).toBe(false);
   });
 
   it("未降级（degraded: false）时不显示可信度提示", async () => {
@@ -224,12 +261,13 @@ describe("EP-fs-07 /fengshui Layer 0 — 英文 locale", () => {
 describe("EP-fs-07 /fengshui Layer 0 — 缓存键的判别力（Task 14 复审必修3）", () => {
   // 现有测试此前的期望值全部由 fengshuiCacheKey 自己算出来，属于自证——
   // 把 locale/engineVersion 从缓存键公式里删掉，那些测试照样全绿。这里改用
-  // 「预先在另一把键下塞入缓存，断言运行时确实没有命中它、fetch 确实被调用」
-  // 的写法，只要 fengshuiCacheKey 的输出不再随该参数变化，这两条测试就会变红。
+  // 「预先在另一把指纹下塞入报告，断言运行时确实没有命中它、fetch 确实被调用」
+  // 的写法，只要 fengshuiFingerprint 的输出不再随该参数变化，这两条测试就会变红。
+  // （Task 7 把 fengshuiCacheKey/localStorage 换成 fengshuiFingerprint/reportStore，
+  // 断言结构原样保留，只换了底层存取方式。）
 
-  it("locale 切换后不会读到旧语言缓存：zh 缓存已存在，仍以 locale=en 渲染时应发起新请求", async () => {
-    const staleZhKey = fengshuiCacheKey("p1", FENGSHUI_ENGINE_VERSION, "zh");
-    localStorage.setItem(staleZhKey, JSON.stringify({ situation: "旧中文缓存", youAndSpace: "y", actions: "a" }));
+  it("locale 切换后不会读到旧语言报告：zh 报告已存在，仍以 locale=en 渲染时应发起新请求", async () => {
+    reportStore.set(FP_ZH, { situation: "旧中文报告", youAndSpace: "y", actions: "a" });
 
     const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
     vi.stubGlobal("fetch", fetchSpy);
@@ -237,13 +275,12 @@ describe("EP-fs-07 /fengshui Layer 0 — 缓存键的判别力（Task 14 复审�
     await renderPage("en");
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    // 顺带确认没有误读旧语言缓存的内容
-    expect(screen.queryByText("旧中文缓存")).toBeNull();
+    // 顺带确认没有误读旧语言报告的内容
+    expect(screen.queryByText("旧中文报告")).toBeNull();
   });
 
-  it("引擎版本变化后不会读到旧版本缓存：非当前版本的键已存在，仍应发起新请求", async () => {
-    const staleVersionKey = fengshuiCacheKey("p1", "not-the-current-engine-version", "zh");
-    localStorage.setItem(staleVersionKey, JSON.stringify({ situation: "旧引擎版本缓存", youAndSpace: "y", actions: "a" }));
+  it("引擎版本变化后不会读到旧版本报告：非当前版本的指纹已存在，仍应发起新请求", async () => {
+    reportStore.set(fpFor("zh", "not-the-current-engine-version"), { situation: "旧引擎版本报告", youAndSpace: "y", actions: "a" });
 
     const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
     vi.stubGlobal("fetch", fetchSpy);
@@ -251,7 +288,7 @@ describe("EP-fs-07 /fengshui Layer 0 — 缓存键的判别力（Task 14 复审�
     await renderPage("zh");
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    expect(screen.queryByText("旧引擎版本缓存")).toBeNull();
+    expect(screen.queryByText("旧引擎版本报告")).toBeNull();
   });
 });
 
@@ -296,11 +333,7 @@ describe("EP-fs-07 /fengshui Layer 0 — locale 切换时的状态重置与竞�
     // 复现场景：zh 请求判定 degraded（叙述被隐藏、显示提示），随后用户切到 en——
     // en 恰好已有一份可信缓存。旧代码的缓存命中分支直接 `setNarrative(cached); return;`，
     // 从不重置 `degraded`，于是新语言的可信内容会被上一语言遗留的 `degraded === true` 挡住。
-    const keyEn = fengshuiCacheKey("p1", FENGSHUI_ENGINE_VERSION, "en");
-    localStorage.setItem(
-      keyEn,
-      JSON.stringify({ situation: "EN-SITUATION-OK", youAndSpace: "EN-SPACE-OK", actions: "EN-ACTIONS-OK" }),
-    );
+    reportStore.set(FP_EN, { situation: "EN-SITUATION-OK", youAndSpace: "EN-SPACE-OK", actions: "EN-ACTIONS-OK" });
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: true })));
 
     const { default: Page } = await import("../page");

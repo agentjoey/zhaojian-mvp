@@ -10,8 +10,8 @@ import { BaguaWheel } from "@/components/charts/BaguaWheel";
 import { Markdown } from "@/components/Markdown";
 import { Card } from "@/components/ui";
 import {
-  fengshuiCacheKey, readFengshuiCache, writeFengshuiCache, type FengshuiSections,
-} from "@/lib/fengshui-cache";
+  fengshuiFingerprint, readFengshuiReport, saveFengshuiReport, type FengshuiSections,
+} from "@/lib/fengshui-report";
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
 const SPIRIT_ENABLED = process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1";
@@ -65,9 +65,9 @@ export default function FengshuiPage() {
   const [failed, setFailed] = useState(false);
   const [degraded, setDegraded] = useState(false);
   // 点一次「重新生成叙述」就 +1，出现在下面 effect 的依赖数组里，用来在不改变
-  // profile/fs/locale 的情况下强制重新跑一次那段 fetch 逻辑，避免另写一份重复的
-  // fetch/then/catch。缓存分支本身是安全的重放入口：failed/degraded 态下
-  // readFengshuiCache 在上一次同一个 effect 里已经确认过是 cache miss
+  // profile/fs/locale 的情况下强制重新跑一次那段异步逻辑，避免另写一份重复的
+  // fetch 链路。服务端读取分支本身是安全的重放入口：failed/degraded 态下
+  // readFengshuiReport 在上一次同一个 effect 里已经确认过是 cache miss
   // （命中的话根本不会走到 fetch、也就不会进入 failed/degraded），所以重跑时
   // 该分支自然还是 miss，会照常发起新请求，不需要额外清缓存。
   const [retryNonce, setRetryNonce] = useState(0);
@@ -88,7 +88,7 @@ export default function FengshuiPage() {
   useEffect(() => {
     if (!profile || !fs) return;
     // 竞态保护：locale 切换 / 点击重试都会让本 effect 重新跑一遍，可能与上一次
-    // 尚未落定的 fetch 同时在途。用 `cancelled` 标志确保只有「最新一次」的
+    // 尚未落定的异步链路同时在途。用 `cancelled` 标志确保只有「最新一次」的
     // then/catch 真正写状态，旧的一律作废——否则旧响应可能在新响应之后才落定，
     // 反而把新结果覆盖回旧内容。
     let cancelled = false;
@@ -99,23 +99,46 @@ export default function FengshuiPage() {
     setDegraded(false);
     setSections(null);
 
-    const key = fengshuiCacheKey(profile.id, FENGSHUI_ENGINE_VERSION, locale);
-    const cached = readFengshuiCache(key);
-    if (cached) { setSections(cached); return; }
-    fetch("/api/fengshui/reading", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-zj-locale": locale },
-      body: JSON.stringify(profile.birthInput),
-    })
-      .then(async (r) => {
+    // Task 7（EP-fs-16）：波1 的 localStorage 缓存已废弃，报告改走服务端
+    // fengshui_reports + input_fingerprint。本页尚未接入居所 Tab（留给 Task 9），
+    // 先恒定按 Layer 0（无居所、无同住人）算指纹——判别力与波1
+    // 「(profileId, 引擎版本, locale)」缓存键等价。
+    const fp = fengshuiFingerprint({
+      profileId: profile.id, locale, engineVersion: FENGSHUI_ENGINE_VERSION,
+      dwelling: null, memberProfileIds: [],
+    });
+
+    (async () => {
+      // 服务端读取失败（未登录/网络）按 cache miss 处理，不阻断下面的重新生成——
+      // 与波1 readFengshuiCache 的 try/catch 静默降级是同一个防御姿态（现由 .catch(() => null) 承担）。
+      const cached = await readFengshuiReport(fp).catch(() => null);
+      if (cancelled) return;
+      if (cached) { setSections(cached); return; }
+
+      try {
+        const r = await fetch("/api/fengshui/reading", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-zj-locale": locale },
+          body: JSON.stringify(profile.birthInput),
+        });
         if (!r.ok) throw new Error(await r.text());
         const data = (await r.json()) as { sections: FengshuiSections; degraded: boolean };
         if (cancelled) return;
         setSections(data.sections);
         setDegraded(data.degraded);
-        if (!data.degraded) writeFengshuiCache(key, data.sections);
-      })
-      .catch(() => { if (!cancelled) setFailed(true); });
+        // 不可信叙述不落盘，避免一份带瑕疵的报告被永久复用（沿用波1的约束）；
+        // 持久化失败不影响本次已经展示出来的结果（state 已在上面 setSections 时更新），
+        // 这里 await 只是让本次 effect 的异步链路干净收尾，失败静默吞掉即可。
+        if (!data.degraded) {
+          await saveFengshuiReport({
+            fingerprint: fp, profileId: profile.id, dwellingId: null,
+            layer: 0, locale, sections: data.sections,
+          }).catch(() => {});
+        }
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
 
     return () => { cancelled = true; };
   }, [profile, fs, locale, retryNonce]);
