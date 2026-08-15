@@ -20,11 +20,19 @@ vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.
  * Task 10（EP-fs-17 会员闸门）：本页新增直接 import `@/lib/supabase`（读会话
  * access_token，附到 /api/fengshui/reading 的闸门探测请求头上）。真实实现在没配
  * NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时会抛错（同 lib/__tests__/dwellings.test.ts、
- * fengshui/__tests__/page.test.tsx 踩过的同一个坑），必须 mock 掉。返回
- * `session: null` 即可——本文件既有测试不关心「服务端具体怎么识别身份」。
+ * fengshui/__tests__/page.test.tsx 踩过的同一个坑），必须 mock 掉。默认
+ * `session: null`——绝大多数测试不关心「服务端具体怎么识别身份」。
+ *
+ * 修复单 Important 4：会话内容改成可按测试改写的共享可变量（`vi.hoisted`，理由同
+ * fengshui/__tests__/page.test.tsx 里的同名夹具：renderPage() 每次 resetModules +
+ * 动态 import，直接摆弄 mock 实例会打到一个页面根本不会调用到的旧实例）。写死
+ * `session: null` 意味着「探测请求到底带不带 Authorization」全程零断言。
  */
+const { supabaseSession } = vi.hoisted(() => ({
+  supabaseSession: { current: null as { access_token: string } | null },
+}));
 vi.mock("@/lib/supabase", () => ({
-  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: null } })) } }),
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: supabaseSession.current } })) } }),
 }));
 
 /**
@@ -87,6 +95,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   listDwellings.mockReset().mockResolvedValue([]);
   deleteDwelling.mockReset().mockResolvedValue(undefined);
+  supabaseSession.current = null;
   vi.stubGlobal("confirm", vi.fn(() => true));
   // 默认 entitled:true（对应「未开闸」或「已是会员」——本页分不清也不需要分清这两种；
   // 哪种具体情形由本文件末尾「会员闸门」describe 块专门覆盖）。这保证了 Task 10
@@ -213,5 +222,81 @@ describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二
     await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
     expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 修复单 Critical 1（同类）：本页原来也把「探测失败」直接 setEntitled(false)，
+   * 于是一次网络抖动就把新增表单换成付费墙——在 BILLING_ENABLED 未设置（默认）的
+   * 构建里，服务端本来对任何人都放行，这是在向一个有权限的用户推销。
+   */
+  it("闸门探测失败：不给付费墙，给「重新确认」入口；已有居所列表不受影响", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.getByRole("button", { name: "重新确认" })).toBeInTheDocument();
+  });
+
+  it("闸门探测返回 502：同样按「资格未知」处理，不当作「确认非会员」", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("探测失败后点「重新确认」：重新探测，成功放行后新增表单恢复", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("network down");
+      return jsonResponse({ entitled: true });
+    }));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "重新确认" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
+    expect(screen.queryByText(/会员状态暂时确认不了/)).toBeNull();
+    expect(calls).toBe(2);
+  });
+});
+
+/**
+ * 修复单 Important 4：本页的闸门探测同样必须把 Supabase 会话 token 发出去——
+ * 不发的话，`BILLING_ENABLED=1` 时每个非 Telegram（邮箱 / 匿名 Supabase）会员都会
+ * 被服务端当成「未登录 ⇒ 非会员」，新增表单被付费墙挡掉。此前本文件把会话写死成
+ * `session: null`，这条链路零断言。
+ */
+describe("EP-fs-17 会员闸门（Task 10 修复单 Important 4）：探测请求必须带上会话 token", () => {
+  it("有 Supabase 会话时：闸门探测 GET 带上 Authorization: Bearer <access_token>", async () => {
+    supabaseSession.current = { access_token: "tok-xyz" };
+    listDwellings.mockResolvedValue([D1]);
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok-xyz");
+  });
+
+  it("没有 Supabase 会话时不伪造 Authorization 头（对照组）", async () => {
+    supabaseSession.current = null;
+    listDwellings.mockResolvedValue([D1]);
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 });

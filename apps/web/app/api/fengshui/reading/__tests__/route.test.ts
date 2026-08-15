@@ -282,6 +282,34 @@ describe("POST /api/fengshui/reading — 会员闸门（Task 10，EP-fs-17）", 
     expect(generateFengshuiReadingMock).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * 修复单 Important 3：上面那条免费层用例**完全没有 `cohabitants` 这个 key**，
+   * 而线上客户端（page.tsx 的叙述 POST）对非会员总是显式发 `cohabitants: []`——
+   * 全套路由测试里没有任何一条发过空数组。后果：把 `wantsLayer1` 从
+   * `!!dwelling || !!(cohabitants && cohabitants.length > 0)` 简化成
+   * `!!dwelling || !!cohabitants`，22 条路由测试照样全绿（`!![]` 是 true，但没人
+   * 发空数组），而生产环境里**每一个非会员的免费 Layer 0 请求都会 402**——正是
+   * 「免费层不能被误伤」这条硬要求所防的事故。
+   * 这条测试用的就是线上客户端真实会发出的 body 形状。
+   */
+  it("BILLING_ENABLED=1 且非会员：带 `cohabitants: []` 空数组（线上客户端每次都这么发）的 Layer 0 请求同样不受影响", async () => {
+    process.env.BILLING_ENABLED = "1";
+    generateFengshuiReadingMock.mockResolvedValue(VALID_READING);
+    readSessionMock.mockReturnValue({ uid: "u1", tgId: 1 });
+    getEntitlementMock.mockResolvedValue({ tier: "free", memberUntil: null });
+    isMemberMock.mockReturnValue(false);
+
+    // `dwelling: undefined` 会被 JSON.stringify 丢掉，所以真实 body 就是
+    // `{...birth, cohabitants: []}`——与 page.tsx 里那段 fetch 逐字对应。
+    const res = await POST(req({ ...birth, dwelling: undefined, cohabitants: [] }, { cookie: "zj_tg=t1" }));
+
+    expect(res.status).toBe(200);
+    expect(generateFengshuiReadingMock).toHaveBeenCalledTimes(1);
+    // 而且确实按 Layer 0 处理——空数组不能被当成"有同住人"
+    const fsArg = generateFengshuiReadingMock.mock.calls[0]![0] as FengshuiChart;
+    expect(fsArg.layer).toBe(0);
+  });
+
   it("BILLING_ENABLED=1 且是会员：带 dwelling 的请求正常处理（不会被过度拦截）", async () => {
     process.env.BILLING_ENABLED = "1";
     generateFengshuiReadingMock.mockResolvedValue(VALID_READING);

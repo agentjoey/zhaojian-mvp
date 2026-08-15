@@ -121,12 +121,22 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
  * access_token，附到 /api/fengshui/reading 的请求头上，供服务端识别非 TG 用户）。
  * `@/lib/supabase` 的真实实现会在没配置 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时抛错
  * （见 lib/__tests__/dwellings.test.ts 顶部注释，同一个坑），测试环境没配这两个
- * env，必须 mock 掉。返回 `session: null`——本文件所有既有测试都不关心「服务端
- * 具体怎么识别身份」这件事（那由 route.test.ts 独立覆盖），这里只要不抛错、
- * 不附带 Authorization 头即可，行为等价于「未登录/本地匿名」。
+ * env，必须 mock 掉。默认 `session: null`（等价于「未登录/本地匿名」）——绝大多数
+ * 测试不关心「服务端具体怎么识别身份」（那由 route.test.ts 独立覆盖）。
+ *
+ * 修复单 Important 4：会话内容改成可按测试改写的共享可变量（`vi.hoisted`，理由同
+ * `dwellingsFixture`：renderPage() 每次 resetModules + 动态 import，mock 工厂可能
+ * 重新执行，直接摆弄 mock 实例会打到一个 page.tsx 根本不会调用到的旧实例）。
+ * 原来写死 `session: null` 意味着 `fengshuiAuthHeader()` 在**每一条**测试里都返回
+ * `{}`，于是「客户端到底发不发 Authorization」全程零断言——把 POST 与两个探测请求
+ * 的 Authorization 头整个删掉，全套测试照样绿，而 BILLING_ENABLED=1 时每个非
+ * Telegram（邮箱/匿名 Supabase）会员都会被静默 402 并挡在付费墙外。
  */
+const { supabaseSession } = vi.hoisted(() => ({
+  supabaseSession: { current: null as { access_token: string } | null },
+}));
 vi.mock("@/lib/supabase", () => ({
-  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: null } })) } }),
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: supabaseSession.current } })) } }),
 }));
 
 /**
@@ -195,6 +205,7 @@ beforeEach(() => {
   reportStore.clear();
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
+  supabaseSession.current = null;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
   // 默认：entitled:true（对应「未开闸」或「已是会员」——page.tsx 分不清、也不需要
@@ -771,10 +782,15 @@ describe("EP-fs-07 /fengshui Layer 0 — locale 切换时的状态重置与竞�
  * （getEntitlement 需要 service-role key）——它只认 GET /api/fengshui/reading
  * 返回的 `entitled` 布尔值，这里通过 methodRouter 的 GET handler 直接控制。
  *
- * ⚠️ 「BILLING_ENABLED 关闭」这条测试特意与「开闸 + 非会员」那条测试成对出现、
- * 用同一份居所夹具（dwellingL1(["p2"])）——如果闸门逻辑被写反或被删掉，这两条中
- * 至少有一条会变红；单独测「关闭时不限制」这一条不足以证明闸门本身是对的
- * （测试环境本来就没开闸的话，随便怎么判都会通过）。
+ * ⚠️ 对照组只可能建立在 `entitled` 这一个输入上。修复单 Minor 2：本文件此前有
+ * 「BILLING_ENABLED 关闭」与「开闸 + 会员」两条**逐字节相同**的测试（同夹具、同
+ * `entitled:true` 桩、同断言），并在这里声称二者互为对照——但从页面视角这两种情形
+ * 就是同一个输入（页面读不到 BILLING_ENABLED，只看得到 GET 返回的布尔值），其中一
+ * 条判别力恒为零。已合并成下面那条「route 判定 entitled:true」。「BILLING_ENABLED
+ * 关闭 ⇒ GET 返回 entitled:true」这一环由 route.test.ts 的 GET 分组独立覆盖，
+ * 那里才有真正的 env 对照组。
+ * 真正的对照是 `entitled:true` ↔ `entitled:false` 两条用同一份居所夹具
+ * （dwellingL1(["p2"])）的测试：闸门被写反或被删掉时，两条中至少一条变红。
  */
 describe("EP-fs-17 会员闸门（Task 10）", () => {
   const dwellingBody = { id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "S" as const };
@@ -786,24 +802,6 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
 
   it("宅层化解集合非空（前提校验）：若这个前提不成立，下面「只显示个人层」的测试会失去意义", () => {
     expect(dwellingOnlyRemedyIds.size).toBeGreaterThan(0);
-  });
-
-  it("BILLING_ENABLED 关闭（route 对任何人都返回 entitled:true，pre-prod 默认态）：非会员也能看到宅八方与合看，不做任何限制", async () => {
-    dwellingsFixture.current = [dwellingL1(["p2"])];
-    vi.stubGlobal(
-      "fetch",
-      methodRouter({
-        GET: () => jsonResponse({ entitled: true }),
-        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
-      }),
-    );
-    await renderPage();
-    await waitFor(() => expect(screen.getByText("房屋八方")).toBeInTheDocument());
-    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
-    expect(screen.getByText("坎宅")).toBeInTheDocument();
-    expect(screen.getByText("以谁的视角看")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "阿乙" })).toBeInTheDocument();
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
   });
 
   it("开闸 + 非会员：Layer 0 内容（本命卦、本命八方）与物件顾问入口照常可见——免费层不能被误伤", async () => {
@@ -849,7 +847,10 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
   });
 
-  it("开闸 + 会员：宅八方与合看正常渲染", async () => {
+  // 修复单 Minor 2：这条是原来「BILLING_ENABLED 关闭」与「开闸 + 会员」两条逐字节
+  // 相同测试的合并结果——页面只认 GET 返回的 entitled，分不清（也不需要分清）这两种
+  // 情形，保留两条其中一条的判别力恒为零。
+  it("route 判定 entitled:true（对应 BILLING_ENABLED 关闭，或已是会员）：宅八方与合看正常渲染，无任何限制", async () => {
     dwellingsFixture.current = [dwellingL1(["p2"])];
     vi.stubGlobal(
       "fetch",
@@ -931,5 +932,270 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     expect(cohab === undefined || cohab.length === 0).toBe(true);
     // 叙述照常显示——不是被 402 打成一整段"叙述暂时生成不出来"
     expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
+  });
+
+  it("开闸 + 非会员：付费墙用的是「这是会员功能」文案，不是「档案已达上限」（修复单 Important 5）", async () => {
+    // 宅盘所在的位置既没有"档案"也没有要"保存"的东西——reason="limit" 的文案
+    // （zh「档案已达上限，升级会员后可继续保存。」/ en「Profile limit reached.」）
+    // 用在这里是错的，不只是不精确。
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("这块内容属于会员功能，升级后即可解锁。")).toBeInTheDocument());
+    expect(screen.queryByText("档案已达上限，升级会员后可继续保存。")).toBeNull();
+  });
+
+  it("开闸 + 非会员：付费墙取代宅盘的同时，绝不能改口说「还没登记居所」或「朝向未确定」", async () => {
+    // 修复单 Important 2 的直接回归：fs 改从 effectiveDwellingInput 算之后，被挡用户的
+    // f.layer 变成 0——若「还没登记居所 / 朝向未确定」这组引导语仍按 f.layer 判断，
+    // 就会告诉一个明明登记了朝南居所的用户"你还没登记"，诱导去重复登记。
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+
+    expect(screen.queryByText(/还没登记居所/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "登记居所" })).toBeNull();
+    expect(screen.queryByText(/朝向未确定/)).toBeNull();
+    // Layer 1 派生的命宅相配判语同样不得泄漏（它属于住宅实盘）
+    expect(screen.queryByText(/与这套宅子/)).toBeNull();
+  });
+});
+
+/**
+ * 修复单 Critical 1：闸门泄漏进 `BILLING_ENABLED` 关闭的默认配置。
+ *
+ * 原实现里 `entitled` 只有 `boolean | undefined` 三种取值，且**探测失败也置 false**，
+ * 于是「还没问到」和「问失败了」都被渲染成付费墙。后果（`BILLING_ENABLED` 未设置时，
+ * 也就是默认配置，服务端对任何人都放行）：
+ *   - 任何有居所的用户每次加载都会先闪一下「升级会员，解锁无限」；
+ *   - 探测请求失败（冷启动 / 502 / 离线 / 广告拦截）时**该次加载永久显示付费墙**，
+ *     把用户本来一直看得到的宅盘换成了推销。
+ * 这两个方向此前零断言——既有页面测试全部 `waitFor` 到稳定态。
+ */
+describe("EP-fs-17 会员闸门（Task 10 修复单 Critical 1）：未知 ≠ 非会员", () => {
+  /** 把所有在途 promise/effect 排空，让"之后还会不会再发生点什么"变成确定性的。 */
+  async function drainEffects(rounds = 10) {
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+  }
+
+  it("探测在途（GET 尚未返回）：Layer 1 区块显示加载态，不出现付费墙；Layer 0 内容完整渲染", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        // 永不落定：精确模拟"探测请求还在路上"这个中间态。
+        GET: () => new Promise<Response>(() => {}),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+
+    // Layer 0（免费层）内容不受任何影响
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+
+    // Layer 1 区块：加载态，而**不是**付费墙——付费墙是终局判定，不是等待态
+    expect(screen.getByText("加载中…")).toBeInTheDocument();
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    // 也不能提前渲染会员内容（另一个方向：不能因为"还没被拒"就先放行）
+    expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
+    // 更不能改口说用户没登记过居所
+    expect(screen.queryByText(/还没登记居所/)).toBeNull();
+
+    // 探测始终不落定 → 叙述 POST 也不该抢跑（它要等闸门落定，见双 POST 守卫）
+    await drainEffects(3);
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("探测失败（fetch 抛错）：给「重新确认」入口而不是付费墙；免费层叙述照常拿得到", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "POST") return jsonResponse({ sections: SECTIONS, degraded: false });
+        throw new Error("network down");
+      }),
+    );
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "重新确认" })).toBeInTheDocument();
+    // 关键断言：探测失败**不得**等同于"确认非会员"
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.queryByText("这块内容属于会员功能，升级后即可解锁。")).toBeNull();
+    // Layer 0 完整可用，且免费层叙述不因探测失败而一并消失
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+  });
+
+  it("探测返回 502（冷启动/代理故障）：同样按「资格未知」处理，不当作「确认非会员」", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => new Response("bad gateway", { status: 502 }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+  });
+
+  it("探测返回 200 但 body 读不出 entitled 布尔值（广告拦截器/离线占位响应）：按未知处理，不 Boolean() 成 false", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => new Response("<html>offline</html>", { headers: { "content-type": "text/html" } }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  it("探测失败后点「重新确认」：重新探测，成功后宅八方正常出现、未知提示消失", async () => {
+    dwellingsFixture.current = [dwellingL1()];
+    let getCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "POST") return jsonResponse({ sections: SECTIONS, degraded: false });
+        getCalls += 1;
+        if (getCalls === 1) throw new Error("network down");
+        return jsonResponse({ entitled: true });
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "重新确认" }));
+
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+    expect(screen.queryByText(/会员状态暂时确认不了/)).toBeNull();
+    expect(getCalls).toBe(2);
+  });
+});
+
+/**
+ * 修复单 Important 4：客户端到底发不发 `Authorization` 头，此前零断言——
+ * 两个页面测试文件都把 supabase 会话写死成 `session: null`，于是
+ * `fengshuiAuthHeader()` 在每一条测试里都返回 `{}`。把 POST 与探测请求的
+ * Authorization 头整个删掉，全套测试照样绿，而 `BILLING_ENABLED=1` 时每个非
+ * Telegram（邮箱 / 匿名 Supabase）会员都会被静默 402 并挡在付费墙外。
+ * route.test.ts 证明了**服务端**会读 Bearer，但没有任何东西证明**客户端**会发。
+ */
+describe("EP-fs-17 会员闸门（Task 10 修复单 Important 4）：客户端必须把会话 token 发出去", () => {
+  function recordingFetch(calls: { method: string; headers: Record<string, string> }[]) {
+    return vi.fn(async (_url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      calls.push({ method, headers: (init?.headers ?? {}) as Record<string, string> });
+      return method === "POST"
+        ? jsonResponse({ sections: SECTIONS, degraded: false })
+        : jsonResponse({ entitled: true });
+    });
+  }
+
+  it("有 Supabase 会话时：闸门探测 GET 与叙述 POST 都带上 Authorization: Bearer <access_token>", async () => {
+    supabaseSession.current = { access_token: "tok-abc" };
+    dwellingsFixture.current = [dwellingL1()];
+    const calls: { method: string; headers: Record<string, string> }[] = [];
+    vi.stubGlobal("fetch", recordingFetch(calls));
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+
+    const get = calls.find((c) => c.method === "GET");
+    const post = calls.find((c) => c.method === "POST");
+    expect(get).toBeDefined();
+    expect(post).toBeDefined();
+    expect(get!.headers.Authorization).toBe("Bearer tok-abc");
+    expect(post!.headers.Authorization).toBe("Bearer tok-abc");
+    // POST 原有的头不能被 authHeader 覆盖掉
+    expect(post!.headers["content-type"]).toBe("application/json");
+    expect(post!.headers["x-zj-locale"]).toBe("zh");
+  });
+
+  it("没有 Supabase 会话时不伪造 Authorization 头（对照组：证明上面那条断言真由会话驱动）", async () => {
+    supabaseSession.current = null;
+    dwellingsFixture.current = [dwellingL1()];
+    const calls: { method: string; headers: Record<string, string> }[] = [];
+    vi.stubGlobal("fetch", recordingFetch(calls));
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+
+    expect(calls.find((c) => c.method === "GET")!.headers.Authorization).toBeUndefined();
+    expect(calls.find((c) => c.method === "POST")!.headers.Authorization).toBeUndefined();
+  });
+});
+
+/**
+ * 修复单 Minor 3：`page.tsx` 里「有居所时必须等闸门探测落定才发叙述 POST」这个守卫
+ * 是为防重复 LLM 计费，但此前唯一相关的断言（`expect(postCalls()).toHaveLength(1)`）
+ * 紧跟在对**第一次** POST 的 `waitFor` 之后——第二次 POST 有没有发出去纯属竞态。
+ * 这里在计数前把所有在途副作用排空，让"到底发了几次"变成确定性的。
+ */
+describe("EP-fs-17 会员闸门（Task 10 修复单 Minor 3）：叙述 POST 不得因闸门探测而发两次", () => {
+  async function drainEffects(rounds = 10) {
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+  }
+
+  it("有居所 + 会员：排空所有在途副作用后，叙述 POST 恰好一次，且那一次就是 Layer 1 请求（没有先发一次 Layer 0）", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    const postBodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") {
+          postBodies.push(JSON.parse(String(init?.body ?? "{}")));
+          return jsonResponse({ sections: SECTIONS, degraded: false });
+        }
+        return jsonResponse({ entitled: true });
+      }),
+    );
+
+    await renderPage();
+    // 先等**终态**：宅盘（闸门已放行）与叙述都已落定
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    // 再排空剩余的一切，之后计数才有意义
+    await drainEffects();
+
+    expect(postBodies).toHaveLength(1);
+    // 守卫失效时，抢跑的那一次必然是 Layer 0（探测未落定 ⇒ effectiveDwellingInput
+    // 为空）——所以"唯一那次带着 dwelling"这条断言同时锁住了次数与内容。
+    expect(postBodies[0]).toHaveProperty("dwelling");
+    expect((postBodies[0]!.dwelling as { id: string }).id).toBe("d1");
   });
 });

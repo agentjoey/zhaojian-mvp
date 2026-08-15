@@ -68,6 +68,10 @@ export const zh = {
     telegramIAP: "Telegram 内购即将开放",
     subtitleLimit: "档案已达上限，升级会员后可继续保存。",
     subtitleQuota: "免费额度已用尽，升级会员后可继续对话。",
+    // reason="member"（Task 10 修复单 Important 5）：用在「这块内容本身属于会员功能」
+    // 的位置（如 /fengshui 的宅八方），那里既没有"档案"也没有要"保存"的东西——
+    // 复用 subtitleLimit 的「已达上限」措辞是错的，不只是不精确。
+    subtitleMember: "这块内容属于会员功能，升级后即可解锁。",
   },
   home: {
     heroTitle1: "你的命盘，",
@@ -334,6 +338,11 @@ export const zh = {
     // 对用户是完全不同的意思——绝不能把一次网络抖动误判成后者，诱导重复登记。
     dwellingsError: "居所读取失败——不代表你还没登记，请重试。",
     retryDwellings: "重试",
+    // Task 10 修复单 Critical 1：会员状态「探测失败」≠「确认为非会员」。前者是
+    // 「暂时不知道」，此时给付费墙等于在向可能已经拥有该内容的用户推销——尤其
+    // BILLING_ENABLED 关闭（默认）时根本不该有任何限制。措辞必须明说这不是判定结果。
+    entitlementUnknown: "会员状态暂时确认不了，这块内容先不展示——不代表你没有权限。",
+    retryEntitlement: "重新确认",
     // 复审必修3：命卦（东四命/西四命）与宅卦（东四宅/西四宅）是否同组的判语，按
     // matchWithPerson 的字面值（"相配"/"相冲"）取键——与 effortLabel 同一手法。
     // 措辞非决定论：「相冲」不代表这房子不能住，只是把重点放回自己的四吉方。

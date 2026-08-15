@@ -72,6 +72,7 @@ export const en: Messages = {
     telegramIAP: "Telegram in-app purchases coming soon",
     subtitleLimit: "Profile limit reached. Upgrade to save more.",
     subtitleQuota: "Free quota used. Upgrade to continue chatting.",
+    subtitleMember: "This part is a member feature. Upgrade to unlock it.",
   },
   home: {
     heroTitle1: "Your chart,",
@@ -340,6 +341,8 @@ export const en: Messages = {
     facingUnknownNote: "This dwelling's facing isn't set, so suggestions below are based on your natal directions only.",
     dwellingsError: "Couldn't load your dwellings — this doesn't mean none are registered. Please try again.",
     retryDwellings: "Retry",
+    entitlementUnknown: "We couldn't confirm your membership just now, so this part isn't shown — it doesn't mean you lack access.",
+    retryEntitlement: "Check again",
     matchNote: {
       相配: "Your life gua and this home's gua are in the same group — the overall energy tends to align well.",
       相冲: "Your life gua and this home's gua are in different groups. No need to worry — just focus on your own four auspicious directions.",
