@@ -132,6 +132,35 @@ describe("Task 9b：同住人选择 UI（原计划遗漏，补入后合看才真
     expect(createDwelling.mock.calls[0]![0]).toMatchObject({ memberProfileIds: ["p2"] });
   });
 
+  // 多选是合看的全部意义所在（「这套房子对你、对他、对他都不一样」），
+  // 但上面那几条都只点一个人：勾一个、勾了再取消、一个不勾。若 toggleMember
+  // 退化成单选（`prev.includes(id) ? … : [id]`），12 条测试照样全绿。
+  it("勾选两位同住人时两个 id 都进载荷（防 toggle 退化成单选）", async () => {
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /^阿乙$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^阿丙$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() => expect(createDwelling).toHaveBeenCalled());
+    // 用集合比对而非数组：顺序是实现细节，不该被测试钉死
+    const saved = (createDwelling.mock.calls[0]![0] as { memberProfileIds: string[] }).memberProfileIds;
+    expect([...saved].sort()).toEqual(["p2", "p3"]);
+  });
+
+  it("多选后取消其中一位，另一位仍保留", async () => {
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /^阿乙$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^阿丙$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^阿乙$/ })); // 只取消阿乙
+    fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() => expect(createDwelling).toHaveBeenCalled());
+    // 取消一个不能把整个列表清空，也不能误删另一个
+    expect(createDwelling.mock.calls[0]![0]).toMatchObject({ memberProfileIds: ["p3"] });
+  });
+
   it("再次点击取消勾选，不残留在载荷里", async () => {
     render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeInTheDocument());
