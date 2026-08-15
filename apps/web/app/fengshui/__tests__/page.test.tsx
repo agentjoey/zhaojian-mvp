@@ -152,7 +152,8 @@ vi.mock("@/lib/dwellings", () => ({
 }));
 vi.mock("@/lib/tg/client", () => ({
   hasTgSession: () => false,
-  isTelegram: () => false,
+  // EP-fs-tg：可变——文件末尾「TG 会话」describe 把它翻成 true 断言原生分段 Tab。
+  isTelegram: () => tgEnv.inTg,
   tgGetProfile: vi.fn(),
   tgListProfiles: vi.fn(async () => []),
 }));
@@ -174,6 +175,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
  * 的 Authorization 头整个删掉，全套测试照样绿，而 BILLING_ENABLED=1 时每个非
  * Telegram（邮箱/匿名 Supabase）会员都会被静默 402 并挡在付费墙外。
  */
+const { tgEnv } = vi.hoisted(() => ({ tgEnv: { inTg: false } }));
 const { supabaseSession } = vi.hoisted(() => ({
   supabaseSession: { current: null as { access_token: string } | null },
 }));
@@ -248,6 +250,7 @@ beforeEach(() => {
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
   supabaseSession.current = null;
+  tgEnv.inTg = false;
   computeFengshuiCalls.args.length = 0;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
@@ -1334,5 +1337,52 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Minor 3）：叙述 POST 不
     // 为空）——所以"唯一那次带着 dwelling"这条断言同时锁住了次数与内容。
     expect(postBodies[0]).toHaveProperty("dwelling");
     expect((postBodies[0]!.dwelling as { id: string }).id).toBe("d1");
+  });
+});
+
+/**
+ * EP-fs-tg：TG 会话下 Tab 行渲染为原生分段选择器（`Segmented`，role=tablist/tab），
+ * web 下划线 Tab 行不出现；切换行为不变。判别点选 ARIA role——两个分支渲染的都是
+ * 「盘/化解/添置」三枚按钮，只看文字分不出来（恒真断言），role 是严格可区分的：
+ * web 分支的按钮没有 tab 语义。
+ *
+ * 变异验证（实跑过）：把 page.tsx 里的 `inTg` 改成恒 false，本 describe 前两条全红。
+ */
+describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
+  beforeEach(() => {
+    tgEnv.inTg = true;
+  });
+
+  it("Tab 行渲染为 tablist（三枚 tab），不再是 web 下划线按钮", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(3);
+    expect(tabs.map((x) => x.textContent)).toEqual(["盘", "化解", "添置"]);
+    // 当前选中的 tab 有 aria-selected
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[1]).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("切 tab 行为在原生分段上照常工作（化解 tab 出清单）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByText("可做的事")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "化解" }));
+    expect(screen.getByText("可做的事")).toBeInTheDocument();
+    // 化解清单走原生 Cell（chevron 只存在于原生分支）
+    expect(screen.getAllByText("›").length).toBe(fs.remedies.length);
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
+
+  it("web 分支（对照组）：无 tablist，仍是下划线按钮", async () => {
+    tgEnv.inTg = false;
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("button", { name: "化解" })).toBeInTheDocument();
   });
 });

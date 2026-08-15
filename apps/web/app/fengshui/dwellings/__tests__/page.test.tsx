@@ -14,9 +14,14 @@ vi.mock("@/lib/profiles", () => ({
   listProfiles: vi.fn(async () => [profile]),
   getActiveProfileId: () => "p1",
 }));
+/**
+ * EP-fs-tg：isTelegram 必须是**可变**的——本文件新增「TG 会话」describe 把它翻成
+ * true 来断言原生分支（Group+Cell）真的被渲染。默认值 false，既有用例不受影响。
+ */
+const { tgEnv } = vi.hoisted(() => ({ tgEnv: { inTg: false } }));
 vi.mock("@/lib/tg/client", () => ({
   hasTgSession: () => false,
-  isTelegram: () => false,
+  isTelegram: () => tgEnv.inTg,
   tgGetProfile: vi.fn(),
   tgListProfiles: vi.fn(async () => []),
 }));
@@ -101,6 +106,8 @@ beforeEach(() => {
   listDwellings.mockReset().mockResolvedValue([]);
   deleteDwelling.mockReset().mockResolvedValue(undefined);
   supabaseSession.current = null;
+  tgEnv.inTg = false;
+  delete (window as any).Telegram;
   // 默认 entitled:true。本页自己已不发请求（I2），这个桩留着是给 `DwellingForm`
   // 内部那条合看闸门探测兜底——本文件的 listProfiles 只返回主档案自己，选择器不
   // 渲染、探测也不会发起，但桩在这里意味着即使将来夹具变了也不会打到真 fetch。
@@ -277,5 +284,61 @@ describe("最终评审 I2：新增居所不再受会员闸门限制（挡住的�
     expect(screen.queryAllByText("加载中…")).toHaveLength(0);
     expect(screen.queryAllByText(/会员状态暂时确认不了/)).toHaveLength(0);
     expect(screen.queryAllByRole("button", { name: "重新确认" })).toHaveLength(0);
+  });
+});
+
+/**
+ * EP-fs-tg：TG 会话下的原生渲染分支。判别点选 Cell 的 chevron「›」——它只存在于
+ * `<Group>`+`<Cell>` 原生列表里，web 的 Card 列表渲染不出这个字符，两个分支因此
+ * 在 DOM 上可严格区分（不是「都显示了名字所以算通过」那种恒真断言）。
+ *
+ * 变异验证（实跑过）：把 page.tsx 里的 `inTg` 改成恒 false，本 describe 3 条全红。
+ */
+describe("EP-fs-tg TG 会话：原生列表 + 页内两步确认", () => {
+  beforeEach(() => {
+    tgEnv.inTg = true;
+    // isTelegram 被 mock 成 true 后，useTgMainButton（DwellingForm 保存按钮）会真的
+    // 去读 window.Telegram.WebApp.MainButton——jsdom 里没有，必须连 SDK 面一起桩掉。
+    (window as any).Telegram = {
+      WebApp: {
+        initData: "x",
+        MainButton: {
+          setText: vi.fn(), enable: vi.fn(), disable: vi.fn(),
+          show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn(),
+        },
+        BackButton: { show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn() },
+        HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+      },
+    };
+  });
+
+  it("列表渲染为原生 Cell（带 chevron），web 分支则没有", async () => {
+    listDwellings.mockResolvedValue([D1, D2]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    // 两个居所各一条 Cell → 两个 chevron
+    expect(screen.getAllByText("›")).toHaveLength(2);
+    // Cell 副标题与 web 分支同一套拼接（精确整行，方位名子串陷阱见上方既有注释）
+    expect(screen.getByText("住宅 · 租住 · 南")).toBeInTheDocument();
+    expect(screen.getByText("办公 · 自有 · 不确定")).toBeInTheDocument();
+  });
+
+  it("web 分支（对照组）：不出现原生 Cell 的 chevron", async () => {
+    tgEnv.inTg = false;
+    listDwellings.mockResolvedValue([D1, D2]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    expect(screen.queryAllByText("›")).toHaveLength(0);
+  });
+
+  it("TG 分支里两步确认同样成立：点删除不删，点确认才删", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    expect(deleteDwelling).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认" }));
+    await waitFor(() => expect(deleteDwelling).toHaveBeenCalledWith("d1"));
+    await waitFor(() => expect(screen.queryByText("家A")).toBeNull());
   });
 });

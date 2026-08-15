@@ -46,6 +46,19 @@ vi.mock("@/lib/supabase", () => ({
   supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: supabaseSession.current } })) } }),
 }));
 
+/**
+ * EP-fs-tg：TG 分流是可变的——文件末尾「TG 会话」describe 把 inTg 翻成 true，
+ * 断言候选人走 tgListProfiles 中介、保存走 MainButton。默认 false，
+ * 既有用例行为不变（真实模块在 jsdom 下本来也恒 false，mock 只是让它可控）。
+ */
+const tgEnv = { inTg: false };
+const tgListProfiles = vi.fn(async (): Promise<unknown[]> => []);
+vi.mock("@/lib/tg/client", () => ({
+  hasTgSession: () => tgEnv.inTg,
+  isTelegram: () => tgEnv.inTg,
+  tgListProfiles: () => tgListProfiles(),
+}));
+
 /** 闸门探测响应；route 返回 JSON `{ entitled }`。 */
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, ...init });
@@ -62,6 +75,9 @@ beforeEach(() => {
   // 测试的调用记录污染成假阳性——即便本测试的组件压根没发起过请求也会通过。
   listProfiles.mockReset().mockResolvedValue([PROFILE_MAIN, PROFILE_B, PROFILE_C]);
   supabaseSession.current = null;
+  tgEnv.inTg = false;
+  tgListProfiles.mockReset().mockResolvedValue([]);
+  delete (window as any).Telegram;
   // 默认 entitled:true（对应「未开闸」= 默认配置，或「已是会员」）——保证 Task 9b
   // 既有的同住人用例无需逐条改动。非会员分支由本文件末尾的 I3 describe 专门覆盖。
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
@@ -431,5 +447,76 @@ describe("最终评审 I3：非会员必须在选择器处就知道合看是会�
 
     const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
     expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+});
+
+/**
+ * EP-fs-tg：TG 会话下的 DwellingForm。两个实质断言点：
+ *  1. 同住人候选必须走 tgListProfiles() 中介——真实模块在 TG 里走 listProfiles()
+ *     （匿名 Supabase + RLS）只会拿到空列表，选择器永远不渲染，合看无从选起。
+ *     TG 的「当前档案」约定为列表首条（profiles/page.tsx 同一约定），候选人要排除它。
+ *  2. 保存由 TG MainButton 承担，页内按钮不渲染。
+ *
+ * 变异验证（实跑过）：把 DwellingForm 候选人 effect 里的 `hasTgSession()` 改成恒
+ * false，第 1 条变红（走了 listProfiles、候选人里有「阿甲」）；把 `inTg` 改成恒
+ * false，第 2/3 条变红。
+ */
+describe("EP-fs-tg TG 会话：候选走中介 + MainButton 保存", () => {
+  let mainButtonClick: (() => void) | null;
+  let mb: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(() => {
+    tgEnv.inTg = true;
+    mainButtonClick = null;
+    mb = {
+      setText: vi.fn(), enable: vi.fn(), disable: vi.fn(), show: vi.fn(), hide: vi.fn(),
+      onClick: vi.fn((cb: () => void) => { mainButtonClick = cb; }),
+      offClick: vi.fn(),
+    };
+    (window as any).Telegram = {
+      WebApp: {
+        initData: "x",
+        MainButton: mb,
+        HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+      },
+    };
+  });
+
+  it("同住人候选走 tgListProfiles 中介，排除列表首条（当前档案），不碰 listProfiles", async () => {
+    tgListProfiles.mockResolvedValue([PROFILE_MAIN, PROFILE_B]);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByRole("button", { name: "阿乙" })).toBeInTheDocument());
+    // 首条=当前档案「阿甲」，不该出现在候选里
+    expect(screen.queryByRole("button", { name: "阿甲" })).toBeNull();
+    expect(tgListProfiles).toHaveBeenCalled();
+    expect(listProfiles).not.toHaveBeenCalled();
+  });
+
+  it("页内保存按钮隐藏，MainButton 接管（setText=保存，未选朝向时禁用）", async () => {
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(mb.setText).toHaveBeenCalledWith("保存"));
+    expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
+    expect(mb.disable).toHaveBeenCalled(); // touchedFacing=false → enabled:false
+  });
+
+  it("MainButton 点击触发保存（选朝向 → enable → 点击 → createDwelling 收到朝向）", async () => {
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(mb.setText).toHaveBeenCalledWith("保存"));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp("^南$") }));
+    await waitFor(() => expect(mb.enable).toHaveBeenCalled());
+    expect(mainButtonClick).not.toBeNull();
+    await act(async () => {
+      mainButtonClick!();
+    });
+    await waitFor(() =>
+      expect(createDwelling).toHaveBeenCalledWith(expect.objectContaining({ facing: "S" })),
+    );
+  });
+
+  it("web 分支（对照组）：页内保存按钮在，MainButton 不被触碰", () => {
+    tgEnv.inTg = false;
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
+    expect(mb.setText).not.toHaveBeenCalled();
   });
 });
