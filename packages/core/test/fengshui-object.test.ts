@@ -84,14 +84,45 @@ describe("EP-fs-18 物件顾问强版（有居所）", () => {
     expect(same.dwellingNote).toBeNull();
   });
 
-  it("有居所时推荐方位必须同时是命卦吉方与宅卦吉方", () => {
-    const withHouse = directionsFor("坎"); // 东四宅，与坎命同组 → 交集非空
-    const a = adviseObject({ ...base, dwellingSectors: withHouse }, { category: "desk", material: "原木" });
+  /**
+   * ⚠️ 这条曾经是恒真断言。原写法用 `directionsFor("坎")` 作宅卦——与坎命同组，
+   * 交集是全部 4 个吉方，于是「推荐方位同时是命卦吉方与宅卦吉方」对**弱版**同样成立
+   * （弱版返回的 4 个命卦吉方本来就全是宅卦吉方），抓不到「没传 dwellingSectors」这类回归。
+   * 末尾还跟着一个 `toBeGreaterThan(0)`，正是本仓库当初放过 `DIRECTIONS.slice(0,4)` 的形状。
+   *
+   * 真正的结构事实（枚举 8×8 全部命卦×宅卦组合验证过）：命卦吉方 ∩ 宅卦吉方 **只可能是 4 或 0**。
+   * 东四命的四吉方恰好就是四个东四方，所以同组则四个全留、异组则一个不留，没有中间情况。
+   * 推论：`usable` 恒等于 `good`，**强版与弱版的 recommendedDirections 逐字节相同**，
+   * 强版唯一多出来的可观察内容是 `dwellingNote`。下面按这个真实结构分两支断言。
+   */
+  it("同组宅卦：推荐方位同时是命卦吉方与宅卦吉方，且不出提示", () => {
+    const sameGroup = directionsFor("坎"); // 东四宅，与坎命同组
+    const a = adviseObject({ ...base, dwellingSectors: sameGroup }, { category: "desk", material: "原木" });
+    expect(a.recommendedDirections.length).toBeGreaterThan(0); // 前提校验：下面的 for 不是空转
     for (const r of a.recommendedDirections) {
       expect(base.verdicts[r.direction].auspicious).toBe(true);
-      expect(withHouse[r.direction].auspicious).toBe(true);
+      expect(sameGroup[r.direction].auspicious).toBe(true);
     }
-    expect(a.recommendedDirections.length).toBeGreaterThan(0);
+    expect(a.dwellingNote).toBeNull();
+  });
+
+  it("异组宅卦：交集为空 → 退回命卦吉方并出提示，而不是给空推荐", () => {
+    const crossGroup = directionsFor("乾"); // 西四宅，与坎命（东四）异组
+    // 前提校验：这个组合确实交集为空。否则下面「退回」的断言测的就不是退回逻辑。
+    const inter = Object.values(base.verdicts).filter(
+      (v) => v.auspicious && crossGroup[v.direction].auspicious,
+    );
+    expect(inter).toHaveLength(0);
+
+    const a = adviseObject({ ...base, dwellingSectors: crossGroup }, { category: "desk", material: "原木" });
+    expect(a.recommendedDirections.length).toBeGreaterThan(0); // 不给空数组
+    expect(a.dwellingNote).not.toBeNull();
+    // 退回的是命卦吉方——它们此时必然**不是**宅卦吉方（交集为空），这一条才是
+    // 真正把「退回」与「过滤」区分开的断言：若实现误把 usable 算成 houseGood，推荐会是空的。
+    for (const r of a.recommendedDirections) {
+      expect(base.verdicts[r.direction].auspicious).toBe(true);
+      expect(crossGroup[r.direction].auspicious).toBe(false);
+    }
   });
 
   it("命宅异组导致交集为空时，退回命卦吉方并在 dwellingNote 说明", () => {

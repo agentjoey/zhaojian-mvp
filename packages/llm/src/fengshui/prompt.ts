@@ -137,6 +137,7 @@ export function buildObjectAdviceSystemPrompt(language: ReadingLanguage = "zh"):
       ...guardrails,
       `${n + 1}. Only use the directions and rules given below — do not invent or add any direction beyond the given facts.`,
       `${n + 2}. Do not assert fated outcomes (e.g. "this will bring wealth" or "this will cause illness") — describe tendencies and everyday experience only.`,
+      `${n + 3}. If a 宅局提示 (dwelling note) is given, it is a deterministic conclusion already shown to the user directly above your text. Stay consistent with it: do not contradict it, do not ignore it, and do not describe the recommended directions as good spots "in this house".`,
       "",
       "Write the given conclusion as 2–3 natural sentences, plain, actionable, and non-deterministic.",
       "Output ONLY those 2–3 sentences — no heading, prefix, or extra explanation.",
@@ -151,6 +152,7 @@ export function buildObjectAdviceSystemPrompt(language: ReadingLanguage = "zh"):
     ...guardrails,
     `${n + 1}. 只准使用给定的方位与规则作答，不得自行推算或新增给定事实之外的方位。`,
     `${n + 2}. 不得断言吉凶后果（如「摆这里会招财/破财/生病」），只描述倾向与日常体验。`,
+    `${n + 3}. 若给了「宅局提示」，那是已经原样展示在你这段话上方的确定性结论。你的措辞必须与它一致：不得反驳、不得忽略，也不得把推荐方位说成「这套房子里的好位置」。`,
     "",
     "把给定的结论写成 2–3 句自然中文，口吻平实、可执行、非决定论。",
     "只输出这 2–3 句本身，不加标题、前后缀或额外说明。",
@@ -158,7 +160,16 @@ export function buildObjectAdviceSystemPrompt(language: ReadingLanguage = "zh"):
   ].join("\n");
 }
 
-/** 物件顾问说人话层的 user prompt：给定结论 + 称呼，不含 language —— 与 {@link buildFengshuiUserPrompt} 一致，事实数据本身不随目标语言变化，由 system prompt 里的语言指令统一控制输出语言。 */
+/**
+ * 物件顾问说人话层的 user prompt：给定结论 + 称呼，不含 language —— 与 {@link buildFengshuiUserPrompt} 一致，
+ * 事实数据本身不随目标语言变化，由 system prompt 里的语言指令统一控制输出语言。
+ *
+ * ⚠️ `dwellingNote` 必须喂进来。八宅的结构决定了「命卦吉方 ∩ 宅卦吉方」只可能是 4 或 0
+ * （东四命的四吉方恰好就是四个东四方，同组则全留、异组则一个不留——枚举 8×8 全部命卦×宅卦
+ * 组合验证过），所以 `usable` 恒等于 `good`：**强版与弱版的 recommendedDirections 逐字节相同**，
+ * `dwellingNote` 是强版唯一多出来的可观察内容。漏掉它，说人话层就会在一句「此宅与你不合」
+ * 旁边浑然不觉地照夸某个方位。
+ */
 export function buildObjectAdviceUserPrompt(advice: ObjectAdvice, opts?: { nickname?: string }): string {
   return [
     `称呼：${opts?.nickname ?? "你"}`,
@@ -168,6 +179,9 @@ export function buildObjectAdviceUserPrompt(advice: ObjectAdvice, opts?: { nickn
     `不宜方位：${advice.avoid.map((r) => `${r.label}（${r.reason}）`).join("；") || "无"}`,
     `品类规则：${advice.categoryRules.join("；")}`,
     `与命主关系：${advice.personalFit}`,
+    advice.dwellingNote
+      ? `宅局提示（确定性结论，用户界面上已原样展示在你这段话上方，你的措辞必须与它一致，不得反驳、不得忽略、不得把这些方位说成"这套房子里的好位置"）：${advice.dwellingNote}`
+      : "",
     advice.intendedVerdict
       ? `用户想放在：${advice.intendedVerdict.direction}，该方为${advice.intendedVerdict.star}（${advice.intendedVerdict.auspicious ? "吉" : "凶"}）`
       : "",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BirthInputSchema, computeUnifiedChart, computeFengshui, adviseObject, FENGSHUI_GUARDRAILS } from "@eamvp/core";
+import { BirthInputSchema, computeUnifiedChart, computeFengshui, adviseObject, directionsFor, FENGSHUI_GUARDRAILS } from "@eamvp/core";
 import { extractFengshuiFacts } from "./facts";
 import {
   buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections, FENGSHUI_SECTION_KEYS,
@@ -153,6 +153,58 @@ describe("Task11 buildObjectAdviceSystemPrompt / buildObjectAdviceUserPrompt", (
     const u = buildObjectAdviceUserPrompt(objectAdvice);
     expect(u).toContain(objectAdvice.categoryLabel);
     expect(u).toContain(objectAdvice.personalFit);
+  });
+
+  /**
+   * dwellingNote 必须进 prompt —— 这是强版物件顾问**唯一**多出来的可观察内容。
+   *
+   * 八宅的结构决定了「命卦吉方 ∩ 宅卦吉方」只可能是 4 或 0（枚举 8×8 全部命卦×宅卦
+   * 组合验证过：东四命的四吉方恰好就是四个东四方，同组则四个全留、异组则一个不留），
+   * 所以 object-advisor 里的 `usable` 恒等于 `good`，强版与弱版的 recommendedDirections
+   * 逐字节相同。漏喂 dwellingNote，说人话层就会在一句「此宅与你不合」旁边照夸方位。
+   *
+   * ⚠️ fixture 必须真的取到异组宅卦：坎命（东四）配乾宅（西四）→ 交集为空 → note 非空。
+   * 下面第一条断言先钉死这个前提，否则后面的断言会退化成恒真。
+   */
+  it("宅局提示非空时进 user prompt，并要求措辞与之一致", () => {
+    const clash = adviseObject(
+      {
+        verdicts: fsChart.personalDirections,
+        affinity: fsChart.elementAffinity,
+        dwellingSectors: directionsFor("乾"), // 西四宅，与坎命（东四）异组
+      },
+      { category: "desk", material: "原木" },
+    );
+    // 前提校验：异组组合确实产出了非空 note。若哪天 core 改了行为，这里先红，
+    // 而不是让下面那条断言悄悄变成「拼一个 null 进去也通过」。
+    expect(clash.dwellingNote).not.toBeNull();
+
+    const u = buildObjectAdviceUserPrompt(clash);
+    expect(u).toContain(clash.dwellingNote!);
+    expect(u).toContain("宅局提示");
+  });
+
+  it("宅局提示为空（同组或弱版）时不往 prompt 里塞空行", () => {
+    // 同组：坎命配坎宅 → 交集非空 → note 为 null，与弱版一致。
+    const same = adviseObject(
+      {
+        verdicts: fsChart.personalDirections,
+        affinity: fsChart.elementAffinity,
+        dwellingSectors: directionsFor("坎"),
+      },
+      { category: "desk", material: "原木" },
+    );
+    expect(same.dwellingNote).toBeNull();
+    expect(buildObjectAdviceUserPrompt(same)).not.toContain("宅局提示");
+    // 弱版（压根没传 dwellingSectors）同样不该出现。
+    expect(buildObjectAdviceUserPrompt(objectAdvice)).not.toContain("宅局提示");
+  });
+
+  it("system prompt 中英两侧都带「不得反驳宅局提示」这条硬规则", () => {
+    // 这条规则是上面 user prompt 那条的另一半：光把 note 喂进去，模型仍可能
+    // 在下一句把同一个方位夸成「这套房子里的好位置」。
+    expect(buildObjectAdviceSystemPrompt("zh")).toContain("宅局提示");
+    expect(buildObjectAdviceSystemPrompt("en")).toMatch(/dwelling note/i);
   });
 });
 
