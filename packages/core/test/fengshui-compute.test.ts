@@ -92,9 +92,24 @@ describe("EP-fs-12 computeFengshui Layer 1", () => {
     expect(other.dwelling.sectors.SE.star).not.toBe(f.dwelling.sectors.SE.star); // 宅卦随朝向变
   });
 
-  it("Layer 1 的化解里含宅层条目（target 提到宅或方位），且仍全部合法", () => {
+  it("Layer 1 的化解里确实含宅层条目，且仍全部合法", () => {
     const f = runL1();
-    expect(f.remedies.length).toBeGreaterThan(run().remedies.length);
+    const l0 = run();
+    expect(f.remedies.length).toBeGreaterThan(l0.remedies.length);
+
+    // 只断言「数量变多」不够——任意两三条合法 Remedy 都能让它通过，
+    // 宅层化解被整个换掉也测不出来。必须认到具体条目。
+    const dwellingIds = f.remedies.filter((r) => r.id.startsWith("fs-dw-")).map((r) => r.id);
+    expect(dwellingIds).toContain("fs-dw-best");
+    expect(dwellingIds).toContain("fs-dw-worst");
+    // 且宅层条目的 target 要指向具体方位（宅八方判语），不是泛泛而谈
+    const best = f.remedies.find((r) => r.id === "fs-dw-best")!;
+    expect(best.target).toMatch(/[东南西北]/);
+    expect(best.traditional).toContain("宅");
+
+    // 个人层条目必须原样保留，不能被宅层挤掉
+    for (const r of l0.remedies) expect(f.remedies.some((x) => x.id === r.id)).toBe(true);
+
     for (const r of f.remedies) {
       if (r.evidence === "传统象征") expect(r.modern).toBeNull();
     }

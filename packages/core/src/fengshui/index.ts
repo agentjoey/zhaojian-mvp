@@ -61,6 +61,10 @@ export function computeFengshui(input: FengshuiInput): FengshuiChart {
     return {
       layer: 0, engineVersion: FENGSHUI_ENGINE_VERSION,
       mingGua, personalDirections, elementAffinity: affinity,
+      // buildPersonalRemedies 内部已排过一次，这里再排是 no-op；保留它是因为
+      // 「产出的化解按什么顺序」应当由组装点负责（Layer 1 分支也在这一层排，
+      // 且要带 tenancy 选项）。若哪天 buildPersonalRemedies 不再内部排序，
+      // 这里不至于悄悄退化成乱序。
       remedies: sortRemedies(personal),
     };
   }
