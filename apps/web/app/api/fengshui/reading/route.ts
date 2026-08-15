@@ -34,9 +34,17 @@ const CohabitantBodySchema = z.object({
   birth: BirthInputSchema,
 });
 
+/**
+ * 同住人数组上限（复审 Minor）：每个同住人服务端都要用 computeUnifiedChart 现算一次
+ * 完整命盘（紫微+八字+西盘）——公开端点若不设上限，N 个同住人就是 N 次重排盘，
+ * 是一个廉价的放大攻击面。8 是留了充分余量的保守上限（正常使用场景里「同住人」
+ * 数量远小于此）。
+ */
+const MAX_COHABITANTS = 8;
+
 const ReadingRequestSchema = BirthInputSchema.extend({
   dwelling: DwellingBodySchema.optional(),
-  cohabitants: z.array(CohabitantBodySchema).optional(),
+  cohabitants: z.array(CohabitantBodySchema).max(MAX_COHABITANTS).optional(),
 });
 
 /**

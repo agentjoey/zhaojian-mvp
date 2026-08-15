@@ -64,9 +64,18 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
  * `dwellingsFixture`/`profilesById` 用 `vi.hoisted` 声明（同下面 `reportStore` 的理由）：
  * 让被提升到文件顶部的 `vi.mock` 工厂能安全闭包到它们。每条测试在 `beforeEach` 里
  * 重置，需要 Layer 1 的测试再显式塞入居所/同住人档案。
+ *
+ * `dwellingsFixture.error`（复审必修2）：模拟 `listDwellings()` 失败。**不用**
+ * `vi.mocked(listDwellings).mockRejectedValueOnce(...)` 这种直接摆弄 mock 实例的写法——
+ * 本文件的 `renderPage()` 每次都 `vi.resetModules()` 后动态 `import("../page")`，
+ * `@/lib/dwellings` 会被重新解析，`vi.mock` 工厂可能重新执行、产出与测试文件顶层
+ * 静态 import 到的**不是同一个** `vi.fn()` 实例，届时 `mockRejectedValueOnce` 覆盖的
+ * 是一个 page.tsx 内部根本不会调用到的旧实例，测试会静默失效。改用工厂内闭包读取的
+ * 共享 `vi.hoisted` 对象（`dwellingsFixture` 本身，同 `.current` 的既有用法）——
+ * 无论工厂被重新调用多少次，读到的都是同一份可变状态，不受 resetModules 影响。
  */
 const { dwellingsFixture, profilesById } = vi.hoisted(() => ({
-  dwellingsFixture: { current: [] as Dwelling[] },
+  dwellingsFixture: { current: [] as Dwelling[], error: null as unknown },
   profilesById: new Map<string, unknown>(),
 }));
 
@@ -75,7 +84,10 @@ vi.mock("@/lib/profiles", () => ({
   getProfile: vi.fn(async (id: string) => profilesById.get(id) ?? null),
 }));
 vi.mock("@/lib/dwellings", () => ({
-  listDwellings: vi.fn(async () => dwellingsFixture.current),
+  listDwellings: vi.fn(async () => {
+    if (dwellingsFixture.error) throw dwellingsFixture.error;
+    return dwellingsFixture.current;
+  }),
 }));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
@@ -145,6 +157,7 @@ beforeEach(() => {
   localStorage.clear();
   reportStore.clear();
   dwellingsFixture.current = [];
+  dwellingsFixture.error = null;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false })));
@@ -192,11 +205,16 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument();
   });
 
-  it("flag 关闭时显示未开启文案，不渲染盘", async () => {
+  it("flag 关闭时显示未开启文案，不渲染盘，也不渲染 tabs（复审 Minor）", async () => {
     vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "");
     await renderPage();
     expect(screen.getByText("「境」尚未开启。")).toBeInTheDocument();
     expect(screen.queryByLabelText("八方吉凶盘")).toBeNull();
+    // 只查盘图挡不住「把 flag 检查下移到盘图渲染处、tabs 本身仍然渲染」这种改法——
+    // tabs（盘/化解/添置）也必须一并不存在。
+    expect(screen.queryByRole("button", { name: "盘" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "化解" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "添置" })).toBeNull();
   });
 });
 
@@ -303,6 +321,146 @@ describe("EP-fs-15 Layer 1 与 Tab", () => {
     for (const r of l1.remedies) {
       expect(screen.getByText(r.action)).toBeInTheDocument();
     }
+  });
+});
+
+describe("EP-fs-15 Layer 1 指纹与缓存（复审必修1：指纹须真正随居所字段变化）", () => {
+  // 居所朝向「南」+ 同住人 p2；与顶部 dwellingL1() 默认值一致，这里显式重写一份
+  // 而非依赖默认参数，避免默认值将来被别处改动时这里的期望悄悄漂移。
+  const dwelling = dwellingL1(["p2"]);
+
+  it("命中用真实居所字段（facing + memberProfileIds）算出的指纹缓存时，不发起请求", async () => {
+    dwellingsFixture.current = [dwelling];
+    const fp = fengshuiFingerprint({
+      profileId: "p1", locale: "zh", engineVersion: FENGSHUI_ENGINE_VERSION,
+      dwelling: { id: dwelling.id, facing: dwelling.facing!, tenancy: dwelling.tenancy, kind: dwelling.kind },
+      memberProfileIds: dwelling.memberProfileIds,
+    });
+    reportStore.set(fp, { situation: "L1-FP-HIT", youAndSpace: "y", actions: "a" });
+    const fetchSpy = vi.fn(async () => new Response("不该被调用到"));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText("L1-FP-HIT")).toBeInTheDocument());
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("朝向变化后不再命中旧指纹（旧报告按朝向「南」缓存，实际居所朝向已变成「北」），重新发起请求且请求恰好一次", async () => {
+    dwellingsFixture.current = [{ ...dwelling, facing: "N" }];
+    const staleFp = fengshuiFingerprint({
+      profileId: "p1", locale: "zh", engineVersion: FENGSHUI_ENGINE_VERSION,
+      dwelling: { id: dwelling.id, facing: "S", tenancy: dwelling.tenancy, kind: dwelling.kind },
+      memberProfileIds: dwelling.memberProfileIds,
+    });
+    reportStore.set(staleFp, { situation: "STALE-FACING", youAndSpace: "y", actions: "a" });
+    const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    expect(screen.queryByText("STALE-FACING")).toBeNull();
+    // 顺带修：Layer 1 有专门的守卫防止「居所未落定先按 Layer 0 请求一次、居所到手
+    // 再请求一次」的双倍 LLM 账单，但该守卫此前零断言。这里锁定恰好一次。
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("同住人集合变化后不再命中旧指纹（旧报告按「无同住人」缓存，实际已有同住人 p2），重新发起请求", async () => {
+    dwellingsFixture.current = [dwelling]; // memberProfileIds: ["p2"]
+    const staleFp = fengshuiFingerprint({
+      profileId: "p1", locale: "zh", engineVersion: FENGSHUI_ENGINE_VERSION,
+      dwelling: { id: dwelling.id, facing: dwelling.facing!, tenancy: dwelling.tenancy, kind: dwelling.kind },
+      memberProfileIds: [],
+    });
+    reportStore.set(staleFp, { situation: "STALE-MEMBERS", youAndSpace: "y", actions: "a" });
+    const fetchSpy = vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await renderPage();
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    expect(screen.queryByText("STALE-MEMBERS")).toBeNull();
+  });
+});
+
+describe("EP-fs-15 居所读取失败（复审必修2）", () => {
+  it("listDwellings 失败时显示「居所读取失败」+ 重试入口，而不是「还没登记居所」；且留痕（console.warn）", async () => {
+    dwellingsFixture.error = new Error("supabase 抖动");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText(/居所读取失败/)).toBeInTheDocument());
+    // 两者对用户是完全不同的意思：读取失败 ≠ 确认为空。绝不能把一次 Supabase 抖动
+    // 误判成「还没登记」，那会诱导用户重复登记已存在的居所。
+    expect(screen.queryByText(/还没登记居所/)).toBeNull();
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it("点击重试后重新调用 listDwellings，成功后恢复正常渲染、错误提示消失", async () => {
+    dwellingsFixture.error = new Error("supabase 抖动");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/居所读取失败/)).toBeInTheDocument());
+
+    dwellingsFixture.error = null;
+    dwellingsFixture.current = [dwellingL1()];
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+    expect(screen.queryByText(/居所读取失败/)).toBeNull();
+  });
+});
+
+describe("withTimeout（复审必修2 次级风险：请求永远 pending 也不能让用户什么都看不到）", () => {
+  // page.tsx 原来的居所加载 IIFE 只在 listDwellings() 外套了一层 `.catch(() => [])`——
+  // 若该请求既不 resolve 也不 reject（真实网络里完全可能），下面的 await 会永远卡住：
+  // dwellingsError 永远不会置位，narrative-fetch 的守卫也永远等不到 dwellings 落定，
+  // 用户什么提示都看不到，比「显示错误」更差。用超时把「永远 pending」转换成
+  // 「有限时间后 reject」，纳入统一的 catch 处理。这里直接单测这个转换本身（用很小的
+  // ms 值 + 真实定时器），不必也不该为了验证它去真的等 page.tsx 里生产用的超时时长。
+  it("包裹的 promise 永远不 settle 时，超时后以超时错误 reject，而不是永远挂起", async () => {
+    const { withTimeout } = await import("../page");
+    const neverSettles = new Promise<never>(() => {});
+    await expect(withTimeout(neverSettles, 20)).rejects.toThrow();
+  });
+
+  it("包裹的 promise 先于超时正常 resolve 时，原样透传结果", async () => {
+    const { withTimeout } = await import("../page");
+    await expect(withTimeout(Promise.resolve("ok"), 1000)).resolves.toBe("ok");
+  });
+
+  it("包裹的 promise 先于超时 reject 时，原样透传该错误（不是超时错误）", async () => {
+    const { withTimeout } = await import("../page");
+    await expect(withTimeout(Promise.reject(new Error("原始错误")), 1000)).rejects.toThrow("原始错误");
+  });
+});
+
+describe("EP-fs-15 命宅相配/相冲判语（复审必修3）", () => {
+  // f.dwelling.matchWithPerson 每张 Layer 1 盘都算好了，且 core 的 buildDwellingRemedies
+  // 已经在用它生成宅层化解——页面此前对这个判语零展示，用户看不到「同屏两个标签合不合」。
+
+  it("命卦与宅卦同组时，显示「相配」对应的判语", async () => {
+    dwellingsFixture.current = [dwellingL1()]; // 向南 → 坐北 → 坎宅（东四宅），与主档案坎(东四命)同组
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+    expect(screen.getByText("你的本命卦与这套宅子同组，整体气场比较合拍。")).toBeInTheDocument();
+  });
+
+  it("命卦与宅卦不同组时，显示「相冲」对应的非决定论判语——不下断语，重点落在自己的四吉方", async () => {
+    dwellingsFixture.current = [
+      { id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "SE", memberProfileIds: [] },
+    ]; // 向东南 → 坐西北 → 乾宅（西四宅），与主档案坎(东四命)不同组
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("乾宅")).toBeInTheDocument());
+    expect(
+      screen.getByText("你的本命卦与这套宅子不同组，不必因此忧虑——把重点放在你自己的四吉方即可。"),
+    ).toBeInTheDocument();
   });
 });
 

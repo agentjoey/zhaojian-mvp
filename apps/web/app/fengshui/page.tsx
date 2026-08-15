@@ -32,6 +32,38 @@ export function truncateForSpiritQuery(text: string, max = SPIRIT_QUERY_MAX_LEN)
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+/** 居所加载超时（复审必修2 次级风险）：见下方 withTimeout 的文档。 */
+const DWELLINGS_TIMEOUT_MS = 8000;
+
+/**
+ * 把「可能永远不 resolve/reject 的 promise」转成「有限时间后必然 settle」。
+ *
+ * 背景：居所加载的 IIFE 原来只在 `listDwellings()` 外套了一层 `.catch(() => [])`——
+ * 这只挡得住会 **reject** 的失败。真实网络里还有一种更差的失败模式：请求既不 resolve
+ * 也不 reject（连接被静默挂起、代理超时不返回等）。这种情况下 `await` 会永远卡住，
+ * `dwellingsError` 永远不会置位，narrative-fetch 的守卫也永远等不到 `dwellings`
+ * 落定——用户界面上什么提示都不会出现，是比「显示一条错误」更差的静默挂起。
+ * 用 `Promise.race` 兜底：超时后视为失败，纳入调用方统一的 catch 处理，
+ * 保证用户在有限时间内至少能看到点什么（错误提示 + 重试入口）。
+ * 导出供测试直接验证这个转换本身，不必也不该为了验证它去真的等
+ * `DWELLINGS_TIMEOUT_MS` 那么久。
+ */
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`超时（${ms}ms）：请求未在预期时间内完成`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 /**
  * 叙述分节的标题键。**不要借用 directionsTitle / affinityTitle** ——
  * 那两个描述的是下方确定性区块（八方吉凶、宜用色与材），与叙述分节语义不同。
@@ -74,6 +106,13 @@ export default function FengshuiPage() {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [dwellings, setDwellings] = useState<Dwelling[] | undefined>(undefined);
   const [cohabitantProfiles, setCohabitantProfiles] = useState<Profile[] | undefined>(undefined);
+  // 复审必修2：居所读取失败（区别于「读取成功、确认没有居所」）。UI 据此显示
+  // 「读取失败 + 重试」而不是「还没登记居所」——两者对用户是完全不同的意思，
+  // 把前者误判成后者会诱导用户重复登记一个其实已经存在的居所。
+  const [dwellingsError, setDwellingsError] = useState(false);
+  // 点一次「重试」就 +1，出现在下面居所加载 effect 的依赖数组里，复用与
+  // narrative 的 retryNonce 相同的手法：不改变 profile 也能强制重新跑一遍。
+  const [dwellingsRetryNonce, setDwellingsRetryNonce] = useState(0);
   const [tab, setTab] = useState<Tab>("chart");
   const [viewAs, setViewAs] = useState<string>("main");
   const [sections, setSections] = useState<FengshuiSections | null>(null);
@@ -101,25 +140,52 @@ export default function FengshuiPage() {
   // 同一个微任务回调内先后调用，React 会把它们批处理进同一次渲染——比拆成两个各自
   // 独立触发的 effect 少两次中间渲染/生效周期。单个同住人档案加载失败（如已被删除）
   // 不连累整体——过滤掉即可。
+  //
+  // 复审必修2：整个 IIFE 套一层 try/catch（而不是只在 listDwellings() 后面挂
+  // `.catch(() => [])`）——任何一步（含 listDwellings 本身、后续的同住人档案加载）
+  // 出错都要落到同一条「读取失败」路径，而不是让异常静默变成 unhandled rejection、
+  // dwellings 永远停在 undefined、narrative-fetch 的守卫永远等不到它落定。
+  // withTimeout 兜底更极端的失败模式——请求既不 resolve 也不 reject——保证用户
+  // 在有限时间内总能看到错误提示 + 重试入口，而不是无限期的空白/加载态。
   useEffect(() => {
     if (!ENABLED || !profile) return;
     let cancelled = false;
     (async () => {
-      const list = await listDwellings().catch(() => [] as Dwelling[]);
-      if (cancelled) return;
-      const d = list[0];
-      const ids = d?.facing ? d.memberProfileIds : [];
-      const members = ids.length
-        ? (await Promise.all(ids.map((id) => getProfile(id).catch(() => null)))).filter((p): p is Profile => p != null)
-        : [];
-      if (cancelled) return;
-      setDwellings(list);
-      setCohabitantProfiles(members);
+      try {
+        const { list, members } = await withTimeout(
+          (async () => {
+            const l = await listDwellings();
+            const d = l[0];
+            const ids = d?.facing ? d.memberProfileIds : [];
+            const m = ids.length
+              ? (await Promise.all(ids.map((id) => getProfile(id).catch(() => null)))).filter(
+                  (p): p is Profile => p != null,
+                )
+              : [];
+            return { list: l, members: m };
+          })(),
+          DWELLINGS_TIMEOUT_MS,
+        );
+        if (cancelled) return;
+        setDwellingsError(false);
+        setDwellings(list);
+        setCohabitantProfiles(members);
+      } catch (e) {
+        // ⚠️ 不能静默：把一次 Supabase 抖动（或纯粹的网络挂起）当成「用户还没登记
+        // 居所」会把已有居所说成不存在，诱导重复登记。留痕 + 显式失败态 + 重试入口
+        // （而不是复用 noDwelling 文案）；仍落定 dwellings/cohabitantProfiles 为
+        // 空数组，让页面按 Layer 0 继续可用（不因为居所读取失败连累整个「境」页）。
+        console.warn("[fengshui] 居所读取失败，按未登记处理并提示重试", e);
+        if (cancelled) return;
+        setDwellingsError(true);
+        setDwellings([]);
+        setCohabitantProfiles([]);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [profile]);
+  }, [profile, dwellingsRetryNonce]);
 
   const dwelling = dwellings?.[0] ?? null;
 
@@ -221,6 +287,10 @@ export default function FengshuiPage() {
 
   function regenerate() {
     setRetryNonce((n) => n + 1);
+  }
+
+  function retryDwellings() {
+    setDwellingsRetryNonce((n) => n + 1);
   }
 
   if (!ENABLED) return <Centered>{t("fengshui.notEnabled")}</Centered>;
@@ -350,13 +420,31 @@ export default function FengshuiPage() {
                 <p className="mt-2 text-[13px] text-ink-2">
                   {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
                 </p>
+                {/* 复审必修3：同屏已并排显示「本命卦（东/西四命）」与「宅卦（东/西四命）」
+                    两个标签，此前从不说这俩合不合——而 core 的 buildDwellingRemedies 早已
+                    在用这个判语生成宅层化解。措辞非决定论：「相冲」≠「这房子不能住」。 */}
+                <p className="mt-1 text-[13px] text-ink-2">
+                  {t(`fengshui.matchNote.${f.dwelling.matchWithPerson}`)}
+                </p>
               </div>
             </section>
           )}
 
           {f.layer === 0 && dwellings !== undefined && (
             <section className="mt-8">
-              {dwelling ? (
+              {dwellingsError ? (
+                <div>
+                  <p className="text-[13px] text-muted">{t("fengshui.dwellingsError")}</p>
+                  <button
+                    type="button"
+                    onClick={retryDwellings}
+                    className="mt-2 text-[13px]"
+                    style={{ color: "var(--color-cinnabar)" }}
+                  >
+                    {t("fengshui.retryDwellings")}
+                  </button>
+                </div>
+              ) : dwelling ? (
                 <p className="text-[13px] text-muted">{t("fengshui.facingUnknownNote")}</p>
               ) : (
                 <div>

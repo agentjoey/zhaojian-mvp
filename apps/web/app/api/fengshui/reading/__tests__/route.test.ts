@@ -146,3 +146,25 @@ describe("POST /api/fengshui/reading — Layer 1 居所与合看（Task 9/EP-fs-
     expect(generateFengshuiReadingMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 复审 Minor：cohabitants 数组此前无长度上限。每个同住人服务端都要用
+ * computeUnifiedChart 现算一次完整命盘（紫微+八字+西盘）——公开端点上不设上限，
+ * N 个同住人就是 N 次重排盘，是一个廉价的放大攻击面。
+ */
+describe("POST /api/fengshui/reading — cohabitants 上限（复审 Minor）", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => ({ profileId: `p${i}`, name: `人${i}`, birth }));
+
+  it("cohabitants 恰好 8 人时仍正常处理（边界未被误伤）", async () => {
+    generateFengshuiReadingMock.mockResolvedValue(VALID_READING);
+    const res = await POST(req({ ...birth, cohabitants: many(8) }));
+    expect(res.status).toBe(200);
+    expect(generateFengshuiReadingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cohabitants 超过 8 人时返回 400，不触发任何重排盘或 LLM 调用", async () => {
+    const res = await POST(req({ ...birth, cohabitants: many(9) }));
+    expect(res.status).toBe(400);
+    expect(generateFengshuiReadingMock).not.toHaveBeenCalled();
+  });
+});

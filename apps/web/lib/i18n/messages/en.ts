@@ -338,6 +338,12 @@ export const en: Messages = {
     noDwelling: "No dwelling registered yet — add a front door facing and see how the eight directions play out for you in this home.",
     addDwelling: "Register a dwelling",
     facingUnknownNote: "This dwelling's facing isn't set, so suggestions below are based on your natal directions only.",
+    dwellingsError: "Couldn't load your dwellings — this doesn't mean none are registered. Please try again.",
+    retryDwellings: "Retry",
+    matchNote: {
+      相配: "Your life gua and this home's gua are in the same group — the overall energy tends to align well.",
+      相冲: "Your life gua and this home's gua are in different groups. No need to worry — just focus on your own four auspicious directions.",
+    },
     narrativeSections: {
       situation: "The Layout",
       youAndSpace: "You and Your Space",
