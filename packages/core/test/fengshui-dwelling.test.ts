@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DIRECTIONS } from "../src/fengshui/directions";
+import { DIRECTIONS, OPPOSITE } from "../src/fengshui/directions";
 import { dwellingGua, matchWithPerson } from "../src/fengshui/dwelling";
 import type { MingGua } from "../src/fengshui/ming-gua";
 
@@ -29,11 +29,26 @@ describe("EP-fs-12 宅卦", () => {
     expect(dwellingGua("NE").group).toBe("西四宅");
   });
 
-  it("八个朝向都能算出宅卦，且坐向互为对宫", () => {
+  // 前三条只覆盖了 S/N/NW/SE/NE 五个朝向，补齐余下三个——
+  // 否则只改坏 E/W/SW 的实现能全绿通过
+  it("向东 → 坐西 → 兑宅（西四）；向西 → 坐东 → 震宅（东四）；向西南 → 坐东北 → 艮宅（西四）", () => {
+    expect(dwellingGua("E").guaName).toBe("兑");
+    expect(dwellingGua("E").group).toBe("西四宅");
+    expect(dwellingGua("W").guaName).toBe("震");
+    expect(dwellingGua("W").group).toBe("东四宅");
+    expect(dwellingGua("SW").guaName).toBe("艮");
+    expect(dwellingGua("SW").group).toBe("西四宅");
+  });
+
+  it("八个朝向都能算出宅卦，且坐必为向的对宫", () => {
     for (const f of DIRECTIONS) {
       const d = dwellingGua(f);
       expect(d.facing).toBe(f);
-      expect(dwellingGua(d.sitting).sitting).toBe(f);
+      // ⚠️ 不要写成 `dwellingGua(d.sitting).sitting === f`——那条对**恒等函数**同样成立
+      // （f(f(x))===x 对对合与恒等都为真），把 sitting=OPPOSITE[facing] 改成 sitting=facing
+      // 也照样全绿，等于对「坐向搞反」这个本测试点名要防的 bug 零保护。必须直接比对宫表。
+      expect(d.sitting).toBe(OPPOSITE[f]);
+      expect(d.sitting).not.toBe(f);
       expect(Object.keys(d.sectors)).toHaveLength(8);
     }
   });
