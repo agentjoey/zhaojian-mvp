@@ -75,7 +75,14 @@ lib/fengshui-cache.ts  fengshuiCacheKey/readFengshuiCache/writeFengshuiCache  //
 - Consumes: 既有 `auth.users`、`profiles`
 - Produces: 表 `dwellings`、`fengshui_reports`（供 Task 7 的数据访问层使用）
 
-> **本 task 只写 SQL 文件，不要尝试连接或修改任何线上数据库。** apply 由 controller 经 Supabase MCP 执行。
+> ## ✅ 本 Task 已由 controller 完成（2026-08-15），执行时**跳过**
+>
+> SQL 文件已落 `supabase/migrations/0011_dwellings.sql`，并经 Supabase MCP apply 到生产项目 `zhaojian`（`sxjcpoxhphlnwhpzachi`）。已核实：
+> - 两张新表创建成功、0 行、RLS 已启用；安全顾问**未报** `rls_enabled_no_policy`（对比既有 `llm_usage` 那条 INFO）
+> - 策略表达式经 `pg_policies` 核对：`own_all` 的 `qual` 与 `with_check` **双向**均为 `auth.uid() = uid`（`with_check` 缺失会让用户能写入带他人 uid 的行）
+> - Layer 2 三字段（`facing_degrees`/`built_year`/`layout`）存在且可空 → 飞星层零迁移
+> - 既有五张表数据未动（profiles 40 行 / spirit_messages 136 行 / tg_users 1 / entitlements 1 / llm_usage 0）
+> - 唯一命中新表的顾问项是 `auth_allow_anonymous_sign_ins`，但既有五表全部命中同一条——本产品认证模型就是 Supabase 匿名登录，属设计如此
 
 - [ ] **Step 1: 写迁移文件**
 
