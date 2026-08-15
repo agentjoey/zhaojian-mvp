@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   adviseObject, OBJECT_CATEGORIES, CATEGORY_LABEL, DIRECTIONS, DIRECTION_LABEL,
   type FengshuiChart, type ObjectAdvice, type ObjectCategory, type Direction,
+  type DirectionVerdict,
 } from "@eamvp/core";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { Card, Button } from "@/components/ui";
@@ -17,8 +18,22 @@ const SHAPES = ["长条", "方", "圆", "尖锐", "波浪"];
 
 const SELECT_CLASS = "w-full rounded-[var(--radius-button)] border border-line bg-surface px-3 py-2 text-[14px] text-ink";
 
-/** 物件顾问（EP-fs-08）。建议在客户端确定性算出；LLM 只润色成句，失败不影响可用性。 */
-export function ObjectAdvisorForm({ fs }: { fs: FengshuiChart }) {
+/**
+ * 物件顾问（EP-fs-08）。建议在客户端确定性算出；LLM 只润色成句，失败不影响可用性。
+ *
+ * `dwellingSectors`（EP-fs-18 强版，可选）：**宅卦**八方判语（`dwellingGua(facing).sectors`），
+ * 与 `fs.personalDirections`（**命卦**八方）是两套，页面上不混用。传了就叠加一层
+ * ——推荐位需同时是命卦吉方与宅卦吉方；不传就是波1 弱版，行为逐字节不变。
+ * 传不传由调用方（`object/page.tsx`）按「已确认会员资格 + 确实有朝向已知的居所」
+ * 决定，本组件不做闸门判断，只忠实透传。
+ */
+export function ObjectAdvisorForm({
+  fs,
+  dwellingSectors,
+}: {
+  fs: FengshuiChart;
+  dwellingSectors?: Record<Direction, DirectionVerdict>;
+}) {
   const t = useT();
   const { locale } = useLocale();
   const [category, setCategory] = useState<ObjectCategory>("desk");
@@ -30,7 +45,7 @@ export function ObjectAdvisorForm({ fs }: { fs: FengshuiChart }) {
 
   function submit() {
     const a = adviseObject(
-      { verdicts: fs.personalDirections, affinity: fs.elementAffinity },
+      { verdicts: fs.personalDirections, affinity: fs.elementAffinity, dwellingSectors },
       {
         category,
         material: material || undefined,
@@ -80,6 +95,16 @@ export function ObjectAdvisorForm({ fs }: { fs: FengshuiChart }) {
 
       {advice && (
         <Card className="mt-6 p-4">
+          {/* 命卦吉方与宅卦吉方交集为空时，core 会退回命卦吉方并把原因写进
+              `dwellingNote`。放在卡片最顶上：它解释的是「下面这些推荐位是怎么来的」，
+              读者得先看到这句才不会把「推荐位对这套房子并不吉」当成算错。
+              正文直接取 `advice.dwellingNote`（引擎结论），不在 web 层另写一份。 */}
+          {advice.dwellingNote && (
+            <div className="mb-3 p-3" style={{ borderRadius: "var(--radius-card)", background: "var(--color-tint)" }}>
+              <h3 className="text-[13px] text-ink">{t("fengshui.object.dwellingNoteTitle")}</h3>
+              <p className="mt-1 text-[13px] text-ink-2">{advice.dwellingNote}</p>
+            </div>
+          )}
           {prose && <p className="mb-3 text-[15px] text-ink">{prose}</p>}
           <p className="text-[13px] text-muted">
             {t("fengshui.object.elementOf")}：{advice.elementOfObject ?? "—"}

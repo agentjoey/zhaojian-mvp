@@ -382,6 +382,8 @@ export const en: Messages = {
       rules: "What matters for this kind of piece",
       fit: "How it relates to you",
       intended: "Where you planned to put it",
+      dwellingNoteTitle: "About this home",
+      dwellingUnknown: "We couldn't confirm your membership just now, so the suggestions below use your natal directions only — it doesn't mean you lack access.",
     },
     dwelling: {
       title: "My Dwellings",
