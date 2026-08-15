@@ -56,13 +56,20 @@ export function BaguaWheel({
   verdicts,
   centerLabel,
   size = 320,
+  ariaLabel = "八方吉凶盘",
 }: {
   verdicts: Record<Direction, DirectionVerdict>;
   centerLabel: string;
   size?: number;
+  /**
+   * EP-fs-15：Layer 1 时页面同时渲染本命八方与房屋八方两个盘，默认标签相同会让
+   * `getByLabelText` 等按无障碍标签定位的查询/辅助技术无法区分两者。默认值保持
+   * 波1 的字面量不变，向后兼容所有既有调用方；仅第二个盘实例需要显式传入。
+   */
+  ariaLabel?: string;
 }) {
   return (
-    <svg viewBox="0 0 320 320" width={size} height={size} role="img" aria-label="八方吉凶盘">
+    <svg viewBox="0 0 320 320" width={size} height={size} role="img" aria-label={ariaLabel}>
       {DIRECTIONS.map((d, i) => {
         const v = verdicts[d];
         const [lx, ly] = polar((R_OUT + R_IN) / 2, i * 45);

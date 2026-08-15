@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { computeFengshui, FENGSHUI_ENGINE_VERSION, type FengshuiChart } from "@eamvp/core";
-import { getActiveProfile, type Profile } from "@/lib/profiles";
+import {
+  computeFengshui, FENGSHUI_ENGINE_VERSION, directionsFor, DIRECTION_LABEL,
+  type FengshuiChart, type DwellingInput, type CohabitantInput,
+} from "@eamvp/core";
+import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
+import { listDwellings, type Dwelling } from "@/lib/dwellings";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
@@ -31,36 +35,47 @@ export function truncateForSpiritQuery(text: string, max = SPIRIT_QUERY_MAX_LEN)
 /**
  * 叙述分节的标题键。**不要借用 directionsTitle / affinityTitle** ——
  * 那两个描述的是下方确定性区块（八方吉凶、宜用色与材），与叙述分节语义不同。
- * 本页只渲染前两节：第三节「可做的事」由下方确定性化解清单承担，
- * 它带成本分级与传统/现代对照，比叙述版更有信息量。
+ * situation/youAndSpace 渲染在「盘」tab（与盘图同属「这是什么情况」）；
+ * actions 分节沿用「可做的事」标题、渲染在「化解」tab，直接接在确定性化解清单
+ * 的同一个标题下面（避免「可做的事」这个标题在页面上出现两次）。
  */
 const SECTION_HEADING_KEY = {
   situation: "fengshui.narrativeSections.situation",
   youAndSpace: "fengshui.narrativeSections.youAndSpace",
 } as const;
 
+const TABS = ["chart", "remedy", "object"] as const;
+type Tab = (typeof TABS)[number];
+
 /**
- * 「境」页（EP-fs-07）。骨架——命卦、八方盘、化解清单——全部确定性计算，
- * 与 LLM 无关、永远可得；叙述层由 LLM 生成，是唯一会失败/降级的部分。
- * 两档降级路径都不留白页，只在骨架旁边加一行可见提示 + 重试入口：
+ * 「境」页（EP-fs-07 骨架 + Task 9/EP-fs-15 Tab 化）。骨架——命卦、八方盘、化解
+ * 清单——全部确定性计算，与 LLM 无关、永远可得；叙述层由 LLM 生成，是唯一会
+ * 失败/降级的部分。两档降级路径都不留白页，只在骨架旁边加一行可见提示 + 重试入口：
  *   1. failed  —— 请求本身失败（网络/超时/非 2xx）：没有叙述可显示。
  *   2. degraded —— 请求成功，但 generateFengshuiReading 判定模型说错过
  *      确定性事实（方位↔星名对不上），已被机械纠正。纠正只救得回星名，
  *      救不回建立在错方位上的整段叙述，所以不能把它当正常结果直接渲染
  *      （见 @eamvp/llm 的 FengshuiReading.degraded 文档）；也不写入缓存，
  *      避免一份带瑕疵的报告被永久复用。
+ * degraded/failed 提示在「盘」「化解」两个 tab 各自独立渲染（`NarrativeStatus`）——
+ * 二者共用同一份 sections/degraded/failed 状态，只是分别嵌在各自 tab 里，不是重复请求。
  *
- * Task 14 复审必修1：route 返回 JSON（`{ sections, degraded }`），页面按三个分节
- * （situation/youAndSpace/actions）渲染，每节标题走 i18n、样式与页面其余 H2 一致；
- * 不再把整段 markdown（含字面 `## ` 标题行）整体丢给 <Markdown> 渲染。
- * `actions` 分节复用「可做的事」标题、直接接在确定性化解清单的同一个标题下面
- * （叙述先给一段自然语言小结，紧接着是清单本身）——避免「可做的事」这个标题在
- * 页面上出现两次。
+ * Task 9（EP-fs-15）新增：
+ *  - 有居所（`listDwellings()` 第一条，facing 非 null）时叠加 Layer 1——宅卦、宅八方、
+ *    宅层化解、合看。facing 为 null（用户选「不确定」）时保持 Layer 0，只提示未设置。
+ *  - 合看 chips：默认按主档案「我」的 `personalDirections` 给盘图着色；切到某位同住人
+ *    时改用 `directionsFor(该人命卦)` 着色——这是八宅「同一套房对不同人不同」的直接
+ *    体现，不是修辞。宅八方盘（`dwelling.sectors`）本身不随 viewAs 变化——它是房子
+ *    自己的卦定的，与住的是谁无关；变的是「这个方位对当前选中的人是否吉」。
  */
 export default function FengshuiPage() {
   const t = useT();
   const { locale } = useLocale();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
+  const [dwellings, setDwellings] = useState<Dwelling[] | undefined>(undefined);
+  const [cohabitantProfiles, setCohabitantProfiles] = useState<Profile[] | undefined>(undefined);
+  const [tab, setTab] = useState<Tab>("chart");
+  const [viewAs, setViewAs] = useState<string>("main");
   const [sections, setSections] = useState<FengshuiSections | null>(null);
   const [failed, setFailed] = useState(false);
   const [degraded, setDegraded] = useState(false);
@@ -79,14 +94,62 @@ export default function FengshuiPage() {
       .catch(() => setProfile(null));
   }, []);
 
+  // 居所：取第一个（多居所切换属会员权益，Task 10 处理）。依赖 profile 而非并行加载，
+  // 避免「profile 就绪但 dwellings 未就绪」这个中间态被误当成 Layer 0 触发一次多余的
+  // LLM 请求（narrative-fetch effect 专门等两者都落定后才发起，见下）。
+  // 两步（居所→合看成员）合在同一个 effect/同一条 promise 链里，两个 setState 在
+  // 同一个微任务回调内先后调用，React 会把它们批处理进同一次渲染——比拆成两个各自
+  // 独立触发的 effect 少两次中间渲染/生效周期。单个同住人档案加载失败（如已被删除）
+  // 不连累整体——过滤掉即可。
+  useEffect(() => {
+    if (!ENABLED || !profile) return;
+    let cancelled = false;
+    (async () => {
+      const list = await listDwellings().catch(() => [] as Dwelling[]);
+      if (cancelled) return;
+      const d = list[0];
+      const ids = d?.facing ? d.memberProfileIds : [];
+      const members = ids.length
+        ? (await Promise.all(ids.map((id) => getProfile(id).catch(() => null)))).filter((p): p is Profile => p != null)
+        : [];
+      if (cancelled) return;
+      setDwellings(list);
+      setCohabitantProfiles(members);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
+
+  const dwelling = dwellings?.[0] ?? null;
+
+  // Layer 1 入参：facing 为 null（不确定）时不传 dwelling，调用方（computeFengshui）
+  // 据此走 Layer 0——「不确定就不猜」，见 packages/core/src/fengshui/dwelling.ts。
+  const dwellingInput: DwellingInput | undefined = useMemo(() => {
+    if (!dwelling || !dwelling.facing) return undefined;
+    return { id: dwelling.id, name: dwelling.name, kind: dwelling.kind, tenancy: dwelling.tenancy, facing: dwelling.facing };
+  }, [dwelling]);
+
+  const cohabitantInputs: CohabitantInput[] | undefined = useMemo(() => {
+    if (!dwellingInput) return undefined;
+    return (cohabitantProfiles ?? []).map((p) => ({
+      profileId: p.id, name: p.nickname, birth: p.birthInput, chart: p.chart,
+    }));
+  }, [dwellingInput, cohabitantProfiles]);
+
   // 确定性派生：与 LLM 无关，永远可得
   const fs: FengshuiChart | null = useMemo(
-    () => (profile ? computeFengshui({ birth: profile.birthInput, chart: profile.chart }) : null),
-    [profile],
+    () =>
+      profile
+        ? computeFengshui({ birth: profile.birthInput, chart: profile.chart, dwelling: dwellingInput, cohabitants: cohabitantInputs })
+        : null,
+    [profile, dwellingInput, cohabitantInputs],
   );
 
   useEffect(() => {
-    if (!profile || !fs) return;
+    // dwellings/cohabitantProfiles 未落定前不发起请求——否则「profile 就绪但居所还在
+    // 加载」这个瞬间会先按 Layer 0 请求一次，居所到手后 fs 变成 Layer 1 又请求第二次。
+    if (!profile || !fs || dwellings === undefined || cohabitantProfiles === undefined) return;
     // 竞态保护：locale 切换 / 点击重试都会让本 effect 重新跑一遍，可能与上一次
     // 尚未落定的异步链路同时在途。用 `cancelled` 标志确保只有「最新一次」的
     // then/catch 真正写状态，旧的一律作废——否则旧响应可能在新响应之后才落定，
@@ -99,13 +162,15 @@ export default function FengshuiPage() {
     setDegraded(false);
     setSections(null);
 
-    // Task 7（EP-fs-16）：波1 的 localStorage 缓存已废弃，报告改走服务端
-    // fengshui_reports + input_fingerprint。本页尚未接入居所 Tab（留给 Task 9），
-    // 先恒定按 Layer 0（无居所、无同住人）算指纹——判别力与波1
-    // 「(profileId, 引擎版本, locale)」缓存键等价。
+    // Task 7/9（EP-fs-16）：报告按指纹持久化到服务端 fengshui_reports。指纹带上
+    // 居所关键字段与 memberProfileIds，改朝向/增减同住人都会让旧报告失效——
+    // 未形成 Layer 1（facing 未定或无居所）时统一按 Layer 0 算指纹，与波1 等价。
     const fp = fengshuiFingerprint({
       profileId: profile.id, locale, engineVersion: FENGSHUI_ENGINE_VERSION,
-      dwelling: null, memberProfileIds: [],
+      dwelling: dwellingInput
+        ? { id: dwellingInput.id, facing: dwellingInput.facing, tenancy: dwellingInput.tenancy, kind: dwellingInput.kind }
+        : null,
+      memberProfileIds: dwellingInput ? (dwelling?.memberProfileIds ?? []) : [],
     });
 
     (async () => {
@@ -124,7 +189,13 @@ export default function FengshuiPage() {
         const r = await fetch("/api/fengshui/reading", {
           method: "POST",
           headers: { "content-type": "application/json", "x-zj-locale": locale },
-          body: JSON.stringify(profile.birthInput),
+          body: JSON.stringify({
+            ...profile.birthInput,
+            dwelling: dwellingInput,
+            cohabitants: (cohabitantProfiles ?? []).map((p) => ({
+              profileId: p.id, name: p.nickname, birth: p.birthInput,
+            })),
+          }),
         });
         if (!r.ok) throw new Error(await r.text());
         const data = (await r.json()) as { sections: FengshuiSections; degraded: boolean };
@@ -136,8 +207,8 @@ export default function FengshuiPage() {
         // 但同样要留痕——写不进去意味着下次加载还得再花一次 LLM 钱。
         if (!data.degraded) {
           await saveFengshuiReport({
-            fingerprint: fp, profileId: profile.id, dwellingId: null,
-            layer: 0, locale, sections: data.sections,
+            fingerprint: fp, profileId: profile.id, dwellingId: dwellingInput?.id ?? null,
+            layer: fs.layer, locale, sections: data.sections,
           }).catch((e) => console.warn("[fengshui] 报告持久化失败，下次加载会重新生成", e));
         }
       } catch {
@@ -146,7 +217,7 @@ export default function FengshuiPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [profile, fs, locale, retryNonce]);
+  }, [profile, fs, dwelling, dwellingInput, cohabitantProfiles, dwellings, locale, retryNonce]);
 
   function regenerate() {
     setRetryNonce((n) => n + 1);
@@ -166,90 +237,261 @@ export default function FengshuiPage() {
     );
   }
 
-  const g = fs!.mingGua;
+  const f = fs!;
+  const activeCohabitant = f.layer === 1 ? f.cohabitants.find((c) => c.profileId === viewAs) : undefined;
+  const activeMingGua = activeCohabitant?.mingGua ?? f.mingGua;
+  const activeVerdicts = activeCohabitant ? directionsFor(activeCohabitant.mingGua.guaName) : f.personalDirections;
+  const hasCohabitants = f.layer === 1 && f.cohabitants.length > 0;
+
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <h1 className="text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.title")}</h1>
       <p className="mt-1 text-[13px] text-muted">{t("fengshui.subtitle")}</p>
 
-      <section className="mt-6 flex flex-col items-center">
-        <BaguaWheel verdicts={fs!.personalDirections} centerLabel={`${g.guaName}${g.gua}`} />
-        <p className="mt-2 text-[13px] text-ink-2">
-          {t("fengshui.mingGua")}：{g.guaName}{g.gua}（{g.group}）
-        </p>
-      </section>
+      <div className="mt-5 flex gap-1 border-b" style={{ borderColor: "var(--color-line)" }}>
+        {TABS.map((tb) => (
+          <button
+            key={tb}
+            type="button"
+            onClick={() => setTab(tb)}
+            className="px-3 py-2 text-[14px]"
+            style={{
+              color: tab === tb ? "var(--color-cinnabar)" : "var(--color-ink-2)",
+              borderBottom: tab === tb ? "2px solid var(--color-cinnabar)" : "2px solid transparent",
+            }}
+          >
+            {t(`fengshui.tabs.${tb}`)}
+          </button>
+        ))}
+      </div>
 
-      {sections && !degraded && (
-        <section className="mt-6 flex flex-col gap-6">
-          <div>
-            <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-              {t(SECTION_HEADING_KEY.situation)}
-            </h2>
-            <div className="reading-prose mt-2"><Markdown text={sections.situation} /></div>
-          </div>
-          <div>
-            <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-              {t(SECTION_HEADING_KEY.youAndSpace)}
-            </h2>
-            <div className="reading-prose mt-2"><Markdown text={sections.youAndSpace} /></div>
-          </div>
+      {tab === "chart" && (
+        <>
+          <NarrativeStatus
+            t={t}
+            sections={sections}
+            degraded={degraded}
+            failed={failed}
+            onRetry={regenerate}
+            render={(s) => (
+              <>
+                <div>
+                  <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                    {t(SECTION_HEADING_KEY.situation)}
+                  </h2>
+                  <div className="reading-prose mt-2"><Markdown text={s.situation} /></div>
+                </div>
+                <div>
+                  <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                    {t(SECTION_HEADING_KEY.youAndSpace)}
+                  </h2>
+                  <div className="reading-prose mt-2"><Markdown text={s.youAndSpace} /></div>
+                </div>
+              </>
+            )}
+          />
+
+          <section className="mt-8">
+            <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.personalTitle")}</h2>
+
+            {hasCohabitants && f.layer === 1 && (
+              <div className="mt-2">
+                <p className="text-[12px] text-muted">{t("fengshui.viewAs")}</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <ViewAsChip active={viewAs === "main"} onClick={() => setViewAs("main")}>
+                    {t("fengshui.viewAsSelf")}
+                  </ViewAsChip>
+                  {f.cohabitants.map((c) => (
+                    <ViewAsChip key={c.profileId} active={viewAs === c.profileId} onClick={() => setViewAs(c.profileId)}>
+                      {c.name}
+                    </ViewAsChip>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-col items-center">
+              <BaguaWheel verdicts={activeVerdicts} centerLabel={`${activeMingGua.guaName}${activeMingGua.gua}`} />
+              <p className="mt-2 text-[13px] text-ink-2">
+                {t("fengshui.mingGua")}：{activeMingGua.guaName}{activeMingGua.gua}（{activeMingGua.group}）
+              </p>
+            </div>
+
+            {activeCohabitant && (activeCohabitant.sharedGood.length > 0 || activeCohabitant.conflicts.length > 0) && (
+              <div className="mt-3 p-3" style={{ borderRadius: "var(--radius-card)", background: "var(--color-tint)" }}>
+                <h3 className="text-[13px] text-ink">{t("fengshui.cohabitantsTitle")}</h3>
+                {activeCohabitant.sharedGood.length > 0 && (
+                  <p className="mt-1 text-[13px] text-ink-2">
+                    {t("fengshui.sharedGoodNote", {
+                      name: activeCohabitant.name,
+                      directions: activeCohabitant.sharedGood.map((d) => DIRECTION_LABEL[d]).join(t("common.listSeparator")),
+                    })}
+                  </p>
+                )}
+                {activeCohabitant.conflicts.length > 0 && (
+                  <p className="mt-1 text-[13px] text-ink-2">
+                    {t("fengshui.conflictsNote", {
+                      name: activeCohabitant.name,
+                      directions: activeCohabitant.conflicts.map((d) => DIRECTION_LABEL[d]).join(t("common.listSeparator")),
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+
+          {f.layer === 1 && (
+            <section className="mt-8 flex flex-col items-center">
+              <h2 className="self-start text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                {t("fengshui.dwellingTitle")}
+              </h2>
+              <div className="mt-4 flex flex-col items-center">
+                <BaguaWheel verdicts={f.dwelling.sectors} centerLabel={`${f.dwelling.guaName}宅`} ariaLabel="房屋八方吉凶盘" />
+                <p className="mt-2 text-[13px] text-ink-2">
+                  {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
+                </p>
+              </div>
+            </section>
+          )}
+
+          {f.layer === 0 && dwellings !== undefined && (
+            <section className="mt-8">
+              {dwelling ? (
+                <p className="text-[13px] text-muted">{t("fengshui.facingUnknownNote")}</p>
+              ) : (
+                <div>
+                  <p className="text-[13px] text-muted">{t("fengshui.noDwelling")}</p>
+                  <Link href="/fengshui/dwellings" className="mt-2 inline-block text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+                    {t("fengshui.addDwelling")}
+                  </Link>
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === "remedy" && (
+        <section className="mt-6">
+          <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.remedyTitle")}</h2>
+          <NarrativeStatus
+            t={t}
+            sections={sections}
+            degraded={degraded}
+            failed={failed}
+            onRetry={regenerate}
+            render={(s) => <div className="reading-prose mt-2"><Markdown text={s.actions} /></div>}
+          />
+          <ul className="mt-3 flex flex-col gap-3">
+            {f.remedies.map((r) => (
+              <Card key={r.id} className="p-4">
+                <div className="flex items-center gap-2 text-[12px] text-muted">
+                  <span>{t(`fengshui.effortLabel.${r.effort}`)}</span>
+                  <span>·</span>
+                  <span>{r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}</span>
+                </div>
+                <p className="mt-1.5 text-[15px] text-ink">{r.action}</p>
+                <p className="mt-2 text-[13px] text-ink-2">{t("fengshui.traditionalLabel")}：{r.traditional}</p>
+                {r.modern && (
+                  <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
+                )}
+                {SPIRIT_ENABLED && (
+                  <Link
+                    href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                    className="mt-3 inline-block text-[13px]"
+                    style={{ color: "var(--color-cinnabar)" }}
+                  >
+                    {t("fengshui.askMira")}
+                  </Link>
+                )}
+              </Card>
+            ))}
+          </ul>
         </section>
       )}
-      {degraded && (
-        <div className="mt-6">
-          <p className="text-[13px] text-muted">{t("fengshui.narrativeDegraded")}</p>
-          <button type="button" onClick={regenerate} className="mt-2 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
-            {t("fengshui.regenerate")}
-          </button>
-        </div>
-      )}
-      {failed && !sections && (
-        <div className="mt-6">
-          <p className="text-[13px] text-muted">{t("fengshui.narrativeFailed")}</p>
-          <button type="button" onClick={regenerate} className="mt-2 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
-            {t("fengshui.regenerate")}
-          </button>
-        </div>
-      )}
 
-      <section className="mt-8">
-        <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.remedyTitle")}</h2>
-        {sections && !degraded && (
-          <div className="reading-prose mt-2"><Markdown text={sections.actions} /></div>
-        )}
-        <ul className="mt-3 flex flex-col gap-3">
-          {fs!.remedies.map((r) => (
-            <Card key={r.id} className="p-4">
-              <div className="flex items-center gap-2 text-[12px] text-muted">
-                <span>{t(`fengshui.effortLabel.${r.effort}`)}</span>
-                <span>·</span>
-                <span>{r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}</span>
-              </div>
-              <p className="mt-1.5 text-[15px] text-ink">{r.action}</p>
-              <p className="mt-2 text-[13px] text-ink-2">{t("fengshui.traditionalLabel")}：{r.traditional}</p>
-              {r.modern && (
-                <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
-              )}
-              {SPIRIT_ENABLED && (
-                <Link
-                  href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
-                  className="mt-3 inline-block text-[13px]"
-                  style={{ color: "var(--color-cinnabar)" }}
-                >
-                  {t("fengshui.askMira")}
-                </Link>
-              )}
-            </Card>
-          ))}
-        </ul>
-      </section>
+      {tab === "object" && (
+        <section className="mt-6">
+          <Card className="p-5">
+            <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.object.title")}</h2>
+            <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.object.subtitle")}</p>
+            <Link
+              href="/fengshui/object"
+              className="mt-4 inline-block px-5 py-2.5 text-on-ink text-[14px]"
+              style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}
+            >
+              {t("fengshui.object.submit")}
+            </Link>
+          </Card>
+        </section>
+      )}
 
       <p className="mt-8 text-[12px] text-muted">{t("fengshui.disclaimer")}</p>
-
-      <Link href="/fengshui/object" className="mt-6 inline-block text-[14px]" style={{ color: "var(--color-cinnabar)" }}>
-        {t("fengshui.object.title")}
-      </Link>
     </main>
+  );
+}
+
+/**
+ * 叙述状态渲染（EP-fs-15 提炼）：未降级且已拿到 sections 时调用 `render(sections)`
+ * （调用方负责用 sections 拼具体内容）；degraded/failed 时显示对应提示 + 重试入口。
+ * 「盘」「化解」两个 tab 各自套一层，用的是同一份 sections/degraded/failed 状态——
+ * 不是两次独立请求，只是同一份结果在两处分别渲染其中一部分。
+ *
+ * ⚠️ `render` 必须是函数（而非直接传 JSX children）：children 若直接写
+ * `<Markdown text={sections!.actions} />`，`sections!.actions` 会在**父组件渲染时**
+ * 就立即求值（JSX children 是普通函数实参，不因为子组件内部有条件判断就延迟执行），
+ * `sections` 为 null 时（加载中/failed/degraded）当场抛错。用渲染函数才能保证只在
+ * `sections && !degraded` 成立、真正决定渲染时才访问 `sections` 的字段。
+ */
+function NarrativeStatus({
+  t, sections, degraded, failed, onRetry, render,
+}: {
+  t: ReturnType<typeof useT>;
+  sections: FengshuiSections | null;
+  degraded: boolean;
+  failed: boolean;
+  onRetry: () => void;
+  render: (sections: FengshuiSections) => React.ReactNode;
+}) {
+  if (sections && !degraded) {
+    return <section className="mt-6 flex flex-col gap-6">{render(sections)}</section>;
+  }
+  if (degraded) {
+    return (
+      <div className="mt-6">
+        <p className="text-[13px] text-muted">{t("fengshui.narrativeDegraded")}</p>
+        <button type="button" onClick={onRetry} className="mt-2 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+          {t("fengshui.regenerate")}
+        </button>
+      </div>
+    );
+  }
+  if (failed && !sections) {
+    return (
+      <div className="mt-6">
+        <p className="text-[13px] text-muted">{t("fengshui.narrativeFailed")}</p>
+        <button type="button" onClick={onRetry} className="mt-2 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+          {t("fengshui.regenerate")}
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function ViewAsChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[var(--radius-chip)] border px-3 py-1 text-[13px]"
+      style={{
+        borderColor: active ? "var(--color-cinnabar)" : "var(--color-line)",
+        color: active ? "var(--color-cinnabar)" : "var(--color-ink)",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

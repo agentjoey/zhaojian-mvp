@@ -318,6 +318,18 @@ export const zh = {
     directionsTitle: "八方吉凶",
     affinityTitle: "宜用色与材",
     remedyTitle: "可做的事",
+    // Task 9（EP-fs-15）：宅八方 + 合看 chips。dwellingTitle/personalTitle 分开标注
+    // 「本命八方」与「房屋八方」两套独立的八方吉凶，页面上永不混用（同 llm 侧的约束）。
+    personalTitle: "本命八方",
+    dwellingTitle: "房屋八方",
+    cohabitantsTitle: "同住人对照",
+    viewAs: "以谁的视角看",
+    viewAsSelf: "我",
+    sharedGoodNote: "对你和{name}都吉的方位：{directions}",
+    conflictsNote: "对你吉、对{name}凶的方位：{directions}",
+    noDwelling: "还没登记居所——填一个大门朝向，就能看到这套房子对你的八方吉凶。",
+    addDwelling: "登记居所",
+    facingUnknownNote: "这个居所的朝向未确定，下面只按你的本命方位给建议。",
     // 叙述三分节的标题。与上面几个键不同：那些描述确定性区块，这三个描述 LLM 叙述分节，
     // 语义不可互借（见 packages/llm/src/fengshui/prompt.ts 的输出契约）
     narrativeSections: {

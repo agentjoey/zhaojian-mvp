@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { BirthInputSchema, computeUnifiedChart, computeFengshui, FENGSHUI_ENGINE_VERSION } from "@eamvp/core";
+import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
+import {
+  BirthInputSchema, computeUnifiedChart, computeFengshui, directionsFor, FENGSHUI_ENGINE_VERSION,
+} from "@eamvp/core";
 import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
+import type { Dwelling } from "@/lib/dwellings";
 
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
@@ -9,6 +12,26 @@ const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: comput
 // 顺序与内容，而不是靠猜测某条化解「恒为第一条」——那类假设已经在最终评审 Blocking 2
 // 的排查中被证明不可靠（sortRemedies 的实际结果并不是本文件旧注释所声称的那样）。
 const fs = computeFengshui({ birth, chart: profile.chart });
+
+/**
+ * 合看 chips（EP-fs-15）用的同住人档案。1984-06-15 男 = 兑7（西四命），与主档案
+ * 1990-06-15 男 = 坎1（东四命）刻意取一东一西——八宅的四吉方以「组」为单位整体
+ * 互斥（同组必然共享全部四吉方，异组必然全无交集，见 packages/core/src/fengshui/
+ * cohabitants.ts 顶部注释与 fengshui-cohabitants.test.ts），所以任一原本对主档案
+ * 吉的方位，切到这位同住人后必然变凶。着色断言因此是结构性保证，不依赖巧合样本。
+ */
+const cohabBirth = BirthInputSchema.parse({ date: "1984-06-15", time: "10:00", gender: "male", trueSolarTime: false });
+const cohabProfile = {
+  id: "p2", nickname: "阿乙", birthInput: cohabBirth, chart: computeUnifiedChart(cohabBirth), createdAt: "", reading: null,
+};
+
+/** 向南 → 坐北 → 坎宅（与主档案命卦「坎」同名纯属巧合，两套八方各自独立标注，互不影响）。 */
+const dwellingL1 = (memberProfileIds: string[] = []): Dwelling => ({
+  id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "S", memberProfileIds,
+});
+const DWELLING_UNKNOWN_FACING: Dwelling = {
+  id: "d1", name: "家", kind: "home", tenancy: "rent", facing: null, memberProfileIds: [],
+};
 
 /**
  * 三分节报告桩数据（Task 14 复审后：route 契约改为 JSON，客户端直接消费已切好的
@@ -19,10 +42,10 @@ const SECTIONS = { situation: "甲", youAndSpace: "乙", actions: "丙" };
 
 /**
  * Task 7（EP-fs-16）：波1 的 localStorage 缓存键（fengshuiCacheKey）已废弃，报告改按
- * 指纹持久化到服务端 `fengshui_reports`。本页尚未接入居所 Tab（留给 Task 9），页面
- * 内部恒定按 Layer 0 算指纹（`dwelling: null, memberProfileIds: []`）——这里用同样的
- * 入参独立调用真实的 `fengshuiFingerprint`（纯函数，未 mock）算出预期指纹，
- * 与 page.tsx 内部实际使用的值保持一致。
+ * 指纹持久化到服务端 `fengshui_reports`。默认（无居所）时页面内部按 Layer 0 算指纹
+ * （`dwelling: null, memberProfileIds: []`）——这里用同样的入参独立调用真实的
+ * `fengshuiFingerprint`（纯函数，未 mock）算出预期指纹，与 page.tsx 内部实际使用的
+ * 值保持一致。
  */
 const fpFor = (locale: string, engineVersion: string = FENGSHUI_ENGINE_VERSION) =>
   fengshuiFingerprint({ profileId: "p1", locale, engineVersion, dwelling: null, memberProfileIds: [] });
@@ -37,7 +60,23 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
   });
 }
 
-vi.mock("@/lib/profiles", () => ({ getActiveProfile: vi.fn(async () => profile) }));
+/**
+ * `dwellingsFixture`/`profilesById` 用 `vi.hoisted` 声明（同下面 `reportStore` 的理由）：
+ * 让被提升到文件顶部的 `vi.mock` 工厂能安全闭包到它们。每条测试在 `beforeEach` 里
+ * 重置，需要 Layer 1 的测试再显式塞入居所/同住人档案。
+ */
+const { dwellingsFixture, profilesById } = vi.hoisted(() => ({
+  dwellingsFixture: { current: [] as Dwelling[] },
+  profilesById: new Map<string, unknown>(),
+}));
+
+vi.mock("@/lib/profiles", () => ({
+  getActiveProfile: vi.fn(async () => profile),
+  getProfile: vi.fn(async (id: string) => profilesById.get(id) ?? null),
+}));
+vi.mock("@/lib/dwellings", () => ({
+  listDwellings: vi.fn(async () => dwellingsFixture.current),
+}));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
 
@@ -74,6 +113,18 @@ vi.mock("@/lib/fengshui-report", async (importOriginal) => {
  * 这里统一用 `renderPage()`：每次渲染都把 `Page` 与 `I18nProvider` 从同一次
  * 动态 import 里取出，并在 `beforeEach` 里无条件 `resetModules()`，
  * 避免依赖测试书写顺序（谁调没调 resetModules）来保证正确性。
+ *
+ * `render()` 包一层 `await act(async () => {...})`（而不是直接 `return render(...)`）
+ * 是 Task 9 排查 act() 警告后加的：page.tsx 挂载时的第一个 effect
+ * （`getActiveProfile().then(setProfile)`）通过 `vi.fn(async () => …)` mock 返回，
+ * 其 `.then` 回调落在一次真实的微任务里。`renderPage()` 本身因为要 `await
+ * import(...)` 两次，`render()` 真正执行时机相对测试代码已经过了若干微任务——
+ * 用 React 关注 act 环境的说法，`render()` 的同步 act 包裹在它返回时就"关闭"了，
+ * 而 `setProfile` 的 `.then` 回调有时会恰好落在"`render()` 已返回、下一行
+ * `waitFor(...)` 尚未开始轮询"这个窗口期触发，从而在 act 作用域之外调用
+ * setState。用 `await act(async () => { render(...) })` 让 act 显式排空这一批
+ * 微任务后再返回，消除这个时序竞争——已实测两种写法在同一份夹具下的差异
+ * （加这层包裹前 22 条用例里 19 条会报 "not wrapped in act"，加之后 0 条）。
  */
 async function renderPage(locale: "zh" | "en" = "zh") {
   const { default: Page } = await import("../page");
@@ -81,7 +132,11 @@ async function renderPage(locale: "zh" | "en" = "zh") {
   function Wrapper({ children }: { children: React.ReactNode }) {
     return <I18nProvider locale={locale}>{children}</I18nProvider>;
   }
-  return render(<Page />, { wrapper: Wrapper });
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(<Page />, { wrapper: Wrapper });
+  });
+  return result;
 }
 
 beforeEach(() => {
@@ -89,23 +144,22 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   localStorage.clear();
   reportStore.clear();
+  dwellingsFixture.current = [];
+  profilesById.clear();
+  profilesById.set("p2", cohabProfile);
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false })));
 });
 
 describe("EP-fs-07 /fengshui Layer 0", () => {
-  it("渲染命卦、八方盘、三分节叙述标题与化解清单", async () => {
+  it("渲染命卦、八方盘、三分节叙述标题；切到「化解」显示化解清单", async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
-    // "可做的事" 只应出现一次：叙述第三节与确定性化解清单共用同一个标题
-    // （复审必修1的分节渲染方案——避免两个标题字面重复地堆在页面上）。
-    // 未降级的正常路径下，叙述本体应当照常渲染（与 degraded 测试「queryByText("甲") 为 null」形成对照）；
-    // 顺带把这个 await 落在测试末尾，让叙述 fetch 的 .then 在测试结束前完整跑完，
-    // 避免它在下一条测试执行期间才 resolve、产生 act() 警告。
+    // 未降级的正常路径下，叙述本体（situation/youAndSpace）应当照常渲染在默认「盘」
+    // tab 上（与 degraded 测试「queryByText("甲") 为 null」形成对照）。
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
-    expect(screen.getByText("可做的事")).toBeInTheDocument();
     expect(screen.getByText("乙")).toBeInTheDocument();
-    // 复审必修1核心回归：三个 H2 标题必须走 i18n 渲染成真正的标题元素，
+    // 复审必修1核心回归：两个 H2 标题必须走 i18n 渲染成真正的标题元素，
     // 绝不能把 "## 形势" 这种字面 markdown 语法原样打印到页面上。
     expect(screen.getByText("形势")).toBeInTheDocument();
     expect(screen.getByText("境与你")).toBeInTheDocument();
@@ -113,6 +167,15 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     // 叙述分节标题不得借用描述确定性区块的键（八方吉凶 / 宜用色与材），二者语义不同
     expect(screen.queryByText("八方吉凶")).toBeNull();
     expect(screen.queryByText("宜用色与材")).toBeNull();
+
+    // Task 9（EP-fs-15）：化解清单 + 叙述第三节移到「化解」tab，默认盘 tab 不可见。
+    expect(screen.queryByText("可做的事")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    expect(screen.getByText("可做的事")).toBeInTheDocument();
+    expect(screen.getByText("丙")).toBeInTheDocument();
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
   });
 
   it("LLM 失败时仍渲染盘与化解，并显示降级提示", async () => {
@@ -123,7 +186,10 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     // 拿盘图当 waitFor 目标会让下面这句偶发地抢在 setFailed 生效前执行（本次改造前就已实测翻车一次）。
     await waitFor(() => expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument());
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
     expect(screen.getByText("可做的事")).toBeInTheDocument();
+    // 失败提示在切到「化解」tab 后仍然可见——两个 tab 各自独立渲染同一份 failed 状态。
+    expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument();
   });
 
   it("flag 关闭时显示未开启文案，不渲染盘", async () => {
@@ -132,7 +198,112 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     expect(screen.getByText("「境」尚未开启。")).toBeInTheDocument();
     expect(screen.queryByLabelText("八方吉凶盘")).toBeNull();
   });
+});
 
+describe("EP-fs-15 Layer 1 与 Tab", () => {
+  it("有居所时渲染宅卦与宅八方，且与本命八方分开标注", async () => {
+    dwellingsFixture.current = [dwellingL1()];
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("房屋八方")).toBeInTheDocument());
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    // 宅卦名可见：向南 → 坐北 → 坎宅
+    expect(screen.getByText("坎宅")).toBeInTheDocument();
+    // 两个盘各自独立的无障碍标签，证明确实是两张分开的盘而非同一张复用
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+  });
+
+  it("Tab 切到「化解」显示化解清单，切到「添置」显示物件顾问入口；三个 tab 内容互斥", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument());
+
+    // 默认「盘」tab：另外两个 tab 的内容不可见
+    expect(screen.queryByText("可做的事")).toBeNull();
+    expect(screen.queryByText("我想添置…")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    expect(screen.getByText("可做的事")).toBeInTheDocument();
+    expect(fs.remedies.length).toBeGreaterThan(0);
+    for (const r of fs.remedies) expect(screen.getByText(r.action)).toBeInTheDocument();
+    // 「盘」「添置」内容此时不可见
+    expect(screen.queryByLabelText("八方吉凶盘")).toBeNull();
+    expect(screen.queryByText("我想添置…")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "添置" }));
+    expect(screen.getByText("我想添置…")).toBeInTheDocument();
+    // 「盘」「化解」内容此时不可见
+    expect(screen.queryByLabelText("八方吉凶盘")).toBeNull();
+    expect(screen.queryByText("可做的事")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "盘" }));
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+  });
+
+  it("合看 chips：切换同住人，八方盘的吉凶着色随之改变", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    await renderPage();
+    await waitFor(() => expect(screen.getByRole("button", { name: "阿乙" })).toBeInTheDocument());
+
+    // 独立核实（不手抄字面量）：北方位对坎(主档案)必吉，对兑(阿乙)必凶——
+    // 这不是巧合样本，而是八宅「四吉方按组整体互斥」的结构性结论（见文件顶部注释）。
+    const mainN = directionsFor("坎").N;
+    const cohabN = directionsFor("兑").N;
+    expect(mainN.auspicious).toBe(true);
+    expect(cohabN.auspicious).toBe(false);
+
+    // 断言的是「本命八方」盘（唯一带这个无障碍标签的盘），而不是 chip 是否存在/被点击。
+    const wheelBefore = screen.getByLabelText("八方吉凶盘");
+    expect(within(wheelBefore).getByLabelText(/^北：/).getAttribute("aria-label")).toMatch(/吉/);
+
+    fireEvent.click(screen.getByRole("button", { name: "阿乙" }));
+
+    await waitFor(() => {
+      const wheelAfter = screen.getByLabelText("八方吉凶盘");
+      expect(within(wheelAfter).getByLabelText(/^北：/).getAttribute("aria-label")).toMatch(/凶/);
+    });
+
+    // 切回「我」应当变回吉——证明切换是双向、可逆的数据绑定，不是单次副作用。
+    fireEvent.click(screen.getByRole("button", { name: "我" }));
+    await waitFor(() => {
+      const wheelBack = screen.getByLabelText("八方吉凶盘");
+      expect(within(wheelBack).getByLabelText(/^北：/).getAttribute("aria-label")).toMatch(/吉/);
+    });
+  });
+
+  it("居所 facing 为 null（不确定）时降级 Layer 0：不渲染宅八方，仍渲染本命八方", async () => {
+    dwellingsFixture.current = [DWELLING_UNKNOWN_FACING];
+    await renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("这个居所的朝向未确定，下面只按你的本命方位给建议。")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("本命八方")).toBeInTheDocument();
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    expect(screen.queryByText("房屋八方")).toBeNull();
+    expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
+  });
+
+  it("LLM 失败时宅八方与化解清单仍完整渲染（波1 性质不得回退）", async () => {
+    dwellingsFixture.current = [dwellingL1()];
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 503 })));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument());
+
+    // 宅八方是确定性派生，与这次失败的 fetch 无关——必须完整渲染，不能因叙述缺失被连带隐藏。
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+    expect(screen.getByText("坎宅")).toBeInTheDocument();
+
+    // 化解清单同样确定性；独立算出真实的 Layer 1 化解集合（含宅层条目），
+    // 逐条核对渲染内容，而不是只看数量或假设"能渲染就行"。
+    const l1 = computeFengshui({
+      birth, chart: profile.chart,
+      dwelling: { id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "S" },
+    });
+    expect(l1.remedies.length).toBeGreaterThan(fs.remedies.length);
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    for (const r of l1.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
 });
 
 describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得动实际内容，且受「灵」flag 门控", () => {
@@ -141,6 +312,7 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
   // 是「复用了 URL 形状，没复用机制」。下面的测试断言行为（q 参数真的带着这条化解
   // 的动作文本、灵关闭时链接压根不存在），不再只断言 href 正则（那样的断言即使
   // /spirit 端完全不解析这个 id 也照样通过，抓不住这个 bug）。
+  // Task 9：化解卡片移到「化解」tab，查询前需先切换过去。
 
   it("灵开启时，每条化解链接指向 /spirit?topic=fengshui&q=<那一条自己的动作文本>（不是无意义的 id）", async () => {
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "1");
@@ -148,6 +320,7 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
     await renderPage();
     // 等叙述结算完（而非只等盘图），让本测试内该请求的 .then 在测试结束前跑完，避免遗留到下一条测试才 resolve。
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
     const links = screen.getAllByText("和 Mira 聊聊这条");
     // page.tsx 按 fs.remedies 数组原序 .map 渲染卡片，不重新排序——逐条按位置对拍，
     // 不假设某条化解「恒为第一条」（sortRemedies 的实际输出顺序不是这么回事）。
@@ -167,6 +340,8 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", ""); // 显式关闭；与「未设置」等价，但意图更明确
     await renderPage();
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    expect(screen.getByText("可做的事")).toBeInTheDocument(); // 确认真的切到了会渲染卡片的 tab
     expect(screen.queryByText("和 Mira 聊聊这条")).toBeNull();
   });
 
@@ -231,7 +406,10 @@ describe("EP-fs-07 /fengshui Layer 0 — degraded 报告的消费", () => {
 
     // 确定性内容不受影响
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
     expect(screen.getByText("可做的事")).toBeInTheDocument();
+    // degraded 提示在「化解」tab 也一样可见（两个 tab 各自独立渲染同一份状态）
+    expect(screen.getByText(/系统纠正/)).toBeInTheDocument();
     // 叙述本体（含被机械纠正过星名、但周边论述仍可能建立在错误方位上）不能被当作正常结果直接渲染
     expect(screen.queryByText("甲")).toBeNull();
     // 不可信叙述不落盘持久化，避免一份带瑕疵的报告被永久复用
@@ -252,6 +430,7 @@ describe("EP-fs-07 /fengshui Layer 0 — 英文 locale", () => {
     // 等叙述结算（内容本身仍是 mock 的中文占位符，与本测试无关；只是借它确保测试结束前
     // 该请求的 .then 已经跑完，不遗留到下一条测试才 resolve、触发 act() 警告）。
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Remedies" }));
     // fs-desk-sheng（生气方书桌建议）恒为 buildPersonalRemedies 输出的第一条、effort 恒为「零成本」
     expect(screen.getAllByText("Free").length).toBeGreaterThan(0);
     expect(screen.queryByText("零成本")).toBeNull();
