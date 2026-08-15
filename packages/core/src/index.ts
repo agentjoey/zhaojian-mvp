@@ -27,7 +27,7 @@ export {
   computeFengshui, FENGSHUI_ENGINE_VERSION,
   deriveMingGua, ganzhiOfYear, directionsFor, elementDirections, adviseObject,
   buildPersonalRemedies, buildDwellingRemedies, sortRemedies,
-  dwellingGua, matchWithPerson,
+  dwellingGua, matchWithPerson, deriveCohabitants,
   DIRECTIONS, DIRECTION_LABEL, OPPOSITE, GUAS, GUA_DIRECTION, DIRECTION_GUA,
   EIGHT_MANSIONS, AUSPICIOUS_STARS, INAUSPICIOUS_STARS,
   ENV_PSYCH_ANCHORS, FENGSHUI_GUARDRAILS,
@@ -35,7 +35,7 @@ export {
 } from "./fengshui/index";
 export type {
   FengshuiInput, FengshuiChart, DwellingView, DwellingInput, DwellingGua,
-  MingGua, Gua, Direction, DirectionVerdict,
+  MingGua, Gua, Direction, DirectionVerdict, CohabitantInput, Cohabitant,
   /**
    * ⚠️ 必须保留别名，勿改回 `Star`。`./types/chart` 已经导出紫微星曜的 `Star`
    * （name/brightness/mutagen），经上面的 `export *` 进入同一 barrel；

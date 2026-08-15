@@ -6,6 +6,7 @@ import { deriveMingGua, type MingGua } from "./ming-gua";
 import { directionsFor, type DirectionVerdict } from "./eight-mansions";
 import { dwellingGua, matchWithPerson, type DwellingInput, type DwellingGua } from "./dwelling";
 import { buildPersonalRemedies, buildDwellingRemedies, sortRemedies, type Remedy } from "./remedy";
+import { deriveCohabitants, type CohabitantInput, type Cohabitant } from "./cohabitants";
 
 export * from "./directions";
 export * from "./ming-gua";
@@ -14,6 +15,7 @@ export * from "./env-psych";
 export * from "./remedy";
 export * from "./object-advisor";
 export * from "./dwelling";
+export * from "./cohabitants";
 
 /** 改动命卦公式 / 游年表 / 化解生成规则时**必须**递增——它进报告指纹，旧报告靠它失效。 */
 export const FENGSHUI_ENGINE_VERSION = "fs-2";
@@ -23,6 +25,8 @@ export type FengshuiInput = {
   chart: UnifiedChart;
   /** 缺省或 facing 未知 = Layer 0 */
   dwelling?: DwellingInput;
+  /** 同住人（EP-fs-13 合看）；仅在 Layer 1（有 dwelling）时产出结果 */
+  cohabitants?: CohabitantInput[];
 };
 
 /** 居所视图 = 宅卦结果 + 用户填的元信息 + 与本人的配合判定 */
@@ -49,7 +53,7 @@ type FengshuiChartBase = {
  */
 export type FengshuiChart =
   | (FengshuiChartBase & { layer: 0; dwelling?: undefined; cohabitants?: undefined })
-  | (FengshuiChartBase & { layer: 1; dwelling: DwellingView; cohabitants?: undefined });
+  | (FengshuiChartBase & { layer: 1; dwelling: DwellingView; cohabitants: Cohabitant[] });
 
 export function computeFengshui(input: FengshuiInput): FengshuiChart {
   const mingGua = deriveMingGua(input.birth, input.chart);
@@ -79,6 +83,9 @@ export function computeFengshui(input: FengshuiInput): FengshuiChart {
     layer: 1, engineVersion: FENGSHUI_ENGINE_VERSION,
     mingGua, personalDirections, elementAffinity: affinity,
     dwelling: view,
+    cohabitants: input.cohabitants?.length
+      ? deriveCohabitants({ profileId: "main", name: "", birth: input.birth, chart: input.chart }, input.cohabitants)
+      : [],
     remedies: sortRemedies([...personal, ...buildDwellingRemedies(gua, match)], { tenancy: d.tenancy }),
   };
 }
