@@ -189,6 +189,11 @@ describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+    // 修复单 Minor 1：`reason="limit"` 的副标题**只有这一个真实调用点**，此前全仓库
+    // 只有 /fengshui 那条「它不该出现在宅盘位置」的反向断言在提这个字符串——改一次
+    // 文案就能让那条反向断言悄悄变成恒真（`47e9faa` 正是这么发生的）。这里补上唯一
+    // 的正向断言：文案一旦再被改动，这条先红，反向断言才有活的对照。
+    expect(screen.getByText("已达免费版上限，升级会员后可继续保存。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
     // 挡的是「新增」，不是已经保存的居所——列表仍然完整可见
     expect(screen.getByText("家A")).toBeInTheDocument();
@@ -224,6 +229,42 @@ describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  /** 把所有在途 promise/effect 排空，让「之后还会不会再冒出点什么」变成确定性的。 */
+  async function drainEffects(rounds = 3) {
+    for (let i = 0; i < rounds; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+  }
+
+  /**
+   * 第二轮修复单 Important 1a：本页的四个闸门分支此前只有 blocked/entitled/unknown
+   * 三条有断言，**探测在途**这条零断言——而它恰恰是 Critical 1 的第一条泄漏路径。
+   * 把 page.tsx 的 probing 分支改成 `<Paywall reason="limit" />`，原有全部测试照样绿：
+   * 非会员那条是 `waitFor` 付费墙（只会更早出现），会员那条只在权益结算**之后**才检查
+   * 付费墙缺席。后果是 BILLING_ENABLED 关闭（默认配置）的构建里，每个有 ≥1 个居所的
+   * 用户每次加载都会闪一下「升级会员，解锁无限」。
+   */
+  it("闸门探测在途（GET 尚未返回）：新增区域给加载态，既不出付费墙也不提前放行表单", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    // 永不落定：精确模拟「探测请求还在路上」这个中间态。
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+
+    // 加载态——付费墙是终局判定，不是等待态
+    expect(screen.getByText("加载中…")).toBeInTheDocument();
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    // 另一个方向：也不能因为「还没被拒」就先把表单放出来、探测落定再收回
+    expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
+
+    // 排空在途副作用后依然如此（不是「早了一拍看不见」而已）
+    await drainEffects();
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.getByText("加载中…")).toBeInTheDocument();
+  });
+
   /**
    * 修复单 Critical 1（同类）：本页原来也把「探测失败」直接 setEntitled(false)，
    * 于是一次网络抖动就把新增表单换成付费墙——在 BILLING_ENABLED 未设置（默认）的
@@ -245,6 +286,25 @@ describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二
     await renderPage();
     await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
     expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+  });
+
+  /**
+   * 第二轮修复单 Important 1b：本页此前的探测桩要么是 `jsonResponse({entitled:…})`、
+   * 要么抛错、要么 502，**从没有发过 200 + 垃圾响应体**——于是把 `typeof
+   * data2?.entitled !== "boolean"` 退回 `Boolean(data2?.entitled)` 能全绿通过。
+   * 广告拦截器 / Service Worker 离线占位页正是这个形状（200 + HTML），退回后它们会
+   * 静默变成 `blocked`：BILLING_ENABLED 关闭的构建里，用户被推一堵本不存在的墙。
+   */
+  it("闸门探测返回 200 但 body 读不出 entitled 布尔值（广告拦截器/离线占位响应）：按未知处理，不 Boolean() 成 false", async () => {
+    listDwellings.mockResolvedValue([D1]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>offline</html>", { headers: { "content-type": "text/html" } })),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
+    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.getByRole("button", { name: "重新确认" })).toBeInTheDocument();
   });
 
   it("探测失败后点「重新确认」：重新探测，成功放行后新增表单恢复", async () => {

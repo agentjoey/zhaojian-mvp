@@ -5,6 +5,11 @@ import {
 } from "@eamvp/core";
 import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
 import type { Dwelling } from "@/lib/dwellings";
+// 修复单 Minor 1：付费墙文案断言从 catalog 取值，与实现绑死——写死字面量的那条反向
+// 断言在 `47e9faa` 改文案后已经悄悄变成过一次恒真（断言的字符串在代码库任何角落都
+// 不存在了，于是它抓不到唯一要防的「改回 reason="limit"」回归）。同一次编辑不该能
+// 再造出恒真：文案在哪儿改，断言就跟到哪儿。
+import { zh } from "@/lib/i18n/messages/zh";
 
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
@@ -102,6 +107,35 @@ const { dwellingsFixture, profilesById } = vi.hoisted(() => ({
   dwellingsFixture: { current: [] as Dwelling[], error: null as unknown },
   profilesById: new Map<string, unknown>(),
 }));
+
+/**
+ * 修复单 Minor 4：Important 2 的要求本身是「非会员的浏览器里根本不存在付费派生内容」，
+ * 而此前**全部**断言测的都是它的 UI 投影（宅八方没渲染、宅层化解没渲染…）。只回退
+ * `fs` memo 会把 `f.layer` 翻成 1、撞红那些 UI 断言，但**协调一致地**退回原设计
+ * （裸 `dwellingInput` 算 `fs` + JSX 里单独判 `entitled`）能全绿通过——付费派生内容
+ * （`f.dwelling.sectors` / `matchWithPerson` / 宅层化解）就这么重新回到非会员的
+ * 客户端 state 里，只是没渲染出来。
+ *
+ * 这里把 core 的 `computeFengshui` 包一层记录入参（**不改行为**，直接透传真实实现），
+ * 让「被挡时它从没收到过 dwelling/cohabitants」成为一条可断言的事实。
+ * 记录器用 `vi.hoisted`：`renderPage()` 每次 `resetModules()` + 动态 `import("../page")`，
+ * mock 工厂会重新执行，闭包到同一份可变对象才能读到页面真正调用的那些入参
+ * （与 `dwellingsFixture` / `supabaseSession` 同一理由）。
+ * 本文件顶层为算 `fs`/`l1` 也会调用它，那两次发生在收集阶段，`beforeEach` 里清空即可。
+ */
+const { computeFengshuiCalls } = vi.hoisted(() => ({
+  computeFengshuiCalls: { args: [] as { dwelling?: unknown; cohabitants?: unknown }[] },
+}));
+vi.mock("@eamvp/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@eamvp/core")>();
+  return {
+    ...actual,
+    computeFengshui: (input: Parameters<typeof actual.computeFengshui>[0]) => {
+      computeFengshuiCalls.args.push(input);
+      return actual.computeFengshui(input);
+    },
+  };
+});
 
 vi.mock("@/lib/profiles", () => ({
   getActiveProfile: vi.fn(async () => profile),
@@ -206,6 +240,7 @@ beforeEach(() => {
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
   supabaseSession.current = null;
+  computeFengshuiCalls.args.length = 0;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
   // 默认：entitled:true（对应「未开闸」或「已是会员」——page.tsx 分不清、也不需要
@@ -845,6 +880,18 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     // Layer 0（本命八方）不受影响——它是免费内容
     expect(screen.getByText("本命八方")).toBeInTheDocument();
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+
+    // 修复单 Minor 4：上面全是「付费内容没渲染出来」——UI 投影。这一条测的是**要求
+    // 本身**（Important 2）：付费派生内容根本没被算出来。被挡时页面对 computeFengshui
+    // 的每一次调用都不得带 dwelling/cohabitants，否则 f.dwelling.sectors /
+    // matchWithPerson / 宅层化解就实实在在活在非会员的浏览器 state 里了。
+    // 协调一致地退回原设计（裸 dwellingInput 算 fs + JSX 单独判 entitled）能让上面
+    // 那些 UI 断言全绿通过，只有这一条抓得住。
+    expect(computeFengshuiCalls.args.length).toBeGreaterThan(0);
+    for (const input of computeFengshuiCalls.args) {
+      expect(input.dwelling).toBeUndefined();
+      expect(input.cohabitants).toBeUndefined();
+    }
   });
 
   // 修复单 Minor 2：这条是原来「BILLING_ENABLED 关闭」与「开闸 + 会员」两条逐字节
@@ -934,11 +981,14 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
   });
 
-  it("开闸 + 非会员：付费墙用的是「这是会员功能」文案，不是「档案已达上限」（修复单 Important 5）", async () => {
+  it("开闸 + 非会员：付费墙用的是「这是会员功能」文案，不是 limit 的「已达上限」文案（修复单 Important 5）", async () => {
     // 宅盘所在的位置既没有"上限"也没有要"保存"的东西，reason="limit" 用在这里是错的。
-    // ⚠️ 下面第二条断言必须写**当前**的 subtitleLimit 文案。原来写的是改文案前的
-    // 「档案已达上限…」，而那个字符串现已不存在于代码库任何角落——断言会恒真，
-    // 抓不到「改回 reason="limit"」这个它唯一要防的回归。
+    // ⚠️ 第二条断言取 `zh.paywall.subtitleLimit` 而不是写死字面量（修复单 Minor 1）：
+    // 原来写死的是改文案前的「档案已达上限…」，`47e9faa` 一改文案，被断言的字符串在
+    // 代码库任何角落都不存在了，断言恒真、抓不到「改回 reason="limit"」这个它唯一要
+    // 防的回归；把字面量再更新一次只是把同一个陷阱重置到下一次文案编辑。从 catalog
+    // 取值让它跟着实现走。对照的**正向**断言（这段文案确实会渲染出来）在它唯一的真实
+    // 调用点上：dwellings/__tests__/page.test.tsx 的非会员付费墙那条。
     dwellingsFixture.current = [dwellingL1(["p2"])];
     vi.stubGlobal(
       "fetch",
@@ -949,13 +999,20 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     );
     await renderPage();
     await waitFor(() => expect(screen.getByText("这块内容属于会员功能，升级后即可解锁。")).toBeInTheDocument());
-    expect(screen.queryByText("已达免费版上限，升级会员后可继续保存。")).toBeNull();
+    expect(screen.queryByText(zh.paywall.subtitleLimit)).toBeNull();
   });
 
-  it("开闸 + 非会员：付费墙取代宅盘的同时，绝不能改口说「还没登记居所」或「朝向未确定」", async () => {
+  it("开闸 + 非会员：付费墙取代宅盘的同时，绝不能改口说这个居所「朝向未确定」，也不得泄漏命宅相配判语", async () => {
     // 修复单 Important 2 的直接回归：fs 改从 effectiveDwellingInput 算之后，被挡用户的
-    // f.layer 变成 0——若「还没登记居所 / 朝向未确定」这组引导语仍按 f.layer 判断，
-    // 就会告诉一个明明登记了朝南居所的用户"你还没登记"，诱导去重复登记。
+    // f.layer 变成 0——若引导语区块仍按 f.layer 判断，就会渲染出来，并且因为
+    // `dwelling` 非空而落在 facingUnknownNote 分支上，告诉一个明明登记了朝南居所的
+    // 用户"这个居所的朝向未确定"。
+    //
+    // 修复单 Minor 2：原来这条还断言了「还没登记居所」文案与「登记居所」链接缺席，
+    // 标题也这么写——但那两条恒真：引导语三元（page.tsx:648-657）里 noDwelling 分支
+    // 只在 `dwelling` 为空时才走，而本条夹具永远有一个居所，本 diff 的任何变异都到不了
+    // 那个分支。留着等于宣称提供了一份并不存在的保护，已删除并据实改写标题。
+    // 真正有判别力的是下面两条：朝向文案不得改口、Layer 1 派生的判语不得泄漏。
     dwellingsFixture.current = [dwellingL1(["p2"])];
     vi.stubGlobal(
       "fetch",
@@ -967,8 +1024,6 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
 
-    expect(screen.queryByText(/还没登记居所/)).toBeNull();
-    expect(screen.queryByRole("link", { name: "登记居所" })).toBeNull();
     expect(screen.queryByText(/朝向未确定/)).toBeNull();
     // Layer 1 派生的命宅相配判语同样不得泄漏（它属于住宅实盘）
     expect(screen.queryByText(/与这套宅子/)).toBeNull();
@@ -998,14 +1053,14 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Critical 1）：未知 ≠ �
 
   it("探测在途（GET 尚未返回）：Layer 1 区块显示加载态，不出现付费墙；Layer 0 内容完整渲染", async () => {
     dwellingsFixture.current = [dwellingL1(["p2"])];
-    vi.stubGlobal(
-      "fetch",
-      methodRouter({
-        // 永不落定：精确模拟"探测请求还在路上"这个中间态。
-        GET: () => new Promise<Response>(() => {}),
-        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
-      }),
-    );
+    // 修复单 Minor 3：桩存到局部变量，好在末尾真的去数 POST 次数（原来那句"叙述 POST
+    // 也不该抢跑"的注释下面并没有任何对应断言，只是又检查了一遍付费墙缺席）。
+    const fetchSpy = methodRouter({
+      // 永不落定：精确模拟"探测请求还在路上"这个中间态。
+      GET: () => new Promise<Response>(() => {}),
+      POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
     await renderPage();
 
     // Layer 0（免费层）内容不受任何影响
@@ -1018,11 +1073,16 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Critical 1）：未知 ≠ �
     expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
     // 也不能提前渲染会员内容（另一个方向：不能因为"还没被拒"就先放行）
     expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
-    // 更不能改口说用户没登记过居所
-    expect(screen.queryByText(/还没登记居所/)).toBeNull();
+    // 更不能改口说这个居所的朝向没确定（修复单 Minor 2：原来这里断言的是「还没登记
+    // 居所」缺席，但引导语三元里 noDwelling 分支只在 `dwelling` 为空时才走，本条夹具
+    // 永远有一个居所 → 那条恒真。真正会在引导语判据退回 f.layer 时冒出来的是这句。）
+    expect(screen.queryByText(/朝向未确定/)).toBeNull();
 
-    // 探测始终不落定 → 叙述 POST 也不该抢跑（它要等闸门落定，见双 POST 守卫）
+    // 探测始终不落定 → 叙述 POST 也不该抢跑（它要等闸门落定，见双 POST 守卫）。
+    // 修复单 Minor 3：这里以前只有注释、没有断言——真去数一次 POST，让注释成为真话。
     await drainEffects(3);
+    const postCalls = fetchSpy.mock.calls.filter(([, init]) => (init?.method ?? "GET") === "POST");
+    expect(postCalls).toHaveLength(0);
     expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
   });
 
