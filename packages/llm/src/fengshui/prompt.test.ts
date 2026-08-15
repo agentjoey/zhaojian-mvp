@@ -155,3 +155,36 @@ describe("Task11 buildObjectAdviceSystemPrompt / buildObjectAdviceUserPrompt", (
     expect(u).toContain(objectAdvice.personalFit);
   });
 });
+
+describe("EP-fs-16 Layer 1 提示", () => {
+  const dwelling = { id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "S" as const };
+  const l1Facts = extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth), dwelling }));
+
+  it("user prompt 带入宅卦与宅八方，并与命卦八方分开标注", () => {
+    const u = buildFengshuiUserPrompt(l1Facts);
+    expect(u).toContain("坎宅");
+    expect(u).toMatch(/宅.*八方|房屋八方/);
+    expect(u).toMatch(/本命八方|命卦八方/);
+  });
+
+  it("Layer 0 的 user prompt 不出现宅相关段落（不给模型无中生有的余地）", () => {
+    const u = buildFengshuiUserPrompt(extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth) })));
+    expect(u).not.toContain("宅卦");
+  });
+
+  it("system prompt 明令命卦八方与宅卦八方不得混用", () => {
+    expect(buildFengshuiSystemPrompt("zh")).toMatch(/不得混用|分别对应|两套/);
+  });
+
+  // 与上面「user prompt 不改动传入的 facts（sort 必须先复制）」同款保护，覆盖宅八方这条
+  // 新排序：⚠️ 必须新造一份 fresh facts —— 复用 describe 顶层的 l1Facts 会被前一个用例
+  // 排过序，拿它当基准会让「原地排序」变成幂等操作而测不出来（与上面那条注释同一个坑）。
+  it("user prompt 不改动传入的宅八方顺序（宅八方排序同样必须先 .slice() 复制）", () => {
+    const fresh = extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth), dwelling }));
+    const before = fresh.dwelling!.sectors.map((d) => d.direction);
+    // extractFengshuiFacts 按 DIRECTIONS 规范顺序产出，不是按吉凶排序
+    expect(before).toEqual(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
+    buildFengshuiUserPrompt(fresh);
+    expect(fresh.dwelling!.sectors.map((d) => d.direction)).toEqual(before);
+  });
+});

@@ -21,6 +21,7 @@ export function buildFengshuiSystemPrompt(language: ReadingLanguage = "zh"): str
     ...FENGSHUI_GUARDRAILS.map((g, i) => `${i + 1}. ${g}`),
     `${FENGSHUI_GUARDRAILS.length + 1}. 方位吉凶只能照用给定事实中的星名（生气/天医/延年/伏位/绝命/五鬼/六煞/祸害），不得自行推算、不得改写某方位对应的星。`,
     `${FENGSHUI_GUARDRAILS.length + 2}. 化解条目标注为「传统象征」的，只讲传统怎么说 + 这件事作为一种安顿自己的仪式意味着什么；禁止使用「研究表明」「科学证明」「临床」「实验显示」等措辞。`,
+    `${FENGSHUI_GUARDRAILS.length + 3}. 「本命八方」由命卦定、「房屋八方」由宅卦定，是两套彼此独立的判语，**不得混用或互相推导**。谈某个方位时必须说清是哪一套。`,
     "",
     "【输出格式】严格三个 H2 分节，顺序固定，不加其他标题：",
     `## ${H.situation}`,
@@ -43,11 +44,34 @@ export function buildFengshuiUserPrompt(facts: FengshuiFacts, opts?: { nickname?
   const remLines = facts.remedies
     .map((r) => `- [${r.effort}][${r.evidence}] ${r.action}｜传统依据：${r.traditional}｜现代机制：${r.modern ?? "无（不得编造）"}`)
     .join("\n");
+  // Layer 1 专属：居所与宅八方。宅八方与上面的本命八方是两套独立判语（各自由命卦/宅卦定），
+  // 不得混用，故标题里显式互相点名提醒。⚠️ sort 前必须 .slice() 复制——不然会原地
+  // 打乱 facts.dwelling.sectors 的顺序，重蹈 dirLines 同款 bug（波 1 已有专门测试锁定）。
+  const dwellingBlock = facts.dwelling ? [
+    ``,
+    `居所：${facts.dwelling.name}（${facts.dwelling.kind === "home" ? "住宅" : "办公"}，${facts.dwelling.tenancy === "rent" ? "租住" : "自有"}）`,
+    `坐向：坐${facts.dwelling.sittingLabel}向${facts.dwelling.facingLabel} → ${facts.dwelling.guaName}宅（${facts.dwelling.group}）`,
+    `与你：${facts.dwelling.matchWithPerson}`,
+    `房屋八方判语（与上面的本命八方是两套，勿混用）：`,
+    ...facts.dwelling.sectors
+      .slice()
+      .sort((a, b) => Number(b.auspicious) - Number(a.auspicious) || a.rank - b.rank)
+      .map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}，第${d.rank}）`),
+  ] : [];
+
+  const cohabBlock = facts.cohabitants.length ? [
+    ``,
+    `同住人（同一套房子对每个人吉凶不同，这是八宅的直接结论，不要说成"因人而异的感受"）：`,
+    ...facts.cohabitants.map((c) =>
+      `- ${c.name}：${c.mingGua}（${c.group}）｜对你吉但对 TA 凶：${c.conflicts.join("、") || "无"}｜双方皆吉：${c.sharedGood.join("、") || "无"}`),
+  ] : [];
   return [
     `称呼：${opts?.nickname ?? "你"}`,
     `本命卦：${facts.mingGua}（${facts.guaGroup}）`,
-    `八方判语：`,
+    `本命八方判语：`,
     dirLines,
+    ...dwellingBlock,
+    ...cohabBlock,
     ``,
     `命局喜用五行：${facts.favorableElements.join("、") || "中和，无明显扶抑"}`,
     `命局所忌五行：${facts.unfavorableElements.join("、") || "无"}`,

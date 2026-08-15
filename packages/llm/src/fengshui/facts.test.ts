@@ -56,3 +56,35 @@ describe("EP-fs-05 extractFengshuiFacts", () => {
     expect(f.remedies.some((r) => r.evidence === "传统象征")).toBe(true);
   });
 });
+
+describe("EP-fs-16 Layer 1 事实", () => {
+  const dwelling = { id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "S" as const };
+  const l1 = computeFengshui({ birth, chart: computeUnifiedChart(birth), dwelling });
+
+  it("Layer 1 的 facts 带 dwelling，layer 如实为 1", () => {
+    const f = extractFengshuiFacts(l1);
+    expect(f.layer).toBe(1);
+    expect(f.dwelling).toBeTruthy();
+    expect(f.dwelling!.guaName).toBe("坎");
+    expect(f.dwelling!.sectors).toHaveLength(8);
+    expect(["相配", "相冲"]).toContain(f.dwelling!.matchWithPerson);
+  });
+
+  it("Layer 0 的 facts 里 dwelling 为 null（不是 undefined，便于序列化稳定）", () => {
+    const f = extractFengshuiFacts(computeFengshui({ birth, chart: computeUnifiedChart(birth) }));
+    expect(f.layer).toBe(0);
+    expect(f.dwelling).toBeNull();
+  });
+
+  it("居所事实不夹带 id 等内部标识（只喂模型需要引用的东西）", () => {
+    const f = extractFengshuiFacts(l1);
+    expect(JSON.stringify(f)).not.toContain("d1");
+  });
+
+  it("白名单已同步——新增字段必须显式过闸", () => {
+    const f = extractFengshuiFacts(l1);
+    expect(Object.keys(f).sort()).toEqual([...FENGSHUI_FACT_KEYS].sort());
+    expect(FENGSHUI_FACT_KEYS).toContain("dwelling");
+    expect(FENGSHUI_FACT_KEYS).toContain("cohabitants");
+  });
+});
