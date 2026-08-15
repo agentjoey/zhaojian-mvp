@@ -77,6 +77,7 @@ apps/web/app/api/fengshui/object/route.ts
 | TG 后端鉴权 | `apps/web/app/api/tg/spirit/route.ts` — `cookies()` 取 `TG_COOKIE` → `readSession` → 未登录 401 → `getProfileForUser(s.uid)` → `localeFromRequest(req)` |
 | 前端 TG/web 分支 + 原生列表 | `apps/web/app/profiles/page.tsx` — `const inTg = mounted && isTelegram()`，TG 分支渲染 `<Group>`/`<Cell>` |
 | 页内两步删除确认 | 同上 `profiles/page.tsx` 的 `confirmDeleteId` 状态机（约 117/150-155 行一带，TG 与 web 两个分支都实现了） |
+| 编辑入口（列表项 → 带 `initial` 打开表单） | 同上 `profiles/page.tsx` 的 `editingId` 状态机 |
 
 可用原语：
 - `apps/web/components/tg/native.tsx` — `Section` / `Group` / `Cell` / `Bubble`
