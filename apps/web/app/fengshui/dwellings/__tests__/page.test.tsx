@@ -17,16 +17,15 @@ vi.mock("@/lib/profiles", () => ({
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 
 /**
- * Task 10（EP-fs-17 会员闸门）：本页新增直接 import `@/lib/supabase`（读会话
- * access_token，附到 /api/fengshui/reading 的闸门探测请求头上）。真实实现在没配
- * NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时会抛错（同 lib/__tests__/dwellings.test.ts、
- * fengshui/__tests__/page.test.tsx 踩过的同一个坑），必须 mock 掉。默认
- * `session: null`——绝大多数测试不关心「服务端具体怎么识别身份」。
+ * `@/lib/supabase` 的真实实现在没配 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时会抛错
+ * （同 lib/__tests__/dwellings.test.ts、fengshui/__tests__/page.test.tsx 踩过的同一个
+ * 坑），必须 mock 掉。
  *
- * 修复单 Important 4：会话内容改成可按测试改写的共享可变量（`vi.hoisted`，理由同
- * fengshui/__tests__/page.test.tsx 里的同名夹具：renderPage() 每次 resetModules +
- * 动态 import，直接摆弄 mock 实例会打到一个页面根本不会调用到的旧实例）。写死
- * `session: null` 意味着「探测请求到底带不带 Authorization」全程零断言。
+ * 最终评审 I2 之后**本页自己不再 import 它**（多居所闸门连同探测一并撤除），但
+ * `DwellingForm`（本页下半部分永远渲染）会 import——它要为同住人选择器的合看闸门
+ * （最终评审 I3）读会话 token。所以这个 mock 仍然是必需的，只是服务对象换了。
+ * 会话内容保持可按测试改写的共享可变量（`vi.hoisted`，理由同
+ * fengshui/__tests__/page.test.tsx 里的同名夹具）。
  */
 const { supabaseSession } = vi.hoisted(() => ({
   supabaseSession: { current: null as { access_token: string } | null },
@@ -85,7 +84,8 @@ async function renderPage() {
 const D1: Dwelling = { id: "d1", name: "家A", kind: "home", tenancy: "rent", facing: "S", memberProfileIds: [] };
 const D2: Dwelling = { id: "d2", name: "家B", kind: "office", tenancy: "own", facing: null, memberProfileIds: [] };
 
-/** 会员闸门探测（Task 10）响应；route 现在返回 JSON `{ entitled }`。 */
+/** 会员闸门探测响应；route 返回 JSON `{ entitled }`。本页自己不再探测（I2），
+ *  但夹具保留：多条测试要断言「即使端点会答 entitled:false，本页也不受影响」。 */
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, ...init });
 }
@@ -97,9 +97,9 @@ beforeEach(() => {
   deleteDwelling.mockReset().mockResolvedValue(undefined);
   supabaseSession.current = null;
   vi.stubGlobal("confirm", vi.fn(() => true));
-  // 默认 entitled:true（对应「未开闸」或「已是会员」——本页分不清也不需要分清这两种；
-  // 哪种具体情形由本文件末尾「会员闸门」describe 块专门覆盖）。这保证了 Task 10
-  // 之前就存在的既有测试（含下面用到 2 个居所的「列表渲染」测试）无需逐个改动。
+  // 默认 entitled:true。本页自己已不发请求（I2），这个桩留着是给 `DwellingForm`
+  // 内部那条合看闸门探测兜底——本文件的 listProfiles 只返回主档案自己，选择器不
+  // 渲染、探测也不会发起，但桩在这里意味着即使将来夹具变了也不会打到真 fetch。
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
 });
 
@@ -173,60 +173,50 @@ describe("EP-fs-14 /fengshui/dwellings 管理页", () => {
 });
 
 /**
- * 会员闸门（Task 10，EP-fs-17）。spec §11 边界：多套居所是会员功能——非会员只能
- * 保存一个，第二个起触发 Paywall；已保存的第一个不受影响（本页不删列表，只挡
- * 「新增」区域）。全程受 BILLING_ENABLED 门控（无 NEXT_PUBLIC_ 前缀，页面读不到，
- * 只能靠 GET /api/fengshui/reading 返回的 entitled 布尔值）。
+ * 最终评审 I2：**撤除**「保存第 2 套居所」的会员闸门。
  *
- * 没有居所（首套）时不发起闸门探测——首套永远免费，探测结果不影响任何 UI，见
- * page.tsx 里 `if (!dwellings || dwellings.length === 0)` 的守卫；下面专门有一条
- * 测试锁定「不该发起这次请求」，防止这个「减少无意义请求」的设计被悄悄破坏。
+ * Task 10 曾把它挡在 `<Paywall reason="limit" />` 后面（非会员：「已达免费版上限，
+ * 升级会员后可继续保存」）。撤除的理由不是"闸门实现得不对"，而是它挡住的东西
+ * **没有任何可观察产出**：`../page.tsx` 与 `../object/page.tsx` 都硬编码
+ * `dwellings[0]`，居所切换器未实现，第 2 套居所不被任何东西读取，只作为管理列表里
+ * 的一行存在。升级会员换来的就是那一行——为一个不产出任何东西的能力收费。
+ *
+ * 所以本 describe 的断言方向整个反了过来：从「非会员被挡住」变成「非会员不被挡住」。
+ * 变异对照（实跑过）：把 `<Paywall reason="limit" />` 分支加回 page.tsx，下面第一条
+ * 与第二条当场变红。
+ *
+ * ⚠️ 撤的只是多居所这一条。Layer 1 本身的闸门（宅盘 / 合看 / 分级化解）有真实可观察
+ * 差异，仍然生效——合看那条现在贴在 `../DwellingForm.tsx` 的同住人选择器上
+ * （最终评审 I3），由 `fengshui/__tests__/DwellingForm.test.tsx` 覆盖。
  */
-describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二个触发 Paywall", () => {
-  it("已有 1 个居所且非会员：「新增」区域显示 Paywall，不显示表单；已保存的居所不受影响", async () => {
+describe("最终评审 I2：新增居所不再受会员闸门限制（挡住的东西本来就没有产出）", () => {
+  it("已有 1 个居所且服务端会判定为非会员：新增表单照常显示，没有付费墙", async () => {
     listDwellings.mockResolvedValue([D1]);
+    // 即使端点摆明了答 entitled:false，本页也不该去问、更不该据此挡人。
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: false })));
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
-    // 修复单 Minor 1：`reason="limit"` 的副标题**只有这一个真实调用点**，此前全仓库
-    // 只有 /fengshui 那条「它不该出现在宅盘位置」的反向断言在提这个字符串——改一次
-    // 文案就能让那条反向断言悄悄变成恒真（`47e9faa` 正是这么发生的）。这里补上唯一
-    // 的正向断言：文案一旦再被改动，这条先红，反向断言才有活的对照。
-    expect(screen.getByText("已达免费版上限，升级会员后可继续保存。")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
-    // 挡的是「新增」，不是已经保存的居所——列表仍然完整可见
-    expect(screen.getByText("家A")).toBeInTheDocument();
-  });
-
-  it("已有 1 个居所且是会员：「新增」区域正常显示表单，不显示 Paywall", async () => {
-    listDwellings.mockResolvedValue([D1]);
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
-    await renderPage();
-    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    // 付费墙的标题在本页任何位置都不该出现（`queryAllByText` 而非 `queryByText`：
+    // 后者在多次匹配时抛 multiple-match，而不是干净地失败）
+    expect(screen.queryAllByText("升级会员，解锁无限")).toHaveLength(0);
+    expect(screen.queryAllByText(/已达免费版上限/)).toHaveLength(0);
   });
 
-  it("route 判定 entitled:true（对应 BILLING_ENABLED 关闭，或已是会员）：即使已有多个居所，新增表单也不受限——对照组", async () => {
-    // 与上一条「非会员 → Paywall」用相同的居所数量级（这里甚至更多，2 个），
-    // 唯一变量是 entitled 的值——证明真正决定渲染结果的是这个信号，不是别的。
+  it("已有 2 个居所（早就超出旧的「免费 1 套」上限）：第 3 套照样能新增", async () => {
     listDwellings.mockResolvedValue([D1, D2]);
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: false })));
     await renderPage();
     await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
+    expect(screen.queryAllByText("升级会员，解锁无限")).toHaveLength(0);
   });
 
-  it("没有居所（首套）：即使 route 判定 entitled:false，表单仍正常显示——首套免费，且根本不该发起闸门探测请求", async () => {
+  it("没有居所时同样照常显示表单（首套本来就免费，行为不变）", async () => {
     listDwellings.mockResolvedValue([]);
-    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: false }));
-    vi.stubGlobal("fetch", fetchSpy);
     await renderPage();
     await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(screen.queryAllByText("升级会员，解锁无限")).toHaveLength(0);
   });
 
   /** 把所有在途 promise/effect 排空，让「之后还会不会再冒出点什么」变成确定性的。 */
@@ -239,124 +229,39 @@ describe("EP-fs-17 会员闸门（Task 10）：只能保存一个居所，第二
   }
 
   /**
-   * 第二轮修复单 Important 1a：本页的四个闸门分支此前只有 blocked/entitled/unknown
-   * 三条有断言，**探测在途**这条零断言——而它恰恰是 Critical 1 的第一条泄漏路径。
-   * 把 page.tsx 的 probing 分支改成 `<Paywall reason="limit" />`，原有全部测试照样绿：
-   * 非会员那条是 `waitFor` 付费墙（只会更早出现），会员那条只在权益结算**之后**才检查
-   * 付费墙缺席。后果是 BILLING_ENABLED 关闭（默认配置）的构建里，每个有 ≥1 个居所的
-   * 用户每次加载都会闪一下「升级会员，解锁无限」。
+   * I2 要求 2：闸门撤了，为它服务的权益探测也要一并撤——不留下没人使用的探测请求。
+   *
+   * 本文件的 `listProfiles` 只返回主档案自己，`DwellingForm` 的同住人选择器因此
+   * 不渲染、也不会发起它自己那条（I3 的合看）探测。于是本页在这套夹具下的正确
+   * 网络行为是**一次请求都不发**。这条同时锁住两件事：闸门探测确实没了，且
+   * DwellingForm 的探测确实按「有候选人才探」的守卫工作。
    */
-  it("闸门探测在途（GET 尚未返回）：新增区域给加载态，既不出付费墙也不提前放行表单", async () => {
+  it("本页不再发起任何权益探测请求（闸门撤了，探测也一并撤）", async () => {
+    listDwellings.mockResolvedValue([D1, D2]);
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: false }));
+    vi.stubGlobal("fetch", fetchSpy);
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
+    await drainEffects();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument();
+  });
+
+  /**
+   * 探测撤除后连带消失的那些中间态，不能悄悄留下残骸：本页曾有「探测在途 →
+   * 加载中…」「探测失败 → 会员状态暂时确认不了 + 重新确认」两条分支。它们现在
+   * 一条都不该出现——哪怕端点永远不落定（那正是当年"加载中…"分支的触发条件）。
+   */
+  it("端点永不落定时，新增区域也不会退回加载态/「重新确认」（那些分支已随探测一并删除）", async () => {
     listDwellings.mockResolvedValue([D1]);
-    // 永不落定：精确模拟「探测请求还在路上」这个中间态。
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
     await renderPage();
-    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
-
-    // 加载态——付费墙是终局判定，不是等待态
-    expect(screen.getByText("加载中…")).toBeInTheDocument();
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-    // 另一个方向：也不能因为「还没被拒」就先把表单放出来、探测落定再收回
-    expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
-
-    // 排空在途副作用后依然如此（不是「早了一拍看不见」而已）
-    await drainEffects();
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-    expect(screen.getByText("加载中…")).toBeInTheDocument();
-  });
-
-  /**
-   * 修复单 Critical 1（同类）：本页原来也把「探测失败」直接 setEntitled(false)，
-   * 于是一次网络抖动就把新增表单换成付费墙——在 BILLING_ENABLED 未设置（默认）的
-   * 构建里，服务端本来对任何人都放行，这是在向一个有权限的用户推销。
-   */
-  it("闸门探测失败：不给付费墙，给「重新确认」入口；已有居所列表不受影响", async () => {
-    listDwellings.mockResolvedValue([D1]);
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }));
-    await renderPage();
-    await waitFor(() => expect(screen.getByText("家A")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-    expect(screen.getByRole("button", { name: "重新确认" })).toBeInTheDocument();
-  });
-
-  it("闸门探测返回 502：同样按「资格未知」处理，不当作「确认非会员」", async () => {
-    listDwellings.mockResolvedValue([D1]);
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
-    await renderPage();
-    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-  });
-
-  /**
-   * 第二轮修复单 Important 1b：本页此前的探测桩要么是 `jsonResponse({entitled:…})`、
-   * 要么抛错、要么 502，**从没有发过 200 + 垃圾响应体**——于是把 `typeof
-   * data2?.entitled !== "boolean"` 退回 `Boolean(data2?.entitled)` 能全绿通过。
-   * 广告拦截器 / Service Worker 离线占位页正是这个形状（200 + HTML），退回后它们会
-   * 静默变成 `blocked`：BILLING_ENABLED 关闭的构建里，用户被推一堵本不存在的墙。
-   */
-  it("闸门探测返回 200 但 body 读不出 entitled 布尔值（广告拦截器/离线占位响应）：按未知处理，不 Boolean() 成 false", async () => {
-    listDwellings.mockResolvedValue([D1]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("<html>offline</html>", { headers: { "content-type": "text/html" } })),
-    );
-    await renderPage();
-    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
-    expect(screen.queryByText("升级会员，解锁无限")).toBeNull();
-    expect(screen.getByRole("button", { name: "重新确认" })).toBeInTheDocument();
-  });
-
-  it("探测失败后点「重新确认」：重新探测，成功放行后新增表单恢复", async () => {
-    listDwellings.mockResolvedValue([D1]);
-    let calls = 0;
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      calls += 1;
-      if (calls === 1) throw new Error("network down");
-      return jsonResponse({ entitled: true });
-    }));
-    await renderPage();
-    await waitFor(() => expect(screen.getByText(/会员状态暂时确认不了/)).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole("button", { name: "重新确认" }));
-
     await waitFor(() => expect(screen.getByRole("button", { name: "保存" })).toBeInTheDocument());
-    expect(screen.queryByText(/会员状态暂时确认不了/)).toBeNull();
-    expect(calls).toBe(2);
-  });
-});
+    await drainEffects();
 
-/**
- * 修复单 Important 4：本页的闸门探测同样必须把 Supabase 会话 token 发出去——
- * 不发的话，`BILLING_ENABLED=1` 时每个非 Telegram（邮箱 / 匿名 Supabase）会员都会
- * 被服务端当成「未登录 ⇒ 非会员」，新增表单被付费墙挡掉。此前本文件把会话写死成
- * `session: null`，这条链路零断言。
- */
-describe("EP-fs-17 会员闸门（Task 10 修复单 Important 4）：探测请求必须带上会话 token", () => {
-  it("有 Supabase 会话时：闸门探测 GET 带上 Authorization: Bearer <access_token>", async () => {
-    supabaseSession.current = { access_token: "tok-xyz" };
-    listDwellings.mockResolvedValue([D1]);
-    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
-    vi.stubGlobal("fetch", fetchSpy);
-
-    await renderPage();
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-
-    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect(init.method).toBe("GET");
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok-xyz");
-  });
-
-  it("没有 Supabase 会话时不伪造 Authorization 头（对照组）", async () => {
-    supabaseSession.current = null;
-    listDwellings.mockResolvedValue([D1]);
-    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
-    vi.stubGlobal("fetch", fetchSpy);
-
-    await renderPage();
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-
-    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
-    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(screen.queryAllByText("加载中…")).toHaveLength(0);
+    expect(screen.queryAllByText(/会员状态暂时确认不了/)).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "重新确认" })).toHaveLength(0);
   });
 });

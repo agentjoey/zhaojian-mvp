@@ -70,11 +70,9 @@ export const en: Messages = {
     yearly: "$99/year",
     comingSoon: "Payments coming soon",
     telegramIAP: "Telegram in-app purchases coming soon",
-    // Deliberately entity-agnostic (was "Profile limit reached"): this key's only
-    // call site is the add-dwelling slot on /fengshui/dwellings, where the thing at
-    // its limit is a *dwelling*, not a profile. Kept generic rather than renamed to
-    // "dwelling" so the next free-tier count limit can reuse it.
-    subtitleLimit: "Free plan limit reached. Upgrade to save more.",
+    // subtitleLimit ("Free plan limit reached…") is gone: its only call site was the
+    // add-dwelling slot on /fengshui/dwellings, and that gate was removed in final
+    // review I2 (nothing ever reads dwelling #2). See components/Paywall.tsx.
     subtitleQuota: "Free quota used. Upgrade to continue chatting.",
     subtitleMember: "This part is a member feature. Upgrade to unlock it.",
   },
@@ -404,6 +402,15 @@ export const en: Messages = {
       deleteFailed: "Deletion failed, please try again",
       membersLabel: "Housemates",
       membersHint: "The same home favors each person differently — add housemates to compare.",
+      // Final review I1: the housemate cap used to live only on the server. Say it at
+      // the selector, not as a 400 on another page. {max} is injected from
+      // MAX_COHABITANTS so the copy follows the limit.
+      membersLimitNote: "You can pick at most {max} housemates. Deselect one to swap.",
+      // Final review I3: the cohabitant view is a member feature (spec §11), but the
+      // selector was fully open to free users — they could tick names, save, and see
+      // nothing at all. Say that plainly rather than vaguely gesturing at membership.
+      membersMemberOnly:
+        "Comparing housemates is a member feature — upgrade to see how this home favors each person differently.",
     },
   },
   profiles: {

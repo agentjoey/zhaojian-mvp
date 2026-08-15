@@ -206,7 +206,7 @@ describe("EP-fs-18 物件顾问强版（宅八方）", () => {
     );
   });
 
-  it("有居所时把宅八方传给 adviseObject，推荐位同时满足命卦与宅卦", async () => {
+  it("有居所时把宅八方交给 adviseObject（入参可证伪），推荐位仍是手工推出的那两个", async () => {
     render(<ObjectAdvisorForm fs={fs} dwellingSectors={matchSectors} />, { wrapper: Wrapper });
     submitDeskInWood();
     await waitFor(() => expect(screen.getByText("推荐方位")).toBeInTheDocument());
@@ -221,10 +221,18 @@ describe("EP-fs-18 物件顾问强版（宅八方）", () => {
     // ② 再钉死具体是哪几个方位（手工从游年表 + 五行方位表推出）——只断言「非空」
     //    在这里是空转的：本组合下推荐位恒为两个，长度检查抓不到任何一种排错。
     expect(picks).toEqual(EXPECTED_PICKS);
-    for (const d of picks) {
-      expect(fs.personalDirections[d].auspicious, `${DIRECTION_LABEL[d]} 应为命卦吉方`).toBe(true);
-      expect(matchSectors[d].auspicious, `${DIRECTION_LABEL[d]} 应为宅卦吉方`).toBe(true);
-    }
+    // ⚠️ 最终评审 M2：这里原来还有一个 `for (const d of picks)` 循环，断言每个推荐位
+    //    同时是命卦吉方与宅卦吉方。它**恒真**，删除，别再加回来：
+    //    (a) 本条测试上面那句 `expect(picks).toEqual(EXPECTED_PICKS)` 已经把结果钉死到
+    //        具体的两个方位，逐元素再检查一遍性质提供不了额外判别力；
+    //    (b) 更根本的是，本文件第一条「夹具自检」已经实测证明了本夹具下
+    //        `personGood ⊆ matchGood`（同组居所交集是满的），所以只要 picks ⊆ personGood
+    //        ——那是 core 对**弱版**就成立的性质——循环里的两个断言必然同时成立；
+    //    (c) 这个性质也根本不是强版的特征：八宅结构决定「命卦吉方 ∩ 宅卦吉方」只可能是
+    //        4（同组）或 0（异组），所以它对弱版同样成立。旧标题「推荐位同时满足命卦与
+    //        宅卦」复述的正是这个已被推翻的前提（详见 ../object/page.tsx 顶部注释）。
+    //    本条真正承重的是 ① 的入参 spy —— 标题已据实改写。
+    //
     // 交集非空 → core 判定「没话说就不说」，不该出现说明卡。
     // 这不是恒真的缺席断言：同一个字符串在下面「相冲」两条测试里确实会渲染出来。
     expect(screen.queryByText("关于这套房子")).toBeNull();

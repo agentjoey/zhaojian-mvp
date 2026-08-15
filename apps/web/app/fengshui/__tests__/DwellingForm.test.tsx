@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { BirthInputSchema, computeUnifiedChart } from "@eamvp/core";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
+// 上限的单一事实源，与 api/fengshui/reading/route.ts 的 `z.array(...).max()` 同源。
+import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
+import { zh } from "@/lib/i18n/messages/zh";
 import { DwellingForm } from "../DwellingForm";
 
 const createDwelling = vi.fn(async (d: unknown) => ({ id: "d1", ...(d as object) }));
@@ -30,6 +33,24 @@ vi.mock("@/lib/profiles", () => ({
   getActiveProfileId: () => "p1",
 }));
 
+/**
+ * 最终评审 I3：本表单现在会为「合看是不是会员功能」向服务端探测一次
+ * （GET /api/fengshui/reading，与 /fengshui、/fengshui/object 同一个端点、同一份
+ * 服务端判断）。`@/lib/supabase` 的真实实现在没配 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY
+ * 时会抛错（与 fengshui/__tests__/page.test.tsx、dwellings/__tests__/page.test.tsx
+ * 踩过的是同一个坑），必须 mock。会话内容做成共享可变量，好让「探测请求到底带不带
+ * Authorization」这条链路可断言——写死 null 就等于零断言。
+ */
+const supabaseSession = { current: null as { access_token: string } | null };
+vi.mock("@/lib/supabase", () => ({
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: supabaseSession.current } })) } }),
+}));
+
+/** 闸门探测响应；route 返回 JSON `{ entitled }`。 */
+function jsonResponse(body: unknown, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" }, ...init });
+}
+
 const Wrapper = ({ children }: { children: React.ReactNode }) => (
   <I18nProvider locale="zh">{children}</I18nProvider>
 );
@@ -39,7 +60,11 @@ beforeEach(() => {
   // listProfiles 有一条测试用 mockResolvedValueOnce 覆盖默认返回值（只回主档案），
   // 不清空调用记录的话，后续测试里「listProfiles 确实被调用过」这类断言会被前一条
   // 测试的调用记录污染成假阳性——即便本测试的组件压根没发起过请求也会通过。
-  listProfiles.mockClear();
+  listProfiles.mockReset().mockResolvedValue([PROFILE_MAIN, PROFILE_B, PROFILE_C]);
+  supabaseSession.current = null;
+  // 默认 entitled:true（对应「未开闸」= 默认配置，或「已是会员」）——保证 Task 9b
+  // 既有的同住人用例无需逐条改动。非会员分支由本文件末尾的 I3 describe 专门覆盖。
+  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
 });
 
 describe("EP-fs-14 居所录入", () => {
@@ -198,5 +223,213 @@ describe("Task 9b：同住人选择 UI（原计划遗漏，补入后合看才真
     // 挂起的微任务、以及随之而来的 setState 落定下来。
     await waitFor(() => expect(listProfiles).toHaveBeenCalled());
     expect(screen.queryByText("同住人")).toBeNull();
+  });
+});
+
+/** 把在途 promise / effect 排空，让「之后还会不会再冒出点什么」变成确定性的。 */
+async function drainEffects(rounds = 3) {
+  for (let i = 0; i < rounds; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+}
+
+/** 上限文案由 `{max}` 插值而来——从字典取模板再插值，不写死一份会漂移的字面量。 */
+const LIMIT_NOTE = zh.fengshui.dwelling.membersLimitNote.replace("{max}", String(MAX_COHABITANTS));
+const MEMBER_ONLY_NOTE = zh.fengshui.dwelling.membersMemberOnly;
+
+/**
+ * 最终评审 I1：同住人上限此前**只存在于服务端**
+ * （`api/fengshui/reading/route.ts` 的 `z.array(...).max(MAX_COHABITANTS)`），
+ * 选择器这头一个限制都没有。用户勾 9 位存下 → 此后每次加载 /fengshui 都被 Zod
+ * 打成 400 → 「叙述暂时生成不出来」+ 一个永远不可能成功的重试按钮，而失败信息里
+ * 没有任何东西指向同住人列表，用户无从自解。
+ *
+ * 上限的执行点就是候选人按钮的 `disabled`（唯一一处，没有第二份守卫兜着——
+ * 摘掉它上限就整个失效，下面第一条当场变红）。
+ */
+describe("最终评审 I1：同住人选择器必须自己认上限（服务端上限不能只在服务端）", () => {
+  /** 比上限多 1 位候选人：恰好能验证「第 上限+1 位勾不下去」。 */
+  const MANY = Array.from({ length: MAX_COHABITANTS + 1 }, (_, i) => ({
+    ...PROFILE_B, id: `m${i}`, nickname: `候选${i}`,
+  }));
+
+  /** 候选人昵称 `候选0`…`候选8` 互不为前缀，仍一律锚定完整匹配（方位名嵌套的老坑）。 */
+  const chip = (i: number) => screen.getByRole("button", { name: new RegExp(`^候选${i}$`) });
+
+  async function renderWithManyCandidates() {
+    listProfiles.mockResolvedValue([PROFILE_MAIN, ...MANY]);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(chip(0)).toBeInTheDocument());
+  }
+
+  function selectUpToLimit() {
+    for (let i = 0; i < MAX_COHABITANTS; i++) fireEvent.click(chip(i));
+  }
+
+  it("勾满上限后，第 上限+1 位候选人被禁用，点了也进不了保存载荷", async () => {
+    await renderWithManyCandidates();
+    selectUpToLimit();
+
+    const overflow = chip(MAX_COHABITANTS);
+    expect(overflow).toBeDisabled();
+    fireEvent.click(overflow); // 点了也没用
+
+    fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() => expect(createDwelling).toHaveBeenCalled());
+    const saved = (createDwelling.mock.calls[0]![0] as { memberProfileIds: string[] }).memberProfileIds;
+    expect(saved).toHaveLength(MAX_COHABITANTS);
+    expect(saved).not.toContain(`m${MAX_COHABITANTS}`);
+  });
+
+  it("勾满上限时给出明确说明——用户当场就知道为什么点不动，而不是在另一个页面上撞 400", async () => {
+    await renderWithManyCandidates();
+    selectUpToLimit();
+    expect(screen.getByText(LIMIT_NOTE)).toBeInTheDocument();
+  });
+
+  it("未达上限时既不禁用也不提示（对照组：这不是一个永远开着的闸门）", async () => {
+    await renderWithManyCandidates();
+    for (let i = 0; i < MAX_COHABITANTS - 1; i++) fireEvent.click(chip(i)); // 差一位到上限
+    expect(chip(MAX_COHABITANTS)).not.toBeDisabled();
+    expect(screen.queryAllByText(LIMIT_NOTE)).toHaveLength(0);
+  });
+
+  it("勾满之后仍能取消已选的人——上限不能把用户锁死在当前这组人上", async () => {
+    await renderWithManyCandidates();
+    selectUpToLimit();
+    // 已选中的按钮永远可点，否则「换一个人」就成了死局
+    expect(chip(0)).not.toBeDisabled();
+    fireEvent.click(chip(0));
+    // 让出一个名额后，原先被禁用的那位立刻可选
+    expect(chip(MAX_COHABITANTS)).not.toBeDisabled();
+    expect(screen.queryAllByText(LIMIT_NOTE)).toHaveLength(0);
+  });
+
+  it("编辑一个超限的历史居所时，回显被截断到上限——编辑是用户修正这份坏数据的唯一入口", async () => {
+    // 上限是后加的：此前存下来的居所可能带着 9 个 id。原样回显再存回去，等于把那份
+    // 「每次加载都 400」的坏数据又续了一次命。
+    listProfiles.mockResolvedValue([PROFILE_MAIN, ...MANY]);
+    render(
+      <DwellingForm
+        initial={{
+          id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "S",
+          memberProfileIds: MANY.map((p) => p.id),
+        }}
+        onSaved={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(chip(0)).toBeInTheDocument());
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() => expect(updateDwelling).toHaveBeenCalled());
+    const patch = updateDwelling.mock.calls[0]![1] as { memberProfileIds: string[] };
+    expect(patch.memberProfileIds).toHaveLength(MAX_COHABITANTS);
+  });
+});
+
+/**
+ * 最终评审 I3：合看（同住人对照）是会员功能——`/fengshui` 的消费端早就有闸门
+ * （`effectiveCohabitantInputs = entitled ? cohabitantInputs : undefined`），而这个
+ * **产生**同住人名单的选择器却对非会员完全开放。于是 `BILLING_ENABLED=1` 时：
+ * 免费用户勾选同住人 → id 被写进 `member_profile_ids` → 然后什么都不会出现。
+ * 没有付费墙，没有提示，没有任何东西解释这份名单为什么不起作用。
+ *
+ * ⚠️ 「不知道」不等于「不是会员」：探测在途 / 探测失败 / 200 但读不出布尔，一律
+ * **不挡**（下面有专门的对照条目）。`BILLING_ENABLED` 未设置是默认配置，此时服务端
+ * 对任何人都放行，把一次网络抖动渲染成「这是会员功能」就是向有权限的用户推销
+ * ——与 Task 10 修复单 Critical 1 是同一条规矩。
+ */
+describe("最终评审 I3：非会员必须在选择器处就知道合看是会员功能", () => {
+  async function renderBlocked() {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: false })));
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText(MEMBER_ONLY_NOTE)).toBeInTheDocument());
+  }
+
+  it("服务端明确答 entitled:false：给出会员说明，且候选人全部禁用", async () => {
+    await renderBlocked();
+    expect(screen.getByRole("button", { name: /^阿乙$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^阿丙$/ })).toBeDisabled();
+  });
+
+  it("非会员点候选人不产生任何选择——不会存下一份永远不会被渲染的名单", async () => {
+    await renderBlocked();
+    fireEvent.click(screen.getByRole("button", { name: /^阿乙$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^南$/ }));
+    fireEvent.click(screen.getByText("保存"));
+    await waitFor(() => expect(createDwelling).toHaveBeenCalled());
+    expect(createDwelling.mock.calls[0]![0]).toMatchObject({ memberProfileIds: [] });
+  });
+
+  it("会员（entitled:true）：没有会员说明，候选人可正常勾选——对照组，证明说明不是恒常显示", async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await drainEffects(); // 探测已落定，不是「早了一拍还没来得及挡」
+
+    expect(screen.queryAllByText(MEMBER_ONLY_NOTE)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: /^阿乙$/ })).not.toBeDisabled();
+  });
+
+  it("探测失败（网络异常）：按「资格未知」处理——不挡、也不推销", async () => {
+    const fetchSpy = vi.fn(async () => { throw new Error("network down"); });
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await drainEffects();
+
+    expect(screen.queryAllByText(MEMBER_ONLY_NOTE)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: /^阿乙$/ })).not.toBeDisabled();
+  });
+
+  it("探测返回 200 但 body 读不出 entitled 布尔值（广告拦截器/离线占位页）：同样按未知处理，不 Boolean() 成 false", async () => {
+    const fetchSpy = vi.fn(async () => new Response("<html>offline</html>", { headers: { "content-type": "text/html" } }));
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await drainEffects();
+
+    expect(screen.queryAllByText(MEMBER_ONLY_NOTE)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: /^阿乙$/ })).not.toBeDisabled();
+  });
+
+  it("没有候选人时根本不发起闸门探测——探测结果影响不到任何东西，不该白发一次网络往返", async () => {
+    listProfiles.mockResolvedValue([PROFILE_MAIN]); // 只有主档案自己 → 选择器不渲染
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: false }));
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(listProfiles).toHaveBeenCalled());
+    await drainEffects();
+
+    expect(screen.queryByText("同住人")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("探测请求带上 Supabase 会话 token——否则 BILLING_ENABLED=1 时每个邮箱/匿名会员都会被误判成非会员", async () => {
+    supabaseSession.current = { access_token: "tok-xyz" };
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+    const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/fengshui/reading");
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok-xyz");
+  });
+
+  it("没有会话时不伪造 Authorization 头（对照组）", async () => {
+    supabaseSession.current = null;
+    const fetchSpy = vi.fn(async () => jsonResponse({ entitled: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 });

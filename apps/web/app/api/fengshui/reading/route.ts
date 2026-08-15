@@ -3,6 +3,10 @@ import { computeUnifiedChart, computeFengshui, BirthInputSchema } from "@eamvp/c
 import { generateFengshuiReading, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
 import { localeFromRequest } from "@/lib/i18n/server";
 import { getEntitlement, isMember } from "@/lib/entitlements";
+// 同住人上限的**单一事实源**（最终评审 I1）。此前这个常量只存在于本文件里，
+// 客户端选择器不设限 → 用户勾满 9 个存下来，之后每次加载 /fengshui 都被下面这条
+// `.max()` 打成 400，且无法自解。上限现在与 DwellingForm 的选择器同源。
+import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { supabaseAdmin } from "@/lib/tg/admin";
 
@@ -36,14 +40,6 @@ const CohabitantBodySchema = z.object({
   name: z.string(),
   birth: BirthInputSchema,
 });
-
-/**
- * 同住人数组上限（复审 Minor）：每个同住人服务端都要用 computeUnifiedChart 现算一次
- * 完整命盘（紫微+八字+西盘）——公开端点若不设上限，N 个同住人就是 N 次重排盘，
- * 是一个廉价的放大攻击面。8 是留了充分余量的保守上限（正常使用场景里「同住人」
- * 数量远小于此）。
- */
-const MAX_COHABITANTS = 8;
 
 const ReadingRequestSchema = BirthInputSchema.extend({
   dwelling: DwellingBodySchema.optional(),

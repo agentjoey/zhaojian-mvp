@@ -8,6 +8,7 @@ import {
 } from "@eamvp/core";
 import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
 import { listDwellings, type Dwelling } from "@/lib/dwellings";
+import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
@@ -178,9 +179,14 @@ export default function FengshuiPage() {
       .catch(() => setProfile(null));
   }, []);
 
-  // 居所：只取第一个。本页没有居所切换器——Task 10 只把「新建第 2 个居所」纳入会员
-  // 闸门（见 dwellings/page.tsx），并未实现切换，会员在这里同样只看得到 dwellings[0]。
-  // 切换器不在任何已交付 brief 的范围内，需要时另开任务。依赖 profile 而非并行加载，
+  // 居所：**只取第一个**，`dwellings[1..]` 在整个代码库里没有任何读取方
+  // （../fengshui/object/page.tsx 同样硬编码 `list[0]`）。本页没有居所切换器，
+  // 会员与非会员在这里看到的都是 dwellings[0]。
+  // 因此「多套居所」不构成会员权益：最终评审 I2 已撤除 dwellings/page.tsx 上那道
+  // 挡住保存第 2 套的付费墙——升级换来的只是管理列表里多一行，别无他物。
+  // 切换器是真功能、值得做，但需要连带补一条服务端写入路径（createDwelling 目前是
+  // 浏览器直写 supabase），不在任何已交付 brief 的范围内，需要时另开任务。
+  // 依赖 profile 而非并行加载，
   // 避免「profile 就绪但 dwellings 未就绪」这个中间态被误当成 Layer 0 触发一次多余的
   // LLM 请求（narrative-fetch effect 专门等两者都落定后才发起，见下）。
   // 两步（居所→合看成员）合在同一个 effect/同一条 promise 链里，两个 setState 在
@@ -203,7 +209,14 @@ export default function FengshuiPage() {
           (async () => {
             const l = await listDwellings();
             const d = l[0];
-            const ids = d?.facing ? d.memberProfileIds : [];
+            // 截断到 MAX_COHABITANTS（最终评审 I1）：服务端 `.max(MAX_COHABITANTS)` 是
+            // 硬校验，超限的请求整个 400 → 「叙述暂时生成不出来」+ 一个永远不可能成功的
+            // 重试按钮。选择器现在挡住了新的超限保存，但**已经存下来的**居所（上限存在
+            // 之前存的）不截断就永久卡死，用户也无从把失败与同住人列表联系起来。
+            // 在这一处截断而不是在下面拼 POST body 时截断：`cohabitantInputs`（本地
+            // 确定性 computeFengshui / 指纹）与叙述请求体都从 cohabitantProfiles 派生，
+            // 只截其中一头会让页面上的合看与服务端拿到的那份对不上。
+            const ids = d?.facing ? d.memberProfileIds.slice(0, MAX_COHABITANTS) : [];
             const m = ids.length
               ? (await Promise.all(ids.map((id) => getProfile(id).catch(() => null)))).filter(
                   (p): p is Profile => p != null,
@@ -370,7 +383,11 @@ export default function FengshuiPage() {
       dwelling: effectiveDwellingInput
         ? { id: effectiveDwellingInput.id, facing: effectiveDwellingInput.facing, tenancy: effectiveDwellingInput.tenancy, kind: effectiveDwellingInput.kind }
         : null,
-      memberProfileIds: effectiveDwellingInput ? (dwelling?.memberProfileIds ?? []) : [],
+      // 同样截断到 MAX_COHABITANTS：指纹必须与「这次实际生成的是哪一份叙述」一致，
+      // 而实际喂给服务端的同住人已经在上面被截断了（最终评审 I1）。
+      memberProfileIds: effectiveDwellingInput
+        ? (dwelling?.memberProfileIds ?? []).slice(0, MAX_COHABITANTS)
+        : [],
     });
 
     (async () => {

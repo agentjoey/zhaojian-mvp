@@ -5,6 +5,9 @@ import {
 } from "@eamvp/core";
 import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
 import type { Dwelling } from "@/lib/dwellings";
+// 最终评审 I1：同住人上限的**单一事实源**，与 api/fengshui/reading/route.ts 的
+// `z.array(...).max()` 是同一个常量。测试从这里取值，而不是再写死一个 8。
+import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 // 修复单 Minor 1：付费墙文案断言从 catalog 取值，与实现绑死——写死字面量的那条反向
 // 断言在 `47e9faa` 改文案后已经悄悄变成过一次恒真（断言的字符串在代码库任何角落都
 // 不存在了，于是它抓不到唯一要防的「改回 reason="limit"」回归）。同一次编辑不该能
@@ -422,6 +425,70 @@ describe("EP-fs-15 Layer 1 与 Tab", () => {
     for (const r of l1.remedies) {
       expect(screen.getByText(r.action)).toBeInTheDocument();
     }
+  });
+});
+
+/**
+ * 最终评审 I1：同住人上限此前**只存在于服务端**（route 的
+ * `z.array(...).max(MAX_COHABITANTS)`），选择器不设限、本页也不截断。
+ *
+ * 失败场景（默认配置下档案数量本就无限制）：用户勾 9 位同住人存下 → 此后**每次**
+ * 加载本页都 POST 9 位 → Zod 400 → `setFailed(true)` → 「叙述暂时生成不出来」+
+ * 一个**永远不可能成功**的重试按钮，用户无从把失败和同住人列表联系起来。
+ *
+ * 选择器那头的上限在 `__tests__/DwellingForm.test.tsx` 覆盖；这里覆盖的是另一半：
+ * **上限存在之前就已经存下来的**超限居所，本页必须自己截断才救得回来——那批数据
+ * 用户改不动（选择器只挡新增），不截断就是永久卡死。
+ */
+describe("最终评审 I1：超限的既有居所不得把叙述请求打成 400", () => {
+  /** 9 位（= MAX_COHABITANTS + 1）同住人，全部登记在同一个居所上。 */
+  const OVER_LIMIT_IDS = Array.from({ length: MAX_COHABITANTS + 1 }, (_, i) => `over${i}`);
+
+  function seedOverLimitCohabitants() {
+    for (const id of OVER_LIMIT_IDS) {
+      profilesById.set(id, { ...cohabProfile, id, nickname: `同住${id}` });
+    }
+    dwellingsFixture.current = [dwellingL1(OVER_LIMIT_IDS)];
+  }
+
+  it("叙述请求最多带 MAX_COHABITANTS 位同住人（与服务端 Zod 上限同源，不会 400）", async () => {
+    seedOverLimitCohabitants();
+    const postBodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "POST") {
+          postBodies.push(JSON.parse(String(init?.body ?? "{}")));
+          return jsonResponse({ sections: SECTIONS, degraded: false });
+        }
+        return jsonResponse({ entitled: true });
+      }),
+    );
+
+    await renderPage();
+    await waitFor(() => expect(postBodies).toHaveLength(1));
+
+    const cohabitants = postBodies[0]!.cohabitants as unknown[];
+    // 上限值本身取自 `@/lib/fengshui-limits`——与 route.ts 的 `.max()` 是同一个常量，
+    // 不是两份各自写死的 8。真正把这个数字钉死在 8 的是 route.test.ts 的边界两条
+    // （恰好 8 通过 / 9 返回 400）：常量若被改小，那两条当场变红。
+    expect(cohabitants).toHaveLength(MAX_COHABITANTS);
+    // 超限那 1 位确实被丢掉了，而不是「凑巧只有 8 位档案加载成功」
+    expect(OVER_LIMIT_IDS).toHaveLength(MAX_COHABITANTS + 1);
+    expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
+  });
+
+  it("页面上的合看 chips 同样只到 MAX_COHABITANTS 位——请求与本地确定性派生不得各截各的", async () => {
+    // 若只在拼 POST body 时截断、不截 cohabitantProfiles，页面上会渲染 9 个 chip，
+    // 而服务端叙述只知道其中 8 位——用户点开第 9 位，叙述里永远不会提到 ta。
+    seedOverLimitCohabitants();
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("以谁的视角看")).toBeInTheDocument());
+
+    const shown = OVER_LIMIT_IDS.filter((id) =>
+      screen.queryByRole("button", { name: new RegExp(`^同住${id}$`) }) != null,
+    );
+    expect(shown).toHaveLength(MAX_COHABITANTS);
   });
 });
 
@@ -981,14 +1048,16 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
   });
 
-  it("开闸 + 非会员：付费墙用的是「这是会员功能」文案，不是 limit 的「已达上限」文案（修复单 Important 5）", async () => {
-    // 宅盘所在的位置既没有"上限"也没有要"保存"的东西，reason="limit" 用在这里是错的。
-    // ⚠️ 第二条断言取 `zh.paywall.subtitleLimit` 而不是写死字面量（修复单 Minor 1）：
-    // 原来写死的是改文案前的「档案已达上限…」，`47e9faa` 一改文案，被断言的字符串在
-    // 代码库任何角落都不存在了，断言恒真、抓不到「改回 reason="limit"」这个它唯一要
-    // 防的回归；把字面量再更新一次只是把同一个陷阱重置到下一次文案编辑。从 catalog
-    // 取值让它跟着实现走。对照的**正向**断言（这段文案确实会渲染出来）在它唯一的真实
-    // 调用点上：dwellings/__tests__/page.test.tsx 的非会员付费墙那条。
+  it("开闸 + 非会员：付费墙用的是「这是会员功能」文案（修复单 Important 5）", async () => {
+    // 宅盘所在的位置既没有"上限"也没有要"保存"的东西，措辞必须是 reason="member"。
+    //
+    // ⚠️ 这条原来还有一句 `expect(queryByText(zh.paywall.subtitleLimit)).toBeNull()`。
+    // 最终评审 I2 撤除了 /fengshui/dwellings 的多居所闸门——那是 `reason="limit"` 唯一
+    // 的调用点，分支与 `paywall.subtitleLimit` 文案已一并删除（见 components/Paywall.tsx）。
+    // 于是那句反向断言变成了恒真：被断言缺席的字符串在运行时代码里已不存在，任何变异
+    // 都撞不红它，而这个仓库正是被同一个形状的恒真断言坑过（`47e9faa`）。删掉它，
+    // 保护改由下面这条**正向**断言承担：措辞一旦被改回按次/按量的口吻（reason="quota"，
+    // 现存的另一个分支），渲染出来的就是 subtitleQuota，这条当场变红。
     dwellingsFixture.current = [dwellingL1(["p2"])];
     vi.stubGlobal(
       "fetch",
@@ -998,8 +1067,10 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
       }),
     );
     await renderPage();
-    await waitFor(() => expect(screen.getByText("这块内容属于会员功能，升级后即可解锁。")).toBeInTheDocument());
-    expect(screen.queryByText(zh.paywall.subtitleLimit)).toBeNull();
+    await waitFor(() => expect(screen.getByText(zh.paywall.subtitleMember)).toBeInTheDocument());
+    // 对照：另一个仍然存在的分支（quota）的文案不得出现在这里。它有真实调用点
+    // （/calendar、/chart、/account 的额度墙），不是一个不存在的字符串。
+    expect(screen.queryByText(zh.paywall.subtitleQuota)).toBeNull();
   });
 
   it("开闸 + 非会员：付费墙取代宅盘的同时，绝不能改口说这个居所「朝向未确定」，也不得泄漏命宅相配判语", async () => {
