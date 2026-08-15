@@ -6,7 +6,14 @@ import type { Dwelling } from "@/lib/dwellings";
 const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender: "male", trueSolarTime: false });
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
 
-vi.mock("@/lib/profiles", () => ({ getActiveProfile: vi.fn(async () => profile) }));
+// Task 9b：DwellingForm（本页下半部分永远渲染）新增会调 listProfiles()/getActiveProfileId()
+// 拉同住人候选。本文件不测同住人 UI，只需让它不崩——回主档案自己一条即可（会被
+// DwellingForm 内部按 activeId 过滤掉，候选区块不渲染，不影响本文件任何既有断言）。
+vi.mock("@/lib/profiles", () => ({
+  getActiveProfile: vi.fn(async () => profile),
+  listProfiles: vi.fn(async () => [profile]),
+  getActiveProfileId: () => "p1",
+}));
 vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
 
 /**

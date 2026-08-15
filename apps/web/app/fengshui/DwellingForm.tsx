@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DIRECTIONS, DIRECTION_LABEL, type Direction } from "@eamvp/core";
 import { createDwelling, updateDwelling, type Dwelling } from "@/lib/dwellings";
+import { listProfiles, getActiveProfileId, type Profile } from "@/lib/profiles";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { Button } from "@/components/ui";
 
@@ -21,12 +22,37 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
   const [touchedFacing, setTouchedFacing] = useState(initial != null);
   const [saving, setSaving] = useState(false);
 
+  // 同住人候选（Task 9b/EP-fs-13/14）：所有档案里排除当前活跃档案自己——他是「我」，
+  // 不是「同住人」。memberIds 用 initial?.memberProfileIds 回显，否则编辑一次会静默清空。
+  const [candidates, setCandidates] = useState<Profile[]>([]);
+  const [memberIds, setMemberIds] = useState<string[]>(initial?.memberProfileIds ?? []);
+
+  useEffect(() => {
+    let cancelled = false;
+    listProfiles()
+      .then((list) => {
+        if (cancelled) return;
+        const activeId = getActiveProfileId();
+        setCandidates(list.filter((p) => p.id !== activeId));
+      })
+      .catch(() => {
+        if (!cancelled) setCandidates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleMember(id: string) {
+    setMemberIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
   async function save() {
     setSaving(true);
     try {
       const payload = {
         name: name.trim() || t("fengshui.dwelling.namePlaceholder"),
-        kind, tenancy, facing, memberProfileIds: initial?.memberProfileIds ?? [],
+        kind, tenancy, facing, memberProfileIds: memberIds,
       };
       const saved = initial
         ? (await updateDwelling(initial.id, payload), { ...initial, ...payload })
@@ -76,6 +102,26 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
           </button>
         </div>
       </div>
+
+      {candidates.length > 0 && (
+        <div>
+          <p className="text-[13px] text-ink-2">{t("fengshui.dwelling.membersLabel")}</p>
+          <p className="mt-1 text-[12px] text-muted">{t("fengshui.dwelling.membersHint")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {candidates.map((p) => (
+              <button key={p.id} type="button"
+                onClick={() => toggleMember(p.id)}
+                className="rounded-[var(--radius-button)] border px-3 py-1.5 text-[13px]"
+                style={{
+                  borderColor: memberIds.includes(p.id) ? "var(--color-cinnabar)" : "var(--color-line)",
+                  color: memberIds.includes(p.id) ? "var(--color-cinnabar)" : "var(--color-ink)",
+                }}>
+                {p.nickname}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Button onClick={save} disabled={saving || !touchedFacing}>
         {saving ? t("fengshui.dwelling.saving") : t("fengshui.dwelling.save")}
