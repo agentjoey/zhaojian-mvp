@@ -6,7 +6,7 @@ import { extractFengshuiFacts } from "./facts";
 import {
   buildFengshuiSystemPrompt, buildFengshuiUserPrompt, parseFengshuiSections,
   buildObjectAdviceSystemPrompt, buildObjectAdviceUserPrompt,
-  type FengshuiSectionKey,
+  FENGSHUI_SECTION_KEYS, type FengshuiSectionKey,
 } from "./prompt";
 import { sanitizeFengshui, verifyDirectionConsistency, type DirectionCorrection } from "./guard";
 
@@ -52,6 +52,9 @@ export type FengshuiReading = {
 /**
  * 生成风水报告（EP-fs-05）。反幻觉链：facts → prompt 硬规则 → sanitize → 方位对拍。
  * 抛错即代表无法生成 —— 调用方应降级为纯确定性呈现（盘图 + 化解清单），而非空页。
+ * 抛错的两种情形：① LLM 未配置；② 模型输出三节全部解析为空（没有任何一个合法 H2
+ * 标题被 parseFengshuiSections 识别出来，见最终评审 Blocking 1）——后者不当作
+ * degraded 处理，因为 degraded 的前提是「拿到了三节文本」，这里根本没拿到。
  *
  * 即便不抛错，返回值里的 `degraded` 也可能为 true —— 那是另一档更隐蔽的失败：
  * 模型把方位说错了，机械纠正能救回星名，救不回整段建立在错误前提上的自由文本。
@@ -73,9 +76,23 @@ export async function generateFengshuiReading(
 
   const cleaned = sanitizeFengshui(raw, facts);
   const { text, corrections } = verifyDirectionConsistency(cleaned, facts);
+  const sections = parseFengshuiSections(text, language);
+  // 最终评审 Blocking 1：parseFengshuiSections 对缺节容错、缺节置空——这在「模型漏了
+  // 一节」时是合理行为，但当三节全部解析为空（例如模型把 H2 写成 H3、或把标题加粗），
+  // 说明没有任何一节被成功切出：这不是「拿到了但要素不全」，是「压根没拿到可用叙述」。
+  // 若不拦截，调用方（/api/fengshui/reading）会把这当成一次成功生成返回 200 +
+  // degraded=false，页面据此渲染三个空标题、并把这份空报告永久写入 localStorage 缓存——
+  // 用户会卡在空报告里，直到引擎版本号或 locale 变化才会重新请求（见最终评审 Blocking 1）。
+  // 这里选择抛错，与「LLM 未配置」走同一条路径：调用方按 failed 处理、给出重试入口、
+  // 不写缓存。语义上这确实是「没拿到可用叙述」而非「拿到了但不可信」（那是 degraded
+  // 的语义——模型说错了至少一个确定性事实，仍拿到了三节文本）。
+  const allSectionsBlank = FENGSHUI_SECTION_KEYS.every((k) => sections[k] === "");
+  if (allSectionsBlank) {
+    throw new Error("风水叙述解析失败：模型输出未包含任何可识别的分节标题");
+  }
   return {
     markdown: text,
-    sections: parseFengshuiSections(text, language),
+    sections,
     corrections,
     degraded: corrections.length > 0,
   };

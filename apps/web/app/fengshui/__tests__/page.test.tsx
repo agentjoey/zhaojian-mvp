@@ -121,6 +121,21 @@ describe("EP-fs-07 /fengshui Layer 0 — 报告缓存", () => {
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("最终评审 Blocking 1：叙述解析失败（模型输出未含合法 H2 标题）时不写缓存、显示重试入口，而不是缓存一份三节皆空的报告", async () => {
+    // @eamvp/llm 的 generateFengshuiReading 已改为：三节全部解析为空时抛错，不再返回
+    // 200 + 空 sections（见 packages/llm/src/fengshui/index.test.ts 的对应用例）。
+    // route.ts 的 catch-all 把这类抛错转成 500——从本页面 fetch 调用方视角，与其他失败
+    // 原因（网络故障、LLM 未配置）不可区分，统一走 failed 路径：不落盘缓存、给重试入口。
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("风水报告生成失败：风水叙述解析失败：模型输出未包含任何可识别的分节标题", { status: 500 })),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(/叙述暂时生成不出来/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "重新生成叙述" })).toBeInTheDocument();
+    expect(localStorage.getItem(CACHE_KEY_ZH)).toBeNull();
+  });
 });
 
 describe("EP-fs-07 /fengshui Layer 0 — degraded 报告的消费", () => {

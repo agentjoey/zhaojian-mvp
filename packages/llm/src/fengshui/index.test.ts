@@ -49,6 +49,26 @@ describe("EP-fs-05 generateFengshuiReading", () => {
   });
 });
 
+describe("最终评审 Blocking 1：三节全部解析为空时视为生成失败，不返回空报告", () => {
+  it("模型输出不含合法 H2 标题（### 而非 ##）时抛错——调用方据此走 failed/重试路径，而不是缓存一份三节皆空的报告", async () => {
+    chatMock.mockResolvedValue("### 形势\n甲\n\n### 境与你\n乙\n\n### 可做的事\n- 丙\n");
+    await expect(generateFengshuiReading(fs, { config: cfg, language: "zh" })).rejects.toThrow();
+  });
+
+  it("标题加粗而非 H2（**形势**）同样抛错", async () => {
+    chatMock.mockResolvedValue("**形势**\n甲\n\n**境与你**\n乙\n\n**可做的事**\n- 丙\n");
+    await expect(generateFengshuiReading(fs, { config: cfg, language: "zh" })).rejects.toThrow();
+  });
+
+  it("回归：只要至少一节能解析出内容，就不算失败——只漏了一个 H2 标题（非全部）时仍按容错策略正常返回，缺的那节置空", async () => {
+    chatMock.mockResolvedValue("## 形势\n甲\n\n## 境与你\n乙\n");
+    const r = await generateFengshuiReading(fs, { config: cfg, language: "zh" });
+    expect(r.sections.situation).toBe("甲");
+    expect(r.sections.youAndSpace).toBe("乙");
+    expect(r.sections.actions).toBe("");
+  });
+});
+
 describe("EP-fs-05 degraded 标记（corrections 非空即代表输出可信度存疑）", () => {
   it("有方位纠正时 degraded 为 true —— 调用方不读 corrections 数组也能识别", async () => {
     const e = fs.personalDirections.E;
