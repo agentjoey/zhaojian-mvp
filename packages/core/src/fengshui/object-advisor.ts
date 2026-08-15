@@ -87,6 +87,12 @@ export function adviseObject(input: ObjectAdviceInput, q: ObjectQuery): ObjectAd
 
   // Layer 1：推荐位需同时是命卦吉方与宅卦吉方。交集为空说明这套房子在这件物件上
   // 帮不上忙——此时退回命卦吉方（人比房子更要紧），并显式说明，而不是给空数组。
+  // ⚠️ 结构事实：八宅里「命卦四吉方 ∩ 宅卦四吉方」只可能是 **4 或 0**（同组则四吉方
+  //    完全重合、异组则一格不留；8×8 全组合枚举验证过），所以下面这个过滤要么全留、
+  //    要么全空退回 `good`——`usable` 恒等于 `good`，**过滤本身是空操作**，强版相对
+  //    弱版唯一多出来的可观察产物是 `dwellingNote`。改这段前先想清楚这一点，别把它
+  //    当成一个真的会筛掉部分方位的交集。（下游 ObjectAdvisorForm.tsx、object/page.tsx、
+  //    packages/llm 的 prompt.ts 各自都带了同一条更正，此处是源头。）
   const houseGood = dwellingSectors ? good.filter((v) => dwellingSectors[v.direction].auspicious) : good;
   const usable = houseGood.length ? houseGood : good;
   const dwellingNote =

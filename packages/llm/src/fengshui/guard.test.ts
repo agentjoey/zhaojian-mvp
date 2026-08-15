@@ -427,3 +427,278 @@ describe("Task10 顺带修：GLUE_MAX 覆盖对齐填充的 markdown 表格", ()
     expect(text).toBe("| 东南  | 生气 | 凶 |");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 最终评审 C1：这道校验器此前只认识命卦表（`facts.directions`），
+// `facts.dwelling.sectors` 一次都没被查过——于是 Layer 1 下模型**正确**复述房屋
+// 八方，会被按命卦表「纠正」成一句对两套都假的话，degraded 翻真、叙述被扣下、
+// 且不写缓存（每次加载都是一次必然再次 degraded 的全新 LLM 调用）。
+//
+// 下面这组的判别力来自 fixture 本身：坎命 × 离宅，八个方位**逐格不同**（见前置
+// 用例）。因此每一条「按哪张表判」的断言，换成另一张表都会立刻变红。
+// ─────────────────────────────────────────────────────────────────────────────
+const DWELLING_N = { id: "d1", name: "家", kind: "home" as const, tenancy: "rent" as const, facing: "N" as const };
+/** 向北 → 坐南 → 离宅；命主仍是 1990 男 = 坎1。异组（东四命 × 东四宅里的离宅同为东四，但八方判语逐格不同）。 */
+const l1 = extractFengshuiFacts(
+  computeFengshui({ birth, chart: computeUnifiedChart(birth), dwelling: DWELLING_N }),
+);
+
+describe("最终评审 C1：房屋八方（宅卦表）纳入方位一致性校验", () => {
+  const selfTable = Object.fromEntries(l1.directions.map((d) => [d.label, d.star]));
+  const houseTable = Object.fromEntries(l1.dwelling!.sectors.map((d) => [d.label, d.star]));
+
+  it("前置：坎命表与离宅表逐格不同——本组用例的判别力全部依赖这一点", () => {
+    expect(l1.layer).toBe(1);
+    expect(l1.mingGua).toContain("坎");
+    expect(l1.dwelling!.guaName).toBe("离");
+    expect(selfTable).toEqual({
+      东南: "生气", 东: "天医", 南: "延年", 北: "伏位",
+      西南: "绝命", 东北: "五鬼", 西北: "六煞", 西: "祸害",
+    });
+    expect(houseTable).toEqual({
+      东: "生气", 东南: "天医", 北: "延年", 南: "伏位",
+      西北: "绝命", 西: "五鬼", 西南: "六煞", 东北: "祸害",
+    });
+    for (const label of Object.keys(selfTable)) {
+      expect(houseTable[label]).not.toBe(selfTable[label]);
+    }
+  });
+
+  // ★ 本缺陷的原始场景（评审实跑得到的那两行）
+  it("原始缺陷：模型正确地说「房屋八方来看，东是生气位」→ 零 correction、文本零改动", () => {
+    const md = "房屋八方来看，东是生气位。";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("原始缺陷（含化解原文那半句：两个正则分支各命中一次，仍零改动）", () => {
+    const md = "房屋八方来看，东是生气位。把久待的活动放到那一块（传统依据：离宅的生气位在东）。";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("房屋八方说错时纠回**宅卦表**的值，而不是命卦表的值", () => {
+    const { text, corrections } = verifyDirectionConsistency("房屋八方来看，东是五鬼位。", l1);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.direction).toBe("E");
+    expect(corrections[0]!.wrote).toBe("五鬼");
+    expect(corrections[0]!.correct).toBe("生气"); // 离宅
+    expect(corrections[0]!.correct).not.toBe("天医"); // 坎命——绝不能拿它来判房屋
+    expect(text).toBe("房屋八方来看，东是生气位。");
+  });
+
+  it("本命八方在 Layer 1 下仍按命卦表校验（居所层没有削弱它）", () => {
+    const { text, corrections } = verifyDirectionConsistency("本命八方来看，东是生气位。", l1);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.correct).toBe("天医"); // 坎命
+    expect(text).toBe("本命八方来看，东是天医位。");
+  });
+
+  it("同一句里两套对照、各自都对 → 零改动（分句级归属）", () => {
+    const md = "本命八方：东是天医位，房屋八方：东是生气位。";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("同一句里两套各自说错 → 同一个「东」被朝相反方向纠回各自表的值", () => {
+    const { text, corrections } = verifyDirectionConsistency(
+      "本命八方：东是生气位，房屋八方：东是天医位。", l1);
+    expect(corrections.map((c) => c.correct)).toEqual(["天医", "生气"]);
+    expect(text).toBe("本命八方：东是天医位，房屋八方：东是生气位。");
+  });
+
+  it("归属不明且两表判语不同 → 弃权：哪张表都不拿来判，不改写也不记 correction", () => {
+    const md = "东是六煞位。"; // 命卦表=天医、宅卦表=生气，六煞两边都不是
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("窗口里两套标记同时出现 → 说不清归属，同样弃权", () => {
+    const md = "本命八方与房屋八方在这里的判语不同，东是六煞位。";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("列表行继承所在块的唯一归属：整块正确时零改动", () => {
+    const md = "房屋八方判语如下：\n- 东：生气（吉）\n- 东南：天医（吉）\n- 北：延年（吉）\n- 西：五鬼（凶）";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("列表行继承所在块的唯一归属：行里说错时按宅卦表纠回（证明继承真的发生了，而非一律弃权）", () => {
+    // 注入的错值「天医」恰是**命卦表**里东的值：只有真的查了宅卦表才抓得到。
+    const { text, corrections } = verifyDirectionConsistency(
+      "房屋八方判语如下：\n- 东：天医（吉）", l1);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.direction).toBe("E");
+    expect(corrections[0]!.correct).toBe("生气");
+    expect(text).toBe("房屋八方判语如下：\n- 东：生气（吉）");
+  });
+
+  it("散文不跨行继承归属：上一行讲房屋，下一行没标记的散文句仍弃权", () => {
+    // 「东南是生气位」对本命为真、对房屋为假；跨行继承会把这句真话改成假话。
+    const md = "房屋八方来看，东是生气位。\n东南是生气位。";
+    const { text, corrections } = verifyDirectionConsistency(md, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(md);
+  });
+
+  it("方位名嵌套在宅卦表这条新路径上同样成立（东北 / 北 各查各的格）", () => {
+    for (const md of ["房屋八方来看，东北是祸害位。", "房屋八方来看，北是延年位。"]) {
+      expect(verifyDirectionConsistency(md, l1).corrections).toEqual([]);
+    }
+    const { text, corrections } = verifyDirectionConsistency("房屋八方来看，东北是五鬼位。", l1);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.direction).toBe("NE"); // 不是 E、不是 N
+    expect(corrections[0]!.correct).toBe("祸害"); // 离宅东北；坎命东北才是五鬼
+    expect(text).toBe("房屋八方来看，东北是祸害位。");
+  });
+});
+
+describe("最终评审 C1：命卦 == 宅卦时两表逐格相同，归属不明也照判", () => {
+  // 向南 → 坐北 → 坎宅，与坎1 命主同卦：八格全同，判语与归属无关。
+  const same = extractFengshuiFacts(computeFengshui({
+    birth, chart: computeUnifiedChart(birth),
+    dwelling: { ...DWELLING_N, facing: "S" as const },
+  }));
+
+  it("前置：两表逐格相同", () => {
+    expect(same.dwelling!.guaName).toBe("坎");
+    for (const d of same.directions) {
+      expect(same.dwelling!.sectors.find((s) => s.direction === d.direction)!.star).toBe(d.star);
+    }
+  });
+
+  it("没有归属标记也照常纠正——结论对两套都成立，不构成互推", () => {
+    const { text, corrections } = verifyDirectionConsistency("东是绝命位。", same);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.correct).toBe("天医");
+    expect(text).toBe("东是天医位。");
+  });
+
+  it("没有归属标记且说对时零改动", () => {
+    const md = "东是天医位。";
+    expect(verifyDirectionConsistency(md, same)).toEqual({ text: md, corrections: [] });
+  });
+});
+
+// 整篇对拍（Layer 1 版）：单句用例只能证明「这一句不误伤」。这份文档按 prompt.ts
+// 的三分节格式同时铺开两套判语，逐条符合各自的查表，要求 byte 级零改动；再逐处注入
+// **另一套表里的那个星名**（最刁钻的注入：只有查对了表才抓得到），要求全部被抓回
+// 并还原成同一份正确文档。
+describe("最终评审 C1：Layer 1 整篇三分节输出对拍（两套判语同篇）", () => {
+  const CORRECT_DOC = `## 形势
+
+本命八方来看：生气位在东南，天医位在东，延年位在南，伏位在北，绝命方在西南，五鬼方在东北，六煞方在西北，祸害方在西。
+
+这套房子坐南向北，是离宅。房屋八方判语如下：
+- 东：生气（吉）
+- 东南：天医（吉）
+- 北：延年（吉）
+- 南：伏位（吉）
+- 西北：绝命（凶）
+- 西：五鬼（凶）
+- 西南：六煞（凶）
+- 东北：祸害（凶）
+
+## 境与你
+
+本命八方里东南是生气位，久待更容易松弛；房屋八方里东南是天医位，同样是吉方。
+离宅的生气位在东，早晨可以在这里喝杯茶。
+
+## 可做的事
+
+1. 把每天久待的活动放到那一块——房屋八方来看，东是生气位。
+2. 本命八方来看，西北是六煞方，可作储物。
+3. 你是东四命，这套房子是东四宅，两套判语仍要分开看。
+
+以上是关于自我觉察与居住体验的建议，不构成专业意见。
+`;
+
+  it("两套判语逐条符合各自查表的正确输出：零 correction、零改动", () => {
+    const { text, corrections } = verifyDirectionConsistency(CORRECT_DOC, l1);
+    expect(corrections).toEqual([]);
+    expect(text).toBe(CORRECT_DOC);
+  });
+
+  // 八个朝向扫一遍（= 八种宅卦），把「过度纠正」这个历史失败模式钉在整个居所维度上，
+  // 而不只是 fixture 那一种宅卦。文档由查表现算，不含手写字面量。
+  describe("八种宅卦全扫：两套都写对时零 correction；注入另一套的值时按宅卦表抓回", () => {
+    const docFor = (f: typeof l1) => {
+      const at = (rows: typeof f.directions, star: string) => rows.find((r) => r.star === star)!.label;
+      const p = f.directions, h = f.dwelling!.sectors;
+      return `## 形势
+
+本命八方来看：生气位在${at(p, "生气")}，天医位在${at(p, "天医")}，延年位在${at(p, "延年")}，伏位在${at(p, "伏位")}，绝命方在${at(p, "绝命")}，五鬼方在${at(p, "五鬼")}，六煞方在${at(p, "六煞")}，祸害方在${at(p, "祸害")}。
+
+这套房子是${f.dwelling!.guaName}宅。房屋八方判语如下：
+${h.map((d) => `- ${d.label}：${d.star}（${d.auspicious ? "吉" : "凶"}）`).join("\n")}
+
+## 境与你
+
+本命八方：东是${p.find((d) => d.direction === "E")!.star}位，房屋八方：东是${h.find((d) => d.direction === "E")!.star}位。
+${f.dwelling!.guaName}宅的生气位在${at(h, "生气")}，早晨可以在这里喝杯茶。
+
+## 可做的事
+
+1. 房屋八方来看，${at(h, "生气")}是生气位，把久待的活动放到那一块。
+2. 本命八方来看，${at(p, "六煞")}是六煞方，可作储物。
+`;
+    };
+
+    for (const facing of ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const) {
+      const f = extractFengshuiFacts(computeFengshui({
+        birth, chart: computeUnifiedChart(birth), dwelling: { ...DWELLING_N, facing },
+      }));
+      const gua = f.dwelling!.guaName;
+      const pE = f.directions.find((d) => d.direction === "E")!.star;
+      const hE = f.dwelling!.sectors.find((d) => d.direction === "E")!.star;
+
+      it(`向${f.dwelling!.facingLabel} → ${gua}宅：两套都写对 → 零 correction、零改动`, () => {
+        const md = docFor(f);
+        const { text, corrections } = verifyDirectionConsistency(md, f);
+        expect(corrections).toEqual([]);
+        expect(text).toBe(md);
+      });
+
+      // 对角线（宅卦 == 命卦）两表逐格相同，注入无从构造，跳过。
+      if (pE === hE) continue;
+      it(`向${f.dwelling!.facingLabel} → ${gua}宅：宅列表行注入命卦表的「${pE}」→ 按宅卦表抓回「${hE}」`, () => {
+        const md = docFor(f);
+        const bad = md.replace(`- 东：${hE}（`, `- 东：${pE}（`);
+        expect(bad).not.toBe(md);
+        const { text, corrections } = verifyDirectionConsistency(bad, f);
+        expect(corrections).toHaveLength(1);
+        expect(corrections[0]!.correct).toBe(hE);
+        expect(text).toBe(md);
+      });
+    }
+  });
+
+  it("逐处注入「另一套表里的星名」：全部抓回并还原成同一份正确文档", () => {
+    const injected: [string, string][] = [
+      ["天医位在东", "生气位在东"],                 // 本命句注入宅卦表的值
+      ["- 东：生气（吉）", "- 东：天医（吉）"],       // 宅列表行注入命卦表的值
+      ["离宅的生气位在东", "离宅的天医位在东"],       // 宅散文句注入命卦表的值
+      ["本命八方里东南是生气位", "本命八方里东南是天医位"], // 本命句注入宅卦表的值
+      ["房屋八方里东南是天医位", "房屋八方里东南是生气位"], // 宅句注入命卦表的值
+      ["西北是六煞方", "西北是绝命方"],             // 本命句注入宅卦表的值
+    ];
+    let wrong = CORRECT_DOC;
+    for (const [ok, bad] of injected) {
+      expect(wrong).toContain(ok);
+      wrong = wrong.replace(ok, bad);
+    }
+    expect(wrong).not.toBe(CORRECT_DOC);
+
+    const { text, corrections } = verifyDirectionConsistency(wrong, l1);
+    expect(corrections).toHaveLength(injected.length);
+    expect(text).toBe(CORRECT_DOC);
+  });
+});
