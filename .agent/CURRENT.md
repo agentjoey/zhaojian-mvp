@@ -9,7 +9,7 @@ Last Updated:   2026-08-15 by claude-opus-5（SDD 编排：15 task，每 task �
 
 > ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 > 🌙 **本命之灵（EP-spirit，Phase1+2+3 全交付）**已合 main，但由 `NEXT_PUBLIC_SPIRIT_ENABLED` flag **默认关闭**，对外不可见、不破坏冻结。准备好收集反馈时设 `=1` 即开（命盘页对话面板+问卷+自我画像，日历每日问今）。
-> 🧭 **风水「境」波1（EP-fs，分支 `feat/fengshui-wave1`，34 commits）**：`NEXT_PUBLIC_FENGSHUI_ENABLED` flag **默认关闭**，**无数据库迁移**（仍封顶 0010）。已验证 flag 关闭时既有产品不受影响：AppShell 零新增 import、无既有文件引用风水代码、core barrel 纯新增。**开启前必读下方「已知限制」——两道机械反幻觉校验目前仅对中文输出有效。**
+> 🧭 **风水「境」波1（EP-fs，分支 `feat/fengshui-wave1`，39 commits）**：`NEXT_PUBLIC_FENGSHUI_ENABLED` flag **默认关闭**，**无数据库迁移**（仍封顶 0010）。已验证 flag 关闭时既有产品不受影响：AppShell 零新增 import、无既有文件引用风水代码、core barrel 纯新增。**开启前必读下方「已知限制」——两道机械反幻觉校验目前仅对中文输出有效。**
 
 ## 产品现状（一句话）
 东方命理（八字+紫微）× 西方心理占星（利兹·格林）双引擎，已上线完整闭环：
