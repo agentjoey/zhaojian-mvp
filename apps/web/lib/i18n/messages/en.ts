@@ -70,8 +70,11 @@ export const en: Messages = {
     yearly: "$99/year",
     comingSoon: "Payments coming soon",
     telegramIAP: "Telegram in-app purchases coming soon",
-    subtitleLimit: "Profile limit reached. Upgrade to save more.",
+    // subtitleLimit ("Free plan limit reached…") is gone: its only call site was the
+    // add-dwelling slot on /fengshui/dwellings, and that gate was removed in final
+    // review I2 (nothing ever reads dwelling #2). See components/Paywall.tsx.
     subtitleQuota: "Free quota used. Upgrade to continue chatting.",
+    subtitleMember: "This part is a member feature. Upgrade to unlock it.",
   },
   home: {
     heroTitle1: "Your chart,",
@@ -328,6 +331,24 @@ export const en: Messages = {
     directionsTitle: "The eight directions",
     affinityTitle: "Colors & materials that suit you",
     remedyTitle: "Things you can try",
+    personalTitle: "Your natal directions",
+    dwellingTitle: "Your home's directions",
+    cohabitantsTitle: "Compare with housemates",
+    viewAs: "See it from",
+    viewAsSelf: "Me",
+    sharedGoodNote: "Directions that favor both you and {name}: {directions}",
+    conflictsNote: "Directions that favor you but not {name}: {directions}",
+    noDwelling: "No dwelling registered yet — add a front door facing and see how the eight directions play out for you in this home.",
+    addDwelling: "Register a dwelling",
+    facingUnknownNote: "This dwelling's facing isn't set, so suggestions below are based on your natal directions only.",
+    dwellingsError: "Couldn't load your dwellings — this doesn't mean none are registered. Please try again.",
+    retryDwellings: "Retry",
+    entitlementUnknown: "We couldn't confirm your membership just now, so this part isn't shown — it doesn't mean you lack access.",
+    retryEntitlement: "Check again",
+    matchNote: {
+      相配: "Your life gua and this home's gua are in the same group — the overall energy tends to align well.",
+      相冲: "Your life gua and this home's gua are in different groups. No need to worry — just focus on your own four auspicious directions.",
+    },
     narrativeSections: {
       situation: "The Layout",
       youAndSpace: "You and Your Space",
@@ -359,6 +380,37 @@ export const en: Messages = {
       rules: "What matters for this kind of piece",
       fit: "How it relates to you",
       intended: "Where you planned to put it",
+      dwellingNoteTitle: "About this home",
+      dwellingUnknown: "We couldn't confirm your membership just now, so the suggestions below use your natal directions only — it doesn't mean you lack access.",
+    },
+    dwelling: {
+      title: "My Dwellings",
+      add: "Add a dwelling",
+      nameLabel: "Name",
+      namePlaceholder: "Home / Office",
+      kindHome: "Home",
+      kindOffice: "Office",
+      tenancyRent: "Rent",
+      tenancyOwn: "Own",
+      facingLabel: "Front door facing",
+      facingHint: "Stand inside, facing the front door — that's the direction you're facing. Not sure? Choose \"Not sure\" and we'll base suggestions only on your natal directions, without guessing.",
+      facingUnknown: "Not sure",
+      save: "Save",
+      saving: "Saving…",
+      empty: "No dwellings registered yet. Add a facing direction to see how the eight directions play out for you in this home.",
+      deleteConfirm: "Delete this dwelling? Related reports will also become invalid.",
+      deleteFailed: "Deletion failed, please try again",
+      membersLabel: "Housemates",
+      membersHint: "The same home favors each person differently — add housemates to compare.",
+      // Final review I1: the housemate cap used to live only on the server. Say it at
+      // the selector, not as a 400 on another page. {max} is injected from
+      // MAX_COHABITANTS so the copy follows the limit.
+      membersLimitNote: "You can pick at most {max} housemates. Deselect one to swap.",
+      // Final review I3: the cohabitant view is a member feature (spec §11), but the
+      // selector was fully open to free users — they could tick names, save, and see
+      // nothing at all. Say that plainly rather than vaguely gesturing at membership.
+      membersMemberOnly:
+        "Comparing housemates is a member feature — upgrade to see how this home favors each person differently.",
     },
   },
   profiles: {

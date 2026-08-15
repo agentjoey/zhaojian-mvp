@@ -87,6 +87,45 @@ describe("EP-fs-05 degraded 标记（corrections 非空即代表输出可信度�
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 最终评审 C1：端到端失败链。Layer 1 下模型**正确**复述房屋八方，此前会被按命卦表
+// 「纠正」→ degraded=true → 页面扣下叙述并跳过写缓存 → 每次加载都是一次必然再次
+// degraded 的全新 LLM 调用。这里在 generateFengshuiReading 这一层钉住：正确的宅八方
+// 叙述必须 degraded=false 且 markdown 不被改写。
+// ─────────────────────────────────────────────────────────────────────────────
+describe("最终评审 C1：Layer 1 正确的房屋八方叙述不得被判 degraded", () => {
+  // 向北 → 坐南 → 离宅；命主 1990 男 = 坎1。离宅东=生气，坎命东=天医。
+  const l1 = computeFengshui({
+    birth, chart: computeUnifiedChart(birth),
+    dwelling: { id: "d1", name: "家", kind: "home", tenancy: "rent", facing: "N" },
+  });
+
+  it("前置：同一个「东」在两套判语里不同（用例判别力的来源）", () => {
+    expect(l1.layer).toBe(1);
+    expect(l1.dwelling!.guaName).toBe("离");
+    expect(l1.dwelling!.sectors.E.star).toBe("生气");
+    expect(l1.personalDirections.E.star).toBe("天医");
+  });
+
+  it("模型正确复述宅八方 → corrections 为空、degraded 为 false、markdown 原样", async () => {
+    const md = "## 形势\n房屋八方来看，东是生气位。\n\n## 境与你\n乙\n\n## 可做的事\n- 丙\n";
+    chatMock.mockResolvedValue(md);
+    const r = await generateFengshuiReading(l1, { config: cfg, language: "zh" });
+    expect(r.corrections).toEqual([]);
+    expect(r.degraded).toBe(false);
+    expect(r.markdown).toBe(md);
+  });
+
+  it("模型说错宅八方 → 仍照常纠正，但纠回的是宅卦表的值", async () => {
+    chatMock.mockResolvedValue("## 形势\n房屋八方来看，东是五鬼位。\n\n## 境与你\n乙\n\n## 可做的事\n- 丙\n");
+    const r = await generateFengshuiReading(l1, { config: cfg, language: "zh" });
+    expect(r.degraded).toBe(true);
+    expect(r.corrections).toHaveLength(1);
+    expect(r.corrections[0]!.correct).toBe("生气");
+    expect(r.markdown).toContain("东是生气位");
+  });
+});
+
 // Task 11 复审必修1：adviseObjectText 此前完全不读 opts.language / opts.nickname——
 // 传 { language: "en" } 会静默拿到中文输出。下面用 chatMock 截获真实发出的
 // system/user 消息，钉住这两个参数确实被接线，而不是只在 prompt.ts 单测层面验证

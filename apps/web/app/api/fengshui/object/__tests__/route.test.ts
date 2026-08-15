@@ -94,4 +94,20 @@ describe("POST /api/fengshui/object", () => {
     const [, opts] = adviseObjectTextMock.mock.calls[0]!;
     expect(opts).toMatchObject({ language: "zh" });
   });
+
+  /**
+   * EP-fs-18 强版：`adviseObject` 现在会多产出一个 `dwellingNote`（命宅异组、交集为空
+   * 时的说明）。本路由的 `isObjectAdvice` 只做「像不像一份 ObjectAdvice」的结构检查、
+   * 不认这个新字段，所以**无需改动**——这条测试就是把这件事钉死：日后有人给校验加上
+   * 更严格的「已知字段白名单」，会员（唯一会带 dwellingNote 的那批人）的润色请求就会
+   * 被 400 静默打掉、只剩确定性结果，而那正是最不该退化的一群用户。
+   */
+  it("强版建议（带 dwellingNote）照常 200，并原样透传给 adviseObjectText", async () => {
+    adviseObjectTextMock.mockResolvedValue("ok");
+    const strong = { ...VALID_ADVICE, dwellingNote: "这套房子的吉方与你的命卦吉方不重合……" };
+    const res = await POST(req(strong));
+    expect(res.status).toBe(200);
+    const [advice] = adviseObjectTextMock.mock.calls[0]!;
+    expect(advice).toEqual(strong);
+  });
 });

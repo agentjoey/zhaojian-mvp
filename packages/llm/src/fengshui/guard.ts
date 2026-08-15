@@ -129,6 +129,120 @@ const GLUE_MAX = 6;
 const LOCATIVE = "[ \\t]*(?:落在|位于|在|为|是)[ \\t]*";
 
 /**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 判语归属（最终评审 C1）
+ *
+ * 八方判语有**两套**，彼此独立、不得互推：
+ * - 「本命八方」由**命卦**定 → `facts.directions`
+ * - 「房屋八方」由**宅卦**定 → `facts.dwelling.sectors`（Layer 1 才有）
+ *
+ * 同一个方位在两套里常年是不同的星（8×8 全组合里 56 组至少有一格不同，只有
+ * 命卦==宅卦的对角线全同）。本校验器此前只认识命卦表，于是模型**正确**复述宅八方
+ * （「房屋八方来看，东是生气位」，离宅确实如此）会被按命卦表「纠正」成对两套都假的
+ * 句子，`degraded` 翻真、叙述被扣下且不写缓存——每次加载都是一次必然 degraded 的
+ * 全新 LLM 调用。
+ *
+ * 修法是给每一处命中判**归属**，再用对应的那张表对拍；判不出归属就**弃权**
+ * （不改写、不记 correction）。弃权是刻意的取舍：这道闸门的历史失败模式是
+ * **过度纠正**（波 1 第二轮在一份完全正确的文档上产出 8 条伪 correction），
+ * 而误判一次的代价是整段叙述被扣下 + 无上限重算，漏判一次的代价只是少一道兜底
+ * ——三道在前（facts 承重事实 / prompt 硬规则 / sanitize），不对称得很明显。
+ * prompt.ts 的硬规则本就**要求**模型「谈某个方位时必须说清是哪一套」，弃权因此
+ * 只落在模型已经违规的句子上。
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+type DirectionScope = "personal" | "dwelling";
+
+/**
+ * 归属标记词表。只做「窗口里有没有出现某一套的标记」的**存在性**判定（`.test`），
+ * 不做替换、不做提取，因此词表内部的嵌套（本命八方 ⊃ 本命、命卦八方 ⊃ 命卦、
+ * 房屋八方 ⊃ 房屋）无害——与方位名那边必须长名优先是两类问题。
+ * 两张词表之间没有互为子串的项（一边锚在「命」、一边锚在「宅/房屋/房子」），
+ * 不会互相误认。
+ *
+ * 「宅+星名」这一项对应 core 化解文案里的「东（宅生气位）」；单字八卦名 + 宅/命
+ * 对应「离宅」「坎命」这类最常见的写法。
+ */
+const PERSONAL_MARKER = /本命八方|命卦八方|本命|命卦|[东西]四命|[乾坤震巽坎离艮兑]命/;
+const DWELLING_MARKER =
+  /房屋八方|宅八方|宅卦|[东西]四宅|[乾坤震巽坎离艮兑]宅|本宅|此宅|该宅|这套房子|这间屋|房屋|住宅|宅局|宅(?:生气|天医|延年|伏位|绝命|五鬼|六煞|祸害)/;
+
+/**
+ * 归属窗口的边界字符。**必须全部是 `GLUE`/`LOCATIVE` 都不含的字符**——否则窗口
+ * 边界会落进一条匹配的内部，「这条命中属于哪个窗口」就没有定义了。
+ * 分句边界比句子边界多了顿号与逗号（枚举/并列的分隔符）。
+ */
+const CLAUSE_BOUNDARY = /[、，,；;。！？!?\n]/;
+const SENTENCE_BOUNDARY = /[；;。！？!?\n]/;
+/** 结构化列表/表格行：只有这类行才继承所在块的归属（散文不跨行继承，见 resolveScope）。 */
+const LIST_ROW = /^[ \t]{0,3}(?:[-*+]|\d+[.、)）]|\|)/;
+
+/** 窗口里恰好只出现一套标记时才算判出归属；两套都有 = 说不清，零套 = 没说，均返回 null。 */
+function scopeOfWindow(window: string): DirectionScope | null {
+  const p = PERSONAL_MARKER.test(window);
+  const d = DWELLING_MARKER.test(window);
+  if (p === d) return null;
+  return p ? "personal" : "dwelling";
+}
+
+/** 以边界字符向两侧扩出的窗口；窗口恒含 [start, end) 本身。 */
+function windowAround(text: string, start: number, end: number, boundary: RegExp): string {
+  let a = start;
+  while (a > 0 && !boundary.test(text[a - 1]!)) a--;
+  let b = end;
+  while (b < text.length && !boundary.test(text[b]!)) b++;
+  return text.slice(a, b);
+}
+
+/** pos 所在行的 [起, 止)，止为行尾 `\n` 的下标（或文末）。 */
+function lineBounds(text: string, pos: number): [number, number] {
+  const a = pos === 0 ? 0 : text.lastIndexOf("\n", pos - 1) + 1;
+  const nl = text.indexOf("\n", pos);
+  return [a, nl < 0 ? text.length : nl];
+}
+
+/** 命中所在的「块」＝上下相连的非空行（空行即块边界）。 */
+function blockAround(text: string, start: number): string {
+  const [ls, le] = lineBounds(text, start);
+  let a = ls;
+  while (a > 0) {
+    const [ps, pe] = lineBounds(text, a - 1);
+    if (!text.slice(ps, pe).trim()) break;
+    a = ps;
+    if (ps === 0) break;
+  }
+  let b = le;
+  while (b < text.length) {
+    const [ns, ne] = lineBounds(text, b + 1);
+    if (!text.slice(ns, ne).trim()) break;
+    b = ne;
+  }
+  return text.slice(a, b);
+}
+
+/**
+ * 归属判定：由窄到宽三级，**每一级都要求窗口里恰好只出现一套标记**，判出即停；
+ * 三级都判不出（没标记 / 两套都在）就返回 null → 调用方弃权。
+ *
+ * ① 分句：「本命八方东是天医位，房屋八方东是生气位」这类同句对照，逐个分句各判各的。
+ * ② 句子：跨过逗号的框架句——「房屋八方来看，东是生气位。」标记在前一个分句里，
+ *    这是本缺陷的原始语料形状，必须在这一级判出。句子边界含分号，止步于并列小句。
+ * ③ 块（**仅限列表/表格行**）：「房屋八方判语如下：」+ 若干 `- 东：生气（吉）` 行，
+ *    表头与行之间隔着换行，前两级都够不着。限定列表行是**刻意的**：散文若也跨行
+ *    继承，一段以居所开头、中间夹一句没标记的本命描述的自然段就会被整段错判——
+ *    而列表行由其表头统辖是排版本身给出的结构信号，不是猜的。
+ */
+function resolveScope(text: string, start: number, end: number): DirectionScope | null {
+  const byClause = scopeOfWindow(windowAround(text, start, end, CLAUSE_BOUNDARY));
+  if (byClause) return byClause;
+  const bySentence = scopeOfWindow(windowAround(text, start, end, SENTENCE_BOUNDARY));
+  if (bySentence) return bySentence;
+  const [ls, le] = lineBounds(text, start);
+  if (!LIST_ROW.test(text.slice(ls, le))) return null;
+  return scopeOfWindow(blockAround(text, start));
+}
+
+/**
  * 方位一致性校验：八方吉凶来自查表，模型输出可机械对拍。**双向**匹配，两个分支
  * 放在同一条正则的 alternation 里，对原文一次非重叠扫描：
  *
@@ -166,6 +280,14 @@ const LOCATIVE = "[ \\t]*(?:落在|位于|在|为|是)[ \\t]*";
  * 保留排序仍是必要的防御措施（防未来胶水词表或星名表扩充后重新变得 load-bearing），
  * 因此额外补了一条**白盒**单测直接钉住 `sortLabelsLongestFirst` 的排序方向本身
  * （见 guard.test.ts「方位名排序」用例）——黑盒测不出来的不变量，白盒测。
+ *
+ * 【两张表】Layer 1 起还有一套由**宅卦**定的「房屋八方」（`facts.dwelling.sectors`），
+ * 与命卦表彼此独立、不得互推——见上方 DirectionScope 段。正则本身两层通用（方位名
+ * 与星名词表完全相同，只有查表值不同），差别只在**每一处命中查哪张表**：
+ * - Layer 0（`facts.dwelling` 为 null）：只有命卦表，`resolveScope` 根本不会被调用，
+ *   行为与本次改动前逐字节相同。
+ * - Layer 1：`resolveScope` 判归属 → 命卦表 / 宅卦表；判不出归属时，只有在**两张表
+ *   对该方位给出同一个星**时才对拍（此时结论与归属无关，不构成互推），否则弃权。
  */
 export function verifyDirectionConsistency(
   markdown: string,
@@ -173,8 +295,34 @@ export function verifyDirectionConsistency(
 ): { text: string; corrections: DirectionCorrection[] } {
   const corrections: DirectionCorrection[] = [];
 
-  const byLabel = sortLabelsLongestFirst(facts.directions);
-  const byLabelName = new Map(byLabel.map((d) => [d.label, d]));
+  const personalRows = facts.directions;
+  const dwellingRows = facts.dwelling?.sectors ?? null;
+  // alternation 用两张表标签的**去重并集**，且仍走长名优先——嵌套（北 ⊂ 东北，
+  // 东/南/西 ⊂ 东南/西南/西北）对新增的宅八方匹配路径一样成立。当前两张表的标签
+  // 集恒等（都是 DIRECTION_LABEL 全八方），去重后与 Layer 0 逐项相同。
+  const byLabel = sortLabelsLongestFirst(
+    dwellingRows
+      ? [...personalRows, ...dwellingRows].filter(
+          (d, i, a) => a.findIndex((x) => x.label === d.label) === i,
+        )
+      : personalRows,
+  );
+  const personalByLabel = new Map(personalRows.map((d) => [d.label, d]));
+  const dwellingByLabel = dwellingRows ? new Map(dwellingRows.map((d) => [d.label, d])) : null;
+  /**
+   * 这一处命中该拿哪张表对拍；返回 null = 弃权（不改写、不记 correction）。
+   * Layer 0 恒走第一行返回命卦表，与改动前完全一致。
+   */
+  const tableFor = (label: string, start: number, end: number) => {
+    const p = personalByLabel.get(label)!;
+    if (!dwellingByLabel) return p;
+    const h = dwellingByLabel.get(label)!;
+    const scope = resolveScope(markdown, start, end);
+    if (scope === "personal") return p;
+    if (scope === "dwelling") return h;
+    // 归属不明：两表一致时这句话的真假与归属无关，可以判；不一致则无从判起。
+    return p.star === h.star ? p : null;
+  };
   const dirAlt = byLabel.map((d) => d.label).join("|");
   const starAlt = ALL_STARS.join("|");
   /**
@@ -231,13 +379,15 @@ export function verifyDirectionConsistency(
   );
 
   const text = markdown.replace(pattern, (match: string, ...rest: unknown[]) => {
-    // 有命名捕获组时，replacer 的最后一个实参是 groups 对象（两个分支都有，恒成立）。
+    // 有命名捕获组时，replacer 的实参尾部恒为 (…, offset, 原串, groups)——两个分支
+    // 都有命名组，故这三项位置固定；offset 用来给这一处命中定位归属窗口。
     const g = rest[rest.length - 1] as Record<string, string | undefined>;
+    const offset = rest[rest.length - 3] as number;
     const dirFirst = g.aDir !== undefined;
     const label = (dirFirst ? g.aDir : g.bDir)!;
     const star = (dirFirst ? g.aStar : g.bStar)!;
-    const d = byLabelName.get(label)!;
-    if (star === d.star) return match;
+    const d = tableFor(label, offset, offset + match.length);
+    if (!d || star === d.star) return match;
     corrections.push({ direction: d.direction, label: d.label, wrote: star, correct: d.star });
     // 「伏位」自带「位」后缀：直接拼会得到「伏位位在北」，正确星名已含该后缀时去重。
     const suffix = (s: string | undefined) => (s && d.star.endsWith(s) ? "" : (s ?? ""));

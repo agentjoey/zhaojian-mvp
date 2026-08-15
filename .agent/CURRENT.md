@@ -2,14 +2,14 @@
 
 Version:        v0.1.0（线上 MVP + 引擎深化 v2 + 时序层 + UI v2 素白；未走 release.sh）
 Sprint:         001
-Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵（flag 默认关）** + 🧭 **风水「境」波1（flag 默认关，待合并）**
-Last Updated:   2026-08-15 by claude-opus-5（SDD 编排：15 task，每 task 独立 review + 最终全分支 review）
+Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵（flag 默认关）** + 🧭 **风水「境」波1+波2（flag 默认关）**
+Last Updated:   2026-08-16 by claude-opus-5（SDD 编排：波2 12 task，每 task 独立 review + 最终全分支 review）
 线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai
-测试:           core 122 · llm 130 · web 65（全绿；`pnpm typecheck` 三包全绿）
+测试:           core 154 · llm 177 · web 183（全绿；`pnpm typecheck` 三包全绿）
 
 > ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 > 🌙 **本命之灵（EP-spirit，Phase1+2+3 全交付）**已合 main，但由 `NEXT_PUBLIC_SPIRIT_ENABLED` flag **默认关闭**，对外不可见、不破坏冻结。准备好收集反馈时设 `=1` 即开（命盘页对话面板+问卷+自我画像，日历每日问今）。
-> 🧭 **风水「境」波1（EP-fs，分支 `feat/fengshui-wave1`，39 commits）**：`NEXT_PUBLIC_FENGSHUI_ENABLED` flag **默认关闭**，**无数据库迁移**（仍封顶 0010）。已验证 flag 关闭时既有产品不受影响：AppShell 零新增 import、无既有文件引用风水代码、core barrel 纯新增。**开启前必读下方「已知限制」——两道机械反幻觉校验目前仅对中文输出有效。**
+> 🧭 **风水「境」波1+波2（EP-fs，已合 main）**：`NEXT_PUBLIC_FENGSHUI_ENABLED` flag **默认关闭**。波1 无迁移；**波2 新增 `0011_dwellings`（`dwellings` + `fengshui_reports` 两张新表，已 apply 生产）**——只新增、未改动既有 5 张表，apply 后核对过既有表行数不变。已验证 flag 关闭时既有产品不受影响：AppShell 零新增 import、无既有文件引用风水代码、core barrel 纯新增。**开启前必读下方两节「⚠️ 开启 flag 前必须先处理」——英文侧三条缺口 + TG 身份不一致（波2 新增，阻塞）。**
 
 ## 产品现状（一句话）
 东方命理（八字+紫微）× 西方心理占星（利兹·格林）双引擎，已上线完整闭环：
@@ -61,6 +61,27 @@ spec `docs/superpowers/specs/2026-08-14-fengshui-environment-design.md` · plan 
 
 **spec↔交付分歧**：spec §7 承诺 `adviseObject` 返回 `remedies[]`，交付的 `ObjectAdvice` 无该字段。最终评审判定不阻塞（Layer 0 的化解是人身层面的、已在主页渲染），但应修 spec 而非补代码。注意其二阶后果：`adviseObjectText` 用「无 remedies」论证跳过整个机械层，而 `intendedVerdict` 与各 `reason` 里其实嵌着方位↔星名事实，波2 可构造出局部校验。
 
+## 风水「境」波2 · Layer 1 住宅实盘（EP-fs-11~18，2026-08-16，flag 默认关）
+spec 同波1（§14 波2 表）· plan `docs/superpowers/plans/2026-08-15-fengshui-wave2-layer1.md` · 迁移 `0011_dwellings`（**已 apply 生产**）
+
+在 Layer 0 之上加「房子」：居所记录（坐向 → 宅卦）、房屋八方、**合看**（同一套房子对不同住客吉凶不同）、宅层分级化解、会员闸门、物件顾问强版。新表 `dwellings` + `fengshui_reports`，RLS `own_all`（`using` 与 `with check` 皆 `auth.uid() = uid`，`pg_policies` 验过）。
+- **两套八方不得互推**：「本命八方」由命卦定、「房屋八方」由宅卦定。同一方位在两表里经常是不同的星——这正是本功能的意义所在。
+- **反幻觉第四道现在认识两张表**：`verifyDirectionConsistency` 按「分句→整句→块」三层递进窗口解析每句归属，每层要求恰好一套标记；**无法归属则弃权**（不改写、不记 correction），除非两表对该方位给出同一颗星。Layer 0 从不调用归属解析。
+  - 遗留（刻意取舍）：Layer 1 里「无标记、非列表行、且两表判语不同」的方位陈述不再被校验。本校验器历史失败模式是**过度纠正**，代价不对称（叙述被扣 + 无上限 LLM 花费 vs 四道里少一道备份）。要收回这块覆盖，正确做法是收紧 `prompt.ts` 的标记要求，而不是让校验器猜。
+
+**⚠️ 开启 flag 前必须先处理**
+0. **波1 的三条英文缺口依然全部成立**（见上一节），波2 只是加大了暴露面。
+1. **【新增·阻塞】TG 会话下身份不一致**：读档案走 TG uid（`tgGetProfile()`），读居所与写报告走浏览器匿名 uid（`lib/dwellings.ts` / `lib/fengshui-report.ts` 的 `ensureSession()`），而权益按 TG uid 判（`api/fengshui/reading/route.ts` 的 `resolveUserId` 优先读 TG cookie）。**门禁认的身份不是数据的主人** → TG 内居所与报告持久化实际不工作。RLS 本身没问题（无跨用户泄露），这是身份一致性问题。修复归 EP-fs-tg（spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md` §2/§3），**属翻 flag 前置条件，不是打磨项**。
+
+**其他已知限制（不阻塞合并）**
+- **多居所写入但不可读**：`/fengshui` 与 `/fengshui/object` 都硬取 `dwellings[0]`，第 2 套及以后只作为管理列表里的一行存在。最终评审 I2 据此**撤除了多居所付费墙**——为零可观察产出收费不可辩护。日后做切换器时需**同时**新建服务端写入路由：`createDwelling` 是浏览器直写 Supabase，届时任何纯客户端闸门都可绕过。
+- **`DwellingForm` 编辑回显不可达**：`initial` prop 与 `updateDwelling` 都实现且有单测，但页面无编辑入口 → 生产走不到。归 EP-fs-tg §4.2（与 §4.1 的原生 `confirm()` 一并修）。
+- 探测失败路径会发两次 LLM 调用（`unknown` 发 Layer-0 一次，重试进 `entitled` 改指纹再发一次）；两次都是真实缓存未命中，代价由用户显式点击封顶，接入支付后值得重估。
+- cookie 解析有三份拷贝（`api/fengshui/reading` / `billing/status` / `tg/session`），行为一致但会漂移；抽 `resolveUidFromRequest` 会波及 billing，故留待下次动 billing 时顺手做。
+- `packages/core/tsconfig.json` 的 `include` 只有 `["src"]` → `core/test/` 不过类型检查，写在那里的类型断言是**惰性的**。已从台账升入正式待办。
+
+**⚠️ 产品未决**：**强版物件顾问对约一半会员零价值**。八宅结构决定命卦吉方 ∩ 宅卦吉方只可能是 4 或 0（枚举 8×8 全组合验证；评审进一步枚举 276,480 组输入确认），故 `usable ≡ good`——强弱两版的 `recommendedDirections` **逐字节相同**，唯一差异是 `dwellingNote` 一句话，且只在异组时出现。8 个朝向里 4 个得到同组宅卦，那些会员的输出与免费层永远完全一致。选项：①并入免费层，会员靠 Layer 1 撑 ②回 core 重新设计 `adviseObject` 让强版真的不同 ③维持现状。**待产品决策，不阻塞合并。**
+
 ## Open Bugs / 已知限制
 🟢 无 P0/P1。
 📌 启发式（已标注，非 bug）：旺衰/用神为扶抑启发式（学派分歧大，prompt 标「启发式」并优先喂证据让模型权衡）；真太阳时含 EoT 但仍平太阳时近似。
@@ -68,6 +89,8 @@ spec `docs/superpowers/specs/2026-08-14-fengshui-environment-design.md` · plan 
 🌙 EP-spirit 已交付但 flag 默认关——待反馈期决定开启；每日问今/画像未做 localStorage 缓存（每次现算，flag 关时无影响）。
 
 ## Next Sprint Candidates
+- [ ] [EP-fs-tg] [HIGH] **风水 Telegram 适配**（spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md`，已派 pact worker `kimi`）：四个界面 TG 原生化 + 新建 `api/tg/fengshui` 中介端点。**含翻 flag 的阻塞项**——TG 会话下居所与报告持久化实际不工作（身份不一致，见波2 节）。顺带修 §4.1 原生 `confirm()`（全 app 唯一一处）与 §4.2 编辑居所入口缺失（死代码）。
+- [ ] [EP-fs-en] [HIGH] **风水英文侧反幻觉**：两道机械校验（`verifyDirectionConsistency` / `sanitizeFengshui`）目前仅中文匹配，en 输出完全不被校验；`buildFengshuiSystemPrompt("en")` 仍是中文指令 + 末尾一句 English；英文页面确定性内容基本还是中文。**首发海外、英文优先，这条实质是 flag 阻塞项。**
 - [ ] [EP-i18n] [HIGH] **英文版**：全站 UI 文案 i18n（中/英），LLM 输出按 locale（`ReadingLanguage` 已支持 en）；Telegram 海外市场用户按 `language_code` 自动选语言。当前全中文。
 - [ ] [EP-tg-ui] [HIGH] **更适配 Telegram Mini App 的 UI**：用 Telegram WebApp 主题参数/MainButton/BackButton/viewport/haptics，做原生感而非「网页塞进 webview」；隐藏 web 底部导航、贴合 TG 交互。
 - [ ] [EP-spirit-open] [HIGH] 收集反馈后开启本命之灵 flag + 真人小流量灰度（对话/问卷/画像/每日问今）。
@@ -102,3 +125,4 @@ spec `docs/superpowers/specs/2026-08-14-fengshui-environment-design.md` · plan 
 | 🎨 TG 原生 UI Round2 | 2026-06-30 | EP-tg-ui-r2(plan `2026-06-30-tg-native-ui-round2.md`)：①暗态根因 bug 修复——`@theme inline`→`@theme`(工具类改引用变量，全站跟随暗态，修白卡/白按钮)+panel-strong 强调面板令牌(八字柱头/紫微中宫暗态深墨)+geocode 按钮令牌化；②深色版专图机制(运势/hero `-dark` 变体+缺图 onError 回退滤镜，真图后补)；③起盘表单深度原生(分段性别/暗态输入/geocode cell)；④TG 导航(全局 BackButton 接 TgUiProvider+首页原生 hub)。非 TG 零变化(6 路由 200)。core61/llm39 绿。 |
 | ✈️ Telegram 前端 P3 | 2026-06-29 | EP-tg P3 上线：每日推送。/subscribe /unsubscribe /settings；/api/tg/cron(Bearer CRON_SECRET)；dueUsers/pushDailyTo(五维+问今，不耗用户额度，按本地日期幂等)。⚠️ Hobby 计划 cron 限每日一次→vercel.json `0 0 * * *`(北京08:00)，暂忽略 push_hour(升 Pro 可恢复按时区每小时)。endpoint 401/200 验证；真机待订阅者 /subscribe。 |
 | 🧭 风水「境」波1 | 2026-08-15 | EP-fs-01~08：命·运·境第三条线。零新输入从出生数据派生本命卦/八方吉凶/用神色材/分级化解/物件顾问；派生层非第四引擎、无迁移；诚实标注由判别联合编译期强制；反幻觉四道 + degraded 降级信号；flag 默认关。SDD 编排 15 task，每 task 独立 review + 最终全分支 review。core122/llm130/web65。⚠️ 开 flag 前须先补英文侧机械校验 |
+| 风水波2 · Layer 1 | 2026-08-16 | EP-fs-11~18：居所/宅卦/房屋八方 + 合看 + 宅层化解 + 会员闸门 + 物件顾问强版；迁移 0011（已 apply 生产）。最终全分支评审揪出跨 task 缝隙 C1——反幻觉第四道只认识命卦表，会把关于房屋的正确陈述改写成假话并永久 degraded；已修为按归属分辨两张表、无法归属则弃权 |

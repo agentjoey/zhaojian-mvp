@@ -66,8 +66,15 @@ export const zh = {
     yearly: "$99/年",
     comingSoon: "支付即将开放，敬请期待",
     telegramIAP: "Telegram 内购即将开放",
-    subtitleLimit: "档案已达上限，升级会员后可继续保存。",
+    // 曾有 subtitleLimit（"已达免费版上限，升级会员后可继续保存"）。它唯一的调用点是
+    // /fengshui/dwellings 的新增居所位，那道闸门在最终评审 I2 里被撤除（第 2 套居所
+    // 不被任何东西读取），随之删除——留着一条没有调用点的文案，只会让引用它的反向
+    // 断言变成恒真（见 components/Paywall.tsx 的说明）。
     subtitleQuota: "免费额度已用尽，升级会员后可继续对话。",
+    // reason="member"（Task 10 修复单 Important 5）：用在「这块内容本身属于会员功能」
+    // 的位置（如 /fengshui 的宅八方），那里既没有"档案"也没有要"保存"的东西——
+    // 复用 subtitleLimit 的「已达上限」措辞是错的，不只是不精确。
+    subtitleMember: "这块内容属于会员功能，升级后即可解锁。",
   },
   home: {
     heroTitle1: "你的命盘，",
@@ -318,6 +325,34 @@ export const zh = {
     directionsTitle: "八方吉凶",
     affinityTitle: "宜用色与材",
     remedyTitle: "可做的事",
+    // Task 9（EP-fs-15）：宅八方 + 合看 chips。dwellingTitle/personalTitle 分开标注
+    // 「本命八方」与「房屋八方」两套独立的八方吉凶，页面上永不混用（同 llm 侧的约束）。
+    personalTitle: "本命八方",
+    dwellingTitle: "房屋八方",
+    cohabitantsTitle: "同住人对照",
+    viewAs: "以谁的视角看",
+    viewAsSelf: "我",
+    sharedGoodNote: "对你和{name}都吉的方位：{directions}",
+    conflictsNote: "对你吉、对{name}凶的方位：{directions}",
+    noDwelling: "还没登记居所——填一个大门朝向，就能看到这套房子对你的八方吉凶。",
+    addDwelling: "登记居所",
+    facingUnknownNote: "这个居所的朝向未确定，下面只按你的本命方位给建议。",
+    // 复审必修2：居所读取失败 ≠ 确认为空。前者是「暂时不知道」，后者是「还没登记」，
+    // 对用户是完全不同的意思——绝不能把一次网络抖动误判成后者，诱导重复登记。
+    dwellingsError: "居所读取失败——不代表你还没登记，请重试。",
+    retryDwellings: "重试",
+    // Task 10 修复单 Critical 1：会员状态「探测失败」≠「确认为非会员」。前者是
+    // 「暂时不知道」，此时给付费墙等于在向可能已经拥有该内容的用户推销——尤其
+    // BILLING_ENABLED 关闭（默认）时根本不该有任何限制。措辞必须明说这不是判定结果。
+    entitlementUnknown: "会员状态暂时确认不了，这块内容先不展示——不代表你没有权限。",
+    retryEntitlement: "重新确认",
+    // 复审必修3：命卦（东四命/西四命）与宅卦（东四宅/西四宅）是否同组的判语，按
+    // matchWithPerson 的字面值（"相配"/"相冲"）取键——与 effortLabel 同一手法。
+    // 措辞非决定论：「相冲」不代表这房子不能住，只是把重点放回自己的四吉方。
+    matchNote: {
+      相配: "你的本命卦与这套宅子同组，整体气场比较合拍。",
+      相冲: "你的本命卦与这套宅子不同组，不必因此忧虑——把重点放在你自己的四吉方即可。",
+    },
     // 叙述三分节的标题。与上面几个键不同：那些描述确定性区块，这三个描述 LLM 叙述分节，
     // 语义不可互借（见 packages/llm/src/fengshui/prompt.ts 的输出契约）
     narrativeSections: {
@@ -351,6 +386,43 @@ export const zh = {
       rules: "这类物件的讲究",
       fit: "与你的关系",
       intended: "你想放的位置",
+      // Task 11（EP-fs-18）强版：命卦吉方与宅卦吉方交集为空时，core 的
+      // `adviseObject` 会把原因写进 `dwellingNote`。**正文来自 core，不在这里**——
+      // 这里只提供小标题（正文是随命宅组合变化的解释性文字，不是可枚举的 UI 文案，
+      // 塞进字典等于把引擎结论抄第二份，改一处必漏另一处）。
+      dwellingNoteTitle: "关于这套房子",
+      // 有居所、但会员状态没探测出来（网络抖动/冷启动）时的说明。与
+      // `fengshui.entitlementUnknown` 语义不同、不可互借：那句说的是「这块内容先不
+      // 展示」，而本页无论如何都会给出完整的落位建议，只是没能叠加宅卦那一层。
+      dwellingUnknown: "会员状态暂时确认不了，下面先只按你的本命方位给建议——不代表你没有权限。",
+    },
+    dwelling: {
+      title: "我的居所",
+      add: "添加居所",
+      nameLabel: "名称",
+      namePlaceholder: "家 / 办公室",
+      kindHome: "住宅",
+      kindOffice: "办公",
+      tenancyRent: "租住",
+      tenancyOwn: "自有",
+      facingLabel: "大门朝向",
+      facingHint: "站在屋内、面朝大门，你面对的方向。不确定就选「不确定」——我们会只按你的本命方位给建议，不猜。",
+      facingUnknown: "不确定",
+      save: "保存",
+      saving: "保存中…",
+      empty: "还没有登记居所。填一个朝向，就能看到这套房子对你的八方吉凶。",
+      deleteConfirm: "删除这个居所？相关报告也会一并失效。",
+      deleteFailed: "删除失败，请重试",
+      membersLabel: "同住人",
+      membersHint: "同一套房子对每个人的吉凶不同——加进来可以看对照。",
+      // 最终评审 I1：同住人上限此前只存在于服务端。勾满之后必须当场说清楚，
+      // 而不是让用户在另一个页面上撞 400。{max} 由 MAX_COHABITANTS 注入，
+      // 不写死数字——上限改一处，文案跟着走。
+      membersLimitNote: "最多只能选 {max} 位同住人。想换人的话，先取消一位。",
+      // 最终评审 I3：合看是会员功能（spec §11），但选择器此前对非会员完全开放，
+      // 勾完存下之后什么都不会出现。措辞要说清「现在勾了也没有产出」，
+      // 而不只是含糊地提一句会员。
+      membersMemberOnly: "同住人对照是会员功能，升级后才能看到这套房子对每个人的吉凶差异。",
     },
   },
   profiles: {
