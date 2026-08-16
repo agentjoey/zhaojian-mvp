@@ -111,6 +111,7 @@ export const en: Messages = {
         calendar: { title: "Daily fortune", subtitle: "Daily flow · one push a day" },
         chart: { title: "My chart", subtitle: "命理 (Mingli) + psychological reading" },
         spirit: { title: "Spirit", subtitle: "Guardian spirit & yearly guidance" },
+        fengshui: { title: "Home Feng Shui", subtitle: "Your directions · dwelling chart" },
         reading: { title: "Cast chart", subtitle: "Birth info instant chart" },
         profiles: { title: "My profiles", subtitle: "Saved chart profiles" },
       },

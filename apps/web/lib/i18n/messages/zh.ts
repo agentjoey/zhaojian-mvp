@@ -110,6 +110,7 @@ export const zh = {
         calendar: { title: "今日运势", subtitle: "流日 · 每日一推" },
         chart: { title: "我的命盘", subtitle: "命理 + 心理解读" },
         spirit: { title: "本命之灵", subtitle: "守护灵与年度指引" },
+        fengshui: { title: "居家风水", subtitle: "本命方位 · 居所实盘" },
         reading: { title: "起盘建档", subtitle: "出生信息即时排盘" },
         profiles: { title: "我的档案", subtitle: "已保存的命盘档案" },
       },

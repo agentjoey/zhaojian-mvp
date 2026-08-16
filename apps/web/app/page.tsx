@@ -21,13 +21,29 @@ const CARDS = [
   { id: "resonance" as const, el: "var(--color-metal)" },
 ] as const;
 
+/**
+ * Telegram 内的**唯一**导航。
+ *
+ * ⚠️ `AppShell.tsx` 用 `{!tg && (…)}` 把桌面侧栏与移动底栏整个包住——TG 里不渲染任何
+ * web 导航。所以只往 `AppShell.NAV` 加入口的新功能，在 Telegram 里入口数是**零**。
+ * 风水「境」就是这么静默失踪的：flag 已开、页面已上线、web 导航有入口，但 TG 用户
+ * 走不到，而当时全套测试是绿的（`TG_ENTRIES` 此前零覆盖）。
+ *
+ * **加新功能时两处都要加**，门控条件也要一致。回归由 `app/__tests__/page.test.tsx` 守。
+ *
+ * 注：`accent` 与 `起` 同为 `--color-earth`——土是居所/方位的五行，语义上对，
+ * 但两行同色；若日后调色板扩充，这里值得给「境」一个独立色。
+ */
 const TG_ENTRIES = [
   { icon: "运", accent: "var(--color-cinnabar)", key: "calendar" as const, path: "/calendar" },
   { icon: "盘", accent: "var(--color-water)", key: "chart" as const, path: "/chart" },
   { icon: "灵", accent: "var(--color-metal)", key: "spirit" as const, path: "/spirit" },
+  ...(process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1"
+    ? [{ icon: "境", accent: "var(--color-earth)", key: "fengshui" as const, path: "/fengshui" }]
+    : []),
   { icon: "起", accent: "var(--color-earth)", key: "reading" as const, path: "/reading" },
   { icon: "档", accent: "var(--color-wood)", key: "profiles" as const, path: "/profiles" },
-] as const;
+];
 
 export default function Home() {
   const [heroSrc, setHeroSrc] = useState("/hero/hero-bg.jpeg");
