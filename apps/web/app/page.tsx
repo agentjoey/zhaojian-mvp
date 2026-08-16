@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BellLogo, HeroWheel } from "@/components/ui";
-import { isTelegram } from "@/lib/tg/client";
+import { useIsTelegram } from "@/lib/tg/ui";
 import { Group, Cell } from "@/components/tg/native";
 import { useT } from "@/lib/i18n/I18nProvider";
 
@@ -47,12 +47,10 @@ const TG_ENTRIES = [
 
 export default function Home() {
   const [heroSrc, setHeroSrc] = useState("/hero/hero-bg.jpeg");
-  const [mounted, setMounted] = useState(false);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
   const router = useRouter();
   const t = useT();
 
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const el = document.documentElement;

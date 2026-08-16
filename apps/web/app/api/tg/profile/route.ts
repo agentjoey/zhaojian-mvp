@@ -30,7 +30,11 @@ export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
   const parsed = BirthInputSchema.safeParse(body?.birthInput);
   if (!parsed.success) return new Response(parsed.error.issues.map((i) => i.message).join("; "), { status: 400 });
-  let chart; try { chart = computeUnifiedChart(parsed.data); } catch (e) { return new Response("排盘失败", { status: 500 }); }
+  // 原来是 `catch (e)` 却从不用 e——500 的真实原因被整个丢掉，线上无从排查
+  // （lint 报的是未使用变量，但底下藏着的是「会自我掩盖的失败模式」）。补一行日志。
+  let chart;
+  try { chart = computeUnifiedChart(parsed.data); }
+  catch (e) { console.error("[tg/profile] computeUnifiedChart failed", e); return new Response("排盘失败", { status: 500 }); }
   try {
     const profile = await createProfileForUser(s.uid, { nickname: body?.nickname, birthInput: parsed.data, chart });
     return Response.json({ profile });

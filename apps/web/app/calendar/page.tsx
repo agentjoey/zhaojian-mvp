@@ -21,10 +21,6 @@ function cacheSet(kind: string, pid: string, date: string, v: string): void {
   try { localStorage.setItem(`zhaojian.${kind}.${pid}.${date}`, v); } catch { /* ignore */ }
 }
 
-// 五行配色（与 design token 一致）
-const ELEMENT_COLOR: Record<string, string> = {
-  木: "var(--color-wood)", 火: "var(--color-fire)", 土: "var(--color-earth)", 金: "var(--color-metal)", 水: "var(--color-water)",
-};
 // 综合分 → 大字总评（返回 i18n key）
 function gradeOf(overall: number): "auspicious" | "smooth" | "neutral" | "cautious" {
   if (overall >= 8) return "auspicious";

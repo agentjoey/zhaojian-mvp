@@ -9,7 +9,8 @@ import {
 import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
 import { listDwellings, type Dwelling } from "@/lib/dwellings";
 import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
-import { hasTgSession, isTelegram, tgGetProfile, tgListProfiles } from "@/lib/tg/client";
+import { hasTgSession, tgGetProfile, tgListProfiles } from "@/lib/tg/client";
+import { useIsTelegram } from "@/lib/tg/ui";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
 import { Markdown } from "@/components/Markdown";
@@ -176,10 +177,8 @@ export default function FengshuiPage() {
   // narrative 的 retryNonce 相同的手法：不改变 profile 也能强制重新跑一遍。
   const [dwellingsRetryNonce, setDwellingsRetryNonce] = useState(0);
   const [tab, setTab] = useState<Tab>("chart");
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   // EP-fs-tg：TG 会话下 Tab 行换原生分段观感、化解清单换 Group+Cell；web 路径零变化。
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
   const [viewAs, setViewAs] = useState<string>("main");
   const [sections, setSections] = useState<FengshuiSections | null>(null);
   const [failed, setFailed] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 type WA = { colorScheme?: "light"|"dark"; themeParams?: Record<string,string>; onEvent?: (e:string,cb:()=>void)=>void; offEvent?: (e:string,cb:()=>void)=>void };
-function wa(): WA | undefined { return (typeof window!=="undefined" ? (window as any).Telegram?.WebApp : undefined); }
+function wa(): WA | undefined { return (typeof window!=="undefined" ? window.Telegram?.WebApp : undefined); }
 export function applyTgTheme(): void {
   const w = wa(); if (!w) return;
   const scheme = w.colorScheme === "dark" ? "dark" : "light";

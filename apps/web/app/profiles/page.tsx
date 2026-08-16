@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listProfiles, getActiveProfileId, setActiveProfile, deleteProfile, type Profile } from "@/lib/profiles";
-import { hasTgSession, isTelegram, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
+import { hasTgSession, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
+import { useIsTelegram } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
 import { Card, SealIcon } from "@/components/ui";
 import { Group, Cell } from "@/components/tg/native";
@@ -16,14 +17,12 @@ export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setMounted(true), []);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useEffect(() => {
     if (editingId && renameRef.current) {

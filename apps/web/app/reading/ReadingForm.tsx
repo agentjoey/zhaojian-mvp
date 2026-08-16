@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { computeChartAction, geocodeAction, type GeoResult } from "@/app/actions";
 import { createProfile } from "@/lib/profiles";
 import { hasTgSession, isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/tg/client";
-import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { BirthInput } from "@eamvp/core";
 
@@ -36,9 +36,7 @@ export function ReadingForm() {
   const [timeUnknown, setTimeUnknown] = useState(false);
 
   // 避免 SSR/ hydration 因 isTelegram() 不一致而错位
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useEffect(() => {
     if (isTelegram()) tgReadyExpand();

@@ -3,7 +3,8 @@
 import Script from "next/script";
 import { useEffect, useState } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
-import { hasTgSession, isTelegram, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
+import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
+import { useIsTelegram } from "@/lib/tg/ui";
 import { Paywall } from "@/components/Paywall";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { LocaleSwitch } from "@/lib/i18n/switch";
@@ -45,9 +46,7 @@ export default function AccountPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useEffect(() => {
     async function resolve() {
@@ -136,7 +135,7 @@ export default function AccountPage() {
   }, [view.kind]);
 
   useEffect(() => {
-    (window as any).onTelegramAuth = (u: any) => {
+    window.onTelegramAuth = (u) => {
       tgLoginWithWidget(u)
         .then((res) => {
           if (res?.merged > 0) {
@@ -152,7 +151,7 @@ export default function AccountPage() {
   }, []);
 
   useEffect(() => {
-    (window as any).onTelegramLink = async (u: any) => {
+    window.onTelegramLink = async (u) => {
       try {
         setLinkError(null);
         const { data } = await supabase().auth.getSession();

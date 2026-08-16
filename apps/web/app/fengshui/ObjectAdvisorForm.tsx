@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   adviseObject, OBJECT_CATEGORIES, CATEGORY_LABEL, DIRECTIONS, DIRECTION_LABEL,
   type FengshuiChart, type ObjectAdvice, type ObjectCategory, type Direction,
   type DirectionVerdict,
 } from "@eamvp/core";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
-import { isTelegram } from "@/lib/tg/client";
-import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { Group } from "@/components/tg/native";
 import { Card, Button } from "@/components/ui";
 
@@ -57,11 +56,9 @@ export function ObjectAdvisorForm({
   const [dir, setDir] = useState<Direction | "">("");
   const [advice, setAdvice] = useState<ObjectAdvice | null>(null);
   const [prose, setProse] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   // EP-fs-tg：TG 内提交走原生 MainButton（页内按钮隐藏），表单项套原生分组观感；
   // web 路径保持页内按钮不变。
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useTgMainButton({
     text: t("fengshui.object.submit"),

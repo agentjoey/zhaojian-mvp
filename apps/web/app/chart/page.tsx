@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
 import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
-import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
@@ -40,9 +40,7 @@ export default function ChartPage() {
   const [err, setErr] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<string | null>(null);
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useTgMainButton({
     text: streaming ? t("chart.generating") : t("chart.castForMe"),
@@ -172,7 +170,7 @@ export default function ChartPage() {
             <button
               onClick={() => {
                 const username = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || "analyst_helen_bot";
-                (window as any).Telegram?.WebApp?.openTelegramLink?.(
+                window.Telegram?.WebApp?.openTelegramLink?.(
                   "https://t.me/share/url?url=" +
                     encodeURIComponent(`https://t.me/${username}?startapp=zhaojian`) +
                     "&text=" +

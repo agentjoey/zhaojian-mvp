@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DIRECTION_LABEL } from "@eamvp/core";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
-import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
-import { haptics } from "@/lib/tg/ui";
+import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
+import { useIsTelegram, haptics } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { listDwellings, deleteDwelling, type Dwelling } from "@/lib/dwellings";
 import { Card } from "@/components/ui";
@@ -57,10 +57,8 @@ export default function DwellingsPage() {
   // 底部表单区整个换成带回显的编辑表单（同一时刻只渲染一个 DwellingForm，
   // 避免 TG 下两个 MainButton 钩子互相抢）。
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useEffect(() => {
     if (!ENABLED) return;

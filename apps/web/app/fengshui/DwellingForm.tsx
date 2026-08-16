@@ -6,8 +6,8 @@ import { createDwelling, updateDwelling, type Dwelling } from "@/lib/dwellings";
 import { listProfiles, getActiveProfileId, type Profile } from "@/lib/profiles";
 import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 import { supabase } from "@/lib/supabase";
-import { hasTgSession, isTelegram, tgListProfiles } from "@/lib/tg/client";
-import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { hasTgSession, tgListProfiles } from "@/lib/tg/client";
+import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { Segmented as TgSegmented } from "@/components/tg/native";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { Button } from "@/components/ui";
@@ -65,10 +65,8 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
    * 用户白发一次网络往返。
    */
   const [cohabitantBlocked, setCohabitantBlocked] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   // EP-fs-tg：TG 内保存走原生 MainButton（页内按钮隐藏）；web 路径保持页内按钮不变。
-  const inTg = mounted && isTelegram();
+  const inTg = useIsTelegram();
 
   useTgMainButton({
     text: saving ? t("fengshui.dwelling.saving") : t("fengshui.dwelling.save"),

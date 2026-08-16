@@ -20,7 +20,6 @@ const R_OUTER = 212;
 const R_ZODIAC_IN = 172; // 黄道带内缘
 const R_SIGN = 192; // 星座符号
 const R_HOUSENUM = 158; // 宫号
-const R_TICK = 172; // 真实度数刻度（落在黄道内缘）
 const R_GLYPH = 134; // 行星符号（经防撞展开）
 const R_ASPECT = 112; // 相位连线（用真实角，连成图案）
 

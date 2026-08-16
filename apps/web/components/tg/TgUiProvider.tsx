@@ -10,7 +10,8 @@ export function TgUiProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isTelegram()) return;
-    const w = (window as any).Telegram.WebApp;
+    const w = window.Telegram?.WebApp;
+    if (!w) return;
     try {
       w.ready?.();
       w.expand?.();

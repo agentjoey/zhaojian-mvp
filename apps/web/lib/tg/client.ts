@@ -3,18 +3,6 @@
 import { supabase } from "@/lib/supabase";
 import { type Locale, LOCALE_COOKIE } from "@/lib/i18n/locale";
 
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp?: {
-        initData?: string;
-        ready?: () => void;
-        expand?: () => void;
-      };
-    };
-  }
-}
-
 export function getLocaleHeader(): { "x-zj-locale": Locale } {
   if (typeof document === "undefined") return { "x-zj-locale": "zh" };
   const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=(zh|en)`));
@@ -23,7 +11,7 @@ export function getLocaleHeader(): { "x-zj-locale": Locale } {
 
 export function isTelegram(): boolean {
   if (typeof window === "undefined") return false;
-  return !!((window as any).Telegram?.WebApp?.initData);
+  return !!window.Telegram?.WebApp?.initData;
 }
 
 export function hasTgSession(): boolean {
@@ -32,13 +20,13 @@ export function hasTgSession(): boolean {
 }
 
 export function tgReadyExpand(): void {
-  const w = (window as any).Telegram?.WebApp;
+  const w = window.Telegram?.WebApp;
   w?.ready?.();
   w?.expand?.();
 }
 
 export async function ensureTgSession(): Promise<boolean> {
-  const initData = (window as any).Telegram?.WebApp?.initData;
+  const initData = window.Telegram?.WebApp?.initData;
   const r = await fetch("/api/tg/session", {
     method: "POST",
     credentials: "include",

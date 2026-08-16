@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BellLogo, cn } from "@/components/ui";
-import { isTelegram } from "@/lib/tg/client";
+import { useIsTelegram } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 const NAV = [
@@ -31,9 +30,8 @@ const NAV_COMPACT = NAV.length >= 6;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
-  const [tg, setTg] = useState(false);
   const t = useT();
-  useEffect(() => setTg(isTelegram()), []);
+  const tg = useIsTelegram();
 
   return (
     <div className={tg ? "min-h-screen" : "min-h-screen md:pl-[82px]"}>
