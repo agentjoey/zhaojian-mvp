@@ -6,6 +6,9 @@ import { createDwelling, updateDwelling, type Dwelling } from "@/lib/dwellings";
 import { listProfiles, getActiveProfileId, type Profile } from "@/lib/profiles";
 import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 import { supabase } from "@/lib/supabase";
+import { hasTgSession, isTelegram, tgListProfiles } from "@/lib/tg/client";
+import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { Segmented as TgSegmented } from "@/components/tg/native";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { Button } from "@/components/ui";
 
@@ -62,13 +65,29 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
    * 用户白发一次网络往返。
    */
   const [cohabitantBlocked, setCohabitantBlocked] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // EP-fs-tg：TG 内保存走原生 MainButton（页内按钮隐藏）；web 路径保持页内按钮不变。
+  const inTg = mounted && isTelegram();
+
+  useTgMainButton({
+    text: saving ? t("fengshui.dwelling.saving") : t("fengshui.dwelling.save"),
+    onClick: () => save(),
+    enabled: touchedFacing && !saving,
+    visible: inTg,
+  });
 
   useEffect(() => {
     let cancelled = false;
-    listProfiles()
+    // EP-fs-tg：TG 会话下匿名 Supabase 客户端读不到档案（RLS 下为空），候选人必须走
+    // tgListProfiles() 中介——否则 TG 里同住人选择器永远不渲染，合看无从选起。
+    // TG 的「当前档案」恒为列表第一条（getProfileForUser 按创建时间倒序取首条，
+    // profiles/page.tsx 用的是同一约定），过滤掉自己。
+    const fetcher = hasTgSession() ? tgListProfiles() : listProfiles();
+    fetcher
       .then((list) => {
         if (cancelled) return;
-        const activeId = getActiveProfileId();
+        const activeId = hasTgSession() ? (list[0]?.id ?? null) : getActiveProfileId();
         setCandidates(list.filter((p) => p.id !== activeId));
       })
       .catch(() => {
@@ -116,6 +135,7 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
   }
 
   async function save() {
+    haptics.light();
     setSaving(true);
     try {
       const payload = {
@@ -139,10 +159,38 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
           placeholder={t("fengshui.dwelling.namePlaceholder")} className="w-full" />
       </label>
 
-      <Segmented value={kind} onChange={setKind}
-        options={[["home", t("fengshui.dwelling.kindHome")], ["office", t("fengshui.dwelling.kindOffice")]]} />
-      <Segmented value={tenancy} onChange={setTenancy}
-        options={[["rent", t("fengshui.dwelling.tenancyRent")], ["own", t("fengshui.dwelling.tenancyOwn")]]} />
+      {inTg ? (
+        // TG：与「境」页 tab 行共用同一个原生分段组件（评审 M1——此前本文件的本地
+        // Segmented 与 native.tsx 的同名组件 prop 形状不兼容，且 TG 下这两个选择器
+        // 保持网页外观、与上方原生 tab 行不一致）。组模式（不传 idBase）：它们是
+        // 互斥选项而非 tab。
+        <TgSegmented
+          ariaLabel={t("fengshui.dwelling.kindLabel")}
+          options={[
+            { value: "home" as const, label: t("fengshui.dwelling.kindHome") },
+            { value: "office" as const, label: t("fengshui.dwelling.kindOffice") },
+          ]}
+          value={kind}
+          onChange={setKind}
+        />
+      ) : (
+        <OptionButtons value={kind} onChange={setKind}
+          options={[["home", t("fengshui.dwelling.kindHome")], ["office", t("fengshui.dwelling.kindOffice")]]} />
+      )}
+      {inTg ? (
+        <TgSegmented
+          ariaLabel={t("fengshui.dwelling.tenancyLabel")}
+          options={[
+            { value: "rent" as const, label: t("fengshui.dwelling.tenancyRent") },
+            { value: "own" as const, label: t("fengshui.dwelling.tenancyOwn") },
+          ]}
+          value={tenancy}
+          onChange={setTenancy}
+        />
+      ) : (
+        <OptionButtons value={tenancy} onChange={setTenancy}
+          options={[["rent", t("fengshui.dwelling.tenancyRent")], ["own", t("fengshui.dwelling.tenancyOwn")]]} />
+      )}
 
       <div>
         <p className="text-[13px] text-ink-2">{t("fengshui.dwelling.facingLabel")}</p>
@@ -213,14 +261,20 @@ export function DwellingForm({ initial, onSaved }: { initial?: Dwelling; onSaved
         </div>
       )}
 
-      <Button onClick={save} disabled={saving || !touchedFacing}>
-        {saving ? t("fengshui.dwelling.saving") : t("fengshui.dwelling.save")}
-      </Button>
+      {!inTg && (
+        <Button onClick={save} disabled={saving || !touchedFacing}>
+          {saving ? t("fengshui.dwelling.saving") : t("fengshui.dwelling.save")}
+        </Button>
+      )}
     </div>
   );
 }
 
-function Segmented<T extends string>({ value, onChange, options }: {
+/**
+ * web 宿主的互斥选项行（评审 M1 前叫 Segmented，与 components/tg/native.tsx 的
+ * 原生分段组件同名且 prop 形状不兼容——改名消除撞名；TG 宿主改用那个共享组件）。
+ */
+function OptionButtons<T extends string>({ value, onChange, options }: {
   value: T; onChange: (v: T) => void; options: [T, string][];
 }) {
   return (

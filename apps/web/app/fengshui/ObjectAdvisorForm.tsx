@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   adviseObject, OBJECT_CATEGORIES, CATEGORY_LABEL, DIRECTIONS, DIRECTION_LABEL,
   type FengshuiChart, type ObjectAdvice, type ObjectCategory, type Direction,
   type DirectionVerdict,
 } from "@eamvp/core";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
+import { isTelegram } from "@/lib/tg/client";
+import { useTgMainButton, haptics } from "@/lib/tg/ui";
+import { Group } from "@/components/tg/native";
 import { Card, Button } from "@/components/ui";
 
 // 与 core `MATERIAL_ELEMENT`/`SHAPE_ELEMENT`（packages/core/src/fengshui/object-advisor.ts）
@@ -54,8 +57,20 @@ export function ObjectAdvisorForm({
   const [dir, setDir] = useState<Direction | "">("");
   const [advice, setAdvice] = useState<ObjectAdvice | null>(null);
   const [prose, setProse] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // EP-fs-tg：TG 内提交走原生 MainButton（页内按钮隐藏），表单项套原生分组观感；
+  // web 路径保持页内按钮不变。
+  const inTg = mounted && isTelegram();
+
+  useTgMainButton({
+    text: t("fengshui.object.submit"),
+    onClick: () => submit(),
+    visible: inTg,
+  });
 
   function submit() {
+    haptics.light();
     const a = adviseObject(
       { verdicts: fs.personalDirections, affinity: fs.elementAffinity, dwellingSectors },
       {
@@ -76,34 +91,47 @@ export function ObjectAdvisorForm({
       .catch(() => { /* 确定性结果已足够，静默 */ });
   }
 
+  const fields = (
+    <>
+      <Field label={t("fengshui.object.category")} id="fs-cat">
+        <select id="fs-cat" value={category} onChange={(e) => setCategory(e.target.value as ObjectCategory)} className={SELECT_CLASS}>
+          {OBJECT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+        </select>
+      </Field>
+      <Field label={t("fengshui.object.material")} id="fs-mat">
+        <select id="fs-mat" value={material} onChange={(e) => setMaterial(e.target.value)} className={SELECT_CLASS}>
+          <option value="">{t("fengshui.object.unspecified")}</option>
+          {MATERIALS.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </Field>
+      <Field label={t("fengshui.object.shape")} id="fs-shape">
+        <select id="fs-shape" value={shape} onChange={(e) => setShape(e.target.value)} className={SELECT_CLASS}>
+          <option value="">{t("fengshui.object.unspecified")}</option>
+          {SHAPES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </Field>
+      <Field label={t("fengshui.object.intendedDirection")} id="fs-dir">
+        <select id="fs-dir" value={dir} onChange={(e) => setDir(e.target.value as Direction | "")} className={SELECT_CLASS}>
+          <option value="">{t("fengshui.object.unspecified")}</option>
+          {DIRECTIONS.map((d) => <option key={d} value={d}>{DIRECTION_LABEL[d]}</option>)}
+        </select>
+      </Field>
+    </>
+  );
+
   return (
     <div>
-      <div className="flex flex-col gap-3">
-        <Field label={t("fengshui.object.category")} id="fs-cat">
-          <select id="fs-cat" value={category} onChange={(e) => setCategory(e.target.value as ObjectCategory)} className={SELECT_CLASS}>
-            {OBJECT_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-          </select>
-        </Field>
-        <Field label={t("fengshui.object.material")} id="fs-mat">
-          <select id="fs-mat" value={material} onChange={(e) => setMaterial(e.target.value)} className={SELECT_CLASS}>
-            <option value="">{t("fengshui.object.unspecified")}</option>
-            {MATERIALS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </Field>
-        <Field label={t("fengshui.object.shape")} id="fs-shape">
-          <select id="fs-shape" value={shape} onChange={(e) => setShape(e.target.value)} className={SELECT_CLASS}>
-            <option value="">{t("fengshui.object.unspecified")}</option>
-            {SHAPES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
-        <Field label={t("fengshui.object.intendedDirection")} id="fs-dir">
-          <select id="fs-dir" value={dir} onChange={(e) => setDir(e.target.value as Direction | "")} className={SELECT_CLASS}>
-            <option value="">{t("fengshui.object.unspecified")}</option>
-            {DIRECTIONS.map((d) => <option key={d} value={d}>{DIRECTION_LABEL[d]}</option>)}
-          </select>
-        </Field>
-        <Button onClick={submit} className="mt-1">{t("fengshui.object.submit")}</Button>
-      </div>
+      {inTg ? (
+        // TG：表单项套原生分组观感（Group 自带分隔线），提交由 MainButton 承担。
+        <Group>
+          <div className="flex flex-col gap-3 px-[14px] py-[12px]">{fields}</div>
+        </Group>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {fields}
+          <Button onClick={submit} className="mt-1">{t("fengshui.object.submit")}</Button>
+        </div>
+      )}
 
       {advice && (
         <Card className="mt-6 p-4">

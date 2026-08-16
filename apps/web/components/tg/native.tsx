@@ -68,7 +68,93 @@ export function Cell({
           <div className="text-[12px] text-[var(--color-muted)]">{subtitle}</div>
         )}
       </div>
-      <div className="shrink-0 text-[18px] text-[var(--color-muted)]">›</div>
+      {/* chevron 暗示可点——只在真有 onClick 时渲染（评审 M2），否则每行都挂一个
+          点不动的箭头。 */}
+      {onClick && (
+        <div className="shrink-0 text-[18px] text-[var(--color-muted)]">›</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * iOS 风格分段选择器（EP-fs-tg）。颜色全部走 CSS 令牌，跟随 TG 明/暗主题。
+ *
+ * 两种语义模式（评审 M4——ARIA 契约要么建全、要么别建一半）：
+ * - 传 `idBase`：**真 Tab**（tablist/tab + aria-controls + 面板配对 + 方向键漫游
+ *   + roving tabindex）。调用方必须用 `${idBase}-panel-<value>` 渲染对应
+ *   role="tabpanel" 的内容区（`aria-labelledby={`${idBase}-tab-<value>`}`），
+ *   否则 aria-controls 指向不存在的节点，比不写更糟。
+ * - 不传 `idBase`：普通**单选按钮组**（role="group" + aria-pressed），用于
+ *   「住宅/办公」这类并不切换面板的互斥选项——它们不是 tab，不该穿 tab 的壳。
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  idBase,
+  ariaLabel,
+}: {
+  options: readonly { value: T; label: React.ReactNode }[];
+  value: T;
+  onChange: (v: T) => void;
+  idBase?: string;
+  ariaLabel?: string;
+}) {
+  const listRef = React.useRef<HTMLDivElement>(null);
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!idBase) return; // 组模式：原生 Tab 序即可，无方向键语义
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const idx = options.findIndex((o) => o.value === value);
+    const next =
+      e.key === "ArrowRight"
+        ? (idx + 1) % options.length
+        : (idx - 1 + options.length) % options.length;
+    onChange(options[next]!.value);
+    listRef.current
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [next]?.focus();
+  }
+
+  return (
+    <div
+      ref={listRef}
+      role={idBase ? "tablist" : "group"}
+      aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
+      className="flex gap-[2px] p-[2px]"
+      style={{ background: "var(--color-bg2)", borderRadius: "var(--radius-button)" }}
+    >
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            {...(idBase
+              ? {
+                  role: "tab",
+                  id: `${idBase}-tab-${o.value}`,
+                  "aria-selected": active,
+                  "aria-controls": `${idBase}-panel-${o.value}`,
+                  tabIndex: active ? 0 : -1,
+                }
+              : { "aria-pressed": active })}
+            onClick={() => onChange(o.value)}
+            className="flex-1 px-3 py-1.5 text-[13px]"
+            style={{
+              borderRadius: "calc(var(--radius-button) - 2px)",
+              background: active ? "var(--color-paper)" : "transparent",
+              color: active ? "var(--color-ink)" : "var(--color-muted)",
+              boxShadow: active ? "var(--shadow-card)" : "none",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

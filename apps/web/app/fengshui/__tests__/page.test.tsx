@@ -150,7 +150,13 @@ vi.mock("@/lib/dwellings", () => ({
     return dwellingsFixture.current;
   }),
 }));
-vi.mock("@/lib/tg/client", () => ({ hasTgSession: () => false, tgGetProfile: vi.fn() }));
+vi.mock("@/lib/tg/client", () => ({
+  hasTgSession: () => false,
+  // EP-fs-tg：可变——文件末尾「TG 会话」describe 把它翻成 true 断言原生分段 Tab。
+  isTelegram: () => tgEnv.inTg,
+  tgGetProfile: vi.fn(),
+  tgListProfiles: vi.fn(async () => []),
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
 
 /**
@@ -169,6 +175,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/fengshui" }));
  * 的 Authorization 头整个删掉，全套测试照样绿，而 BILLING_ENABLED=1 时每个非
  * Telegram（邮箱/匿名 Supabase）会员都会被静默 402 并挡在付费墙外。
  */
+const { tgEnv } = vi.hoisted(() => ({ tgEnv: { inTg: false } }));
 const { supabaseSession } = vi.hoisted(() => ({
   supabaseSession: { current: null as { access_token: string } | null },
 }));
@@ -243,6 +250,7 @@ beforeEach(() => {
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
   supabaseSession.current = null;
+  tgEnv.inTg = false;
   computeFengshuiCalls.args.length = 0;
   profilesById.clear();
   profilesById.set("p2", cohabProfile);
@@ -1329,5 +1337,97 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Minor 3）：叙述 POST 不
     // 为空）——所以"唯一那次带着 dwelling"这条断言同时锁住了次数与内容。
     expect(postBodies[0]).toHaveProperty("dwelling");
     expect((postBodies[0]!.dwelling as { id: string }).id).toBe("d1");
+  });
+});
+
+/**
+ * EP-fs-tg：TG 会话下 Tab 行渲染为原生分段选择器（`Segmented`，role=tablist/tab），
+ * web 下划线 Tab 行不出现；切换行为不变。判别点选 ARIA role——两个分支渲染的都是
+ * 「盘/化解/添置」三枚按钮，只看文字分不出来（恒真断言），role 是严格可区分的：
+ * web 分支的按钮没有 tab 语义。
+ *
+ * 变异验证（实跑过）：把 page.tsx 里的 `inTg` 改成恒 false，本 describe 前两条全红；
+ * 把 Cell 的 chevron 改回无条件渲染（评审 M2 的反向变异），「化解清单无 chevron」
+ * 那条断言变红。
+ */
+describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
+  beforeEach(() => {
+    tgEnv.inTg = true;
+  });
+
+  it("Tab 行渲染为 tablist（三枚 tab），且 tab↔tabpanel 契约配对完整（评审 M4）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(3);
+    expect(tabs.map((x) => x.textContent)).toEqual(["盘", "化解", "添置"]);
+    // 当前选中的 tab 有 aria-selected，roving tabindex（选中 0，其余 -1）
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[1]).toHaveAttribute("aria-selected", "false");
+    expect(tabs[0]).toHaveAttribute("tabindex", "0");
+    expect(tabs[1]).toHaveAttribute("tabindex", "-1");
+    // aria-controls 必须指向真实存在的 tabpanel。面板按当前 tab 条件渲染，
+    // 所以只有**选中那枚**的 aria-controls 当场可解析；逐枚点开验证其余。
+    for (const tb of tabs) {
+      expect(tb.getAttribute("aria-controls")).toBeTruthy();
+      fireEvent.click(tb);
+      const panel = screen.getByRole("tabpanel");
+      expect(panel).toHaveAttribute("id", tb.getAttribute("aria-controls"));
+      expect(panel).toHaveAttribute("aria-labelledby", tb.id);
+    }
+  });
+
+  it("方向键漫游：ArrowRight 切到下一枚 tab 并移动焦点（评审 M4）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    const tablist = screen.getByRole("tablist");
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs[1]).toHaveAttribute("aria-selected", "true");
+    expect(document.activeElement).toBe(tabs[1]);
+    // 化解面板成为当前 panel
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "fs-panel-remedy");
+    // 到头回绕：从「添置」再 ArrowRight 回到「盘」
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("切 tab 行为在原生分段上照常工作（化解 tab 出清单）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByText("可做的事")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "化解" }));
+    expect(screen.getByText("可做的事")).toBeInTheDocument();
+    // 评审 M2：化解清单的 Cell 没有 onClick → **不应**出现 chevron（它暗示可点）。
+    // 这条断言是「chevron 条件渲染」的反向守卫——改回无条件渲染时它变红。
+    expect(screen.queryAllByText("›")).toHaveLength(0);
+    // 原生分支判别依据（换掉 chevron 之后）：TG 的 Cell 副标题把成本与证据标注合成
+    // 一行「零成本 · 传统象征」；web 分支是两个独立 span 夹一个「·」span，没有任何
+    // 元素的直接文本节点能拼出这整行——getByText 只拼直接文本节点，两个分支因此
+    // 严格可分。同一组合可能出现在多条化解上，按组合聚合计数。
+    const combos = new Map<string, number>();
+    for (const r of fs.remedies) {
+      const key = `${r.effort} · ${r.evidence === "传统象征" ? "传统象征" : "传统 + 现代"}`;
+      combos.set(key, (combos.get(key) ?? 0) + 1);
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+    for (const [key, n] of combos) {
+      expect(screen.getAllByText(key)).toHaveLength(n);
+    }
+  });
+
+  it("web 分支（对照组）：无 tablist，仍是下划线按钮，且**没有 tabpanel**", async () => {
+    tgEnv.inTg = false;
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("button", { name: "化解" })).toBeInTheDocument();
+    // 复审必修 A 的反向守卫：tabpanel 属性必须按 inTg 门控。web 上没有 tablist/tab，
+    // 出现 tabpanel 意味着 aria-labelledby 悬空（指向任何状态下都不存在的 id），
+    // 是无障碍回归 + 「web 零变化」红线的双重破坏。只断言 tablist 为 null 抓不到它。
+    expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
+    expect(document.getElementById("fs-panel-chart")).toBeNull();
   });
 });

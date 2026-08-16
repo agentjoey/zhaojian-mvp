@@ -323,3 +323,61 @@ describe("EP-fs-18 物件顾问强版（宅八方）", () => {
     expect(screen.queryByText("关于这套房子")).toBeNull();
   });
 });
+
+/**
+ * EP-fs-tg：TG 会话下的物件顾问表单。本文件不 mock `@/lib/tg/client`（既有用例走
+ * 真实模块），TG 环境靠 `window.Telegram.WebApp.initData` 桩出来——真实
+ * `isTelegram()` 恰好就是读这个值。断言点：
+ *  1. TG 内页内提交按钮隐藏，提交由 MainButton 承担（setText + onClick 回调真正
+ *     触发 adviseObject）；
+ *  2. 表单项套原生 Group（chevron 不行——Group 本身无 chevron，这里改用结构判别：
+ *     TG 分支里 select 的祖先链上有 Group 的容器样式类，web 分支没有。更稳的判据是
+ *     按钮存在性，见第 1 条）。
+ *
+ * 变异验证（实跑过）：把 ObjectAdvisorForm 里的 `inTg` 改成恒 false，
+ * 本 describe 第 1/2 条变红。
+ */
+describe("EP-fs-tg TG 会话：MainButton 提交", () => {
+  let mainButtonClick: (() => void) | null;
+  let mb: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(() => {
+    mainButtonClick = null;
+    mb = {
+      setText: vi.fn(), enable: vi.fn(), disable: vi.fn(), show: vi.fn(), hide: vi.fn(),
+      onClick: vi.fn((cb: () => void) => { mainButtonClick = cb; }),
+      offClick: vi.fn(),
+    };
+    (window as any).Telegram = {
+      WebApp: {
+        initData: "x",
+        MainButton: mb,
+        HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+      },
+    };
+  });
+
+  it("页内提交按钮隐藏，MainButton 接管（setText=提交文案）", async () => {
+    render(<ObjectAdvisorForm fs={fs} />, { wrapper: Wrapper });
+    await waitFor(() => expect(mb.setText).toHaveBeenCalledWith("看看放哪儿好"));
+    expect(screen.queryByRole("button", { name: "看看放哪儿好" })).toBeNull();
+  });
+
+  it("MainButton 点击真正触发建议计算（确定性结果渲染）", async () => {
+    render(<ObjectAdvisorForm fs={fs} />, { wrapper: Wrapper });
+    await waitFor(() => expect(mb.setText).toHaveBeenCalled());
+    expect(mainButtonClick).not.toBeNull();
+    await act(async () => {
+      mainButtonClick!();
+    });
+    await waitFor(() => expect(screen.getByText(/推荐方位/)).toBeInTheDocument());
+    expect(adviseObjectCalls.inputs.length).toBeGreaterThan(0);
+  });
+
+  it("web 分支（对照组）：页内提交按钮在，MainButton 不被触碰", () => {
+    delete (window as any).Telegram;
+    render(<ObjectAdvisorForm fs={fs} />, { wrapper: Wrapper });
+    expect(screen.getByRole("button", { name: "看看放哪儿好" })).toBeInTheDocument();
+    expect(mb.setText).not.toHaveBeenCalled();
+  });
+});

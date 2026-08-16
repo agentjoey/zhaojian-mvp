@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-function getLocaleHeader(): { "x-zj-locale": Locale } {
+export function getLocaleHeader(): { "x-zj-locale": Locale } {
   if (typeof document === "undefined") return { "x-zj-locale": "zh" };
   const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=(zh|en)`));
   return { "x-zj-locale": m ? (m[1] as Locale) : "zh" };
