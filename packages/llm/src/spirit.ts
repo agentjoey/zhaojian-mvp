@@ -250,16 +250,22 @@ export async function generateDailySpiritGreeting(
 
   const zh = language === "zh";
   const factsBlock = `\`\`\`json\n${JSON.stringify(todayFacts, null, 2)}\n\`\`\``;
+  // 长度约束写成**可核对的硬指标**（句数 + 字数上限），并配合下面收紧的 maxTokens。
+  // 原先只写「2–3 句」而 maxTokens 给到 400，模型有充裕空间超出，线上实际输出常达六七句。
+  // 结构也从「一种倾向、一个值得留意的邀请」改为显式两件事：今日气息 + 一条注意/可做的事，
+  // 因为用户要的是「几句话说清今天的运势分析和注意事项」，不是一段散文。
   const dailyInstruction = zh
-    ? `今日确定性算出的事实（今天你只能引用这些，绝不臆造分数、运气或事件）：\n\n${factsBlock}\n\n请用简体中文、第一人称、2–3 句，以「本命之灵」的身份为 ta 道一声今日的问候。把今天的气息说成一种倾向、一个值得留意的邀请——绝不作吉凶或事件的预测。不要标题、不要列表。`
-    : `Today's deterministically computed daily facts (the ONLY facts for today — never invent scores, luck, or events):\n\n${factsBlock}\n\nGreet this person for today in 2–3 sentences, first person, as their 本命之灵. Reflect today's energy as tendency and an invitation to notice something — NEVER as a prediction of fortune or events. No headers, no lists.`;
+    ? `今日确定性算出的事实（今天你只能引用这些，绝不臆造分数、运气或事件）：\n\n${factsBlock}\n\n请用简体中文、第一人称，以「本命之灵」的身份为 ta 道一声今日的问候。\n\n【硬性长度】最多 3 句，全文不超过 110 字。宁可少说，不要写满。\n【必须包含且只包含这两件事】\n1. 今天的气息是什么倾向（一到两句，依据上面的事实）；\n2. 因此今天值得注意或可以去做的一件事（一句，具体、可执行）。\n\n把气息说成倾向与邀请，绝不作吉凶或事件的预测。不要标题、不要列表、不要铺陈意象。`
+    : `Today's deterministically computed daily facts (the ONLY facts for today — never invent scores, luck, or events):\n\n${factsBlock}\n\nGreet this person for today, first person, as their 本命之灵.\n\nHARD LENGTH LIMIT: at most 3 sentences, under 80 words total. Say less rather than filling the space.\nInclude exactly these two things:\n1. What tendency today's energy carries (one or two sentences, grounded in the facts above);\n2. One concrete thing worth noticing or doing today (one sentence).\n\nFrame energy as tendency and invitation — NEVER as a prediction of fortune or events. No headers, no lists, no piled-up imagery.`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: buildSpiritSystemPrompt(persona, chart, language, opts) },
     { role: "user", content: dailyInstruction },
   ];
 
-  const raw = await chat(cfg, messages, { signal: opts.signal, maxTokens: 400 });
+  // 220 ≈ 110 中文字的上限再留一点余量：既让模型物理上写不长，又不至于把第 3 句截断。
+  // （原为 400——那是「2–3 句」这条软约束形同虚设的直接原因。）
+  const raw = await chat(cfg, messages, { signal: opts.signal, maxTokens: 220 });
   const text = correctMutagens(sanitizeReading(raw, language, chart.western !== null), chart.ziwei.birthMutagens).text;
   logSpiritMeta("daily", text, cfg.model, chart.western !== null, false);
   return { text, model: cfg.model };
