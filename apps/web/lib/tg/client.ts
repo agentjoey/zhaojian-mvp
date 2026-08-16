@@ -1,5 +1,7 @@
 "use client";
 
+import type { DailyFortune } from "@eamvp/core";
+import type { Profile } from "@/lib/tg/identity";
 import { supabase } from "@/lib/supabase";
 import { type Locale, LOCALE_COOKIE } from "@/lib/i18n/locale";
 
@@ -38,7 +40,7 @@ export async function ensureTgSession(): Promise<boolean> {
   return !!j.hasProfile;
 }
 
-export async function tgGetProfile(): Promise<any | null> {
+export async function tgGetProfile(): Promise<Profile | null> {
   await ensureTgSession();
   const r = await fetch("/api/tg/profile", { credentials: "include" });
   if (!r.ok) return null;
@@ -82,7 +84,7 @@ export async function tgSpiritStream(
 
 export async function tgDaily(
   dateStr: string
-): Promise<{ daily: any; greeting: string | null }> {
+): Promise<{ daily: DailyFortune; greeting: string | null }> {
   await ensureTgSession();
   const r = await fetch("/api/tg/daily", {
     method: "POST",
@@ -112,7 +114,7 @@ export async function tgSaveQuestionnaire(answers: Record<string, string>): Prom
   if (!r.ok) throw new Error(await r.text());
 }
 
-export async function tgListProfiles(): Promise<any[]> {
+export async function tgListProfiles(): Promise<Profile[]> {
   await ensureTgSession();
   const r = await fetch("/api/tg/profile", { credentials: "include" });
   if (!r.ok) return [];
@@ -124,10 +126,10 @@ export async function tgDeleteProfile(id: string): Promise<void> {
   await fetch(`/api/tg/profile?id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
 }
 
-export async function tgLoginWithWidget(data: any): Promise<{ ok: true; merged: number }> {
+export async function tgLoginWithWidget(data: TelegramLoginUser): Promise<{ ok: true; merged: number }> {
   const { data: s } = await supabase().auth.getSession();
   const anonAccessToken =
-    s.session && (s.session.user as any)?.is_anonymous ? s.session.access_token : undefined;
+    s.session && s.session.user.is_anonymous ? s.session.access_token : undefined;
   const r = await fetch("/api/auth/telegram", {
     method: "POST",
     credentials: "include",

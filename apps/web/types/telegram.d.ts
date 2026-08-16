@@ -45,18 +45,22 @@ interface TelegramWebApp {
   };
 }
 
-/** Telegram 登录 Widget 的用户载荷（widget 直接回调到全局函数上，形状由 Telegram 定）。 */
-interface TelegramLoginUser {
-  id: number;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
-}
-
 declare global {
+  /**
+   * Telegram 登录 Widget 的用户载荷（widget 直接回调到全局函数上，形状由 Telegram 定）。
+   * ⚠️ 必须写在 `declare global` 内：本文件末尾有 `export {}`，是模块，
+   * 块外的接口不会成为全局类型。
+   */
+  interface TelegramLoginUser {
+    id: number;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
+    auth_date: number;
+    hash: string;
+  }
+
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp };
     /** 登录 Widget 的 `data-onauth` 目标——必须挂在 window 上，widget 只认全局名。 */

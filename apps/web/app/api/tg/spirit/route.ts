@@ -43,10 +43,16 @@ export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
   const turns: SpiritTurn[] = Array.isArray(body?.messages)
     ? body.messages.filter(
-        (m: any) =>
-          m &&
-          typeof m.content === "string" &&
-          (m.role === "user" || m.role === "spirit"),
+        (m: unknown): m is SpiritTurn => {
+          // 请求体来自网络，形状不可信：先当 unknown，逐字段收窄。
+          // 原来写 `(m: any)` 时，下面每个字段名拼错都会静默通过。
+          const t = m as { content?: unknown; role?: unknown } | null | undefined;
+          return (
+            !!t &&
+            typeof t.content === "string" &&
+            (t.role === "user" || t.role === "spirit")
+          );
+        },
       )
     : [];
   if (turns.length === 0) {

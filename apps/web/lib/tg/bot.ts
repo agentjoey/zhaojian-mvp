@@ -120,7 +120,7 @@ export function getBot(): Bot {
       await ctx.reply("小时需为 0-23。");
       return;
     }
-    const upd: any = { push_hour: hour };
+    const upd: { push_hour: number; tz?: string } = { push_hour: hour };
     if (arg[1]) upd.tz = arg[1];
     await supabaseAdmin().from("tg_users").update(upd).eq("tg_user_id", u.id);
     await ctx.reply(`已更新：推送时刻 ${hour} 点${arg[1] ? ("，时区 " + arg[1]) : ""}。`);

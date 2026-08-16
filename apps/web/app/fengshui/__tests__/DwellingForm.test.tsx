@@ -77,7 +77,7 @@ beforeEach(() => {
   supabaseSession.current = null;
   tgEnv.inTg = false;
   tgListProfiles.mockReset().mockResolvedValue([]);
-  delete (window as any).Telegram;
+  delete window.Telegram;
   // 默认 entitled:true（对应「未开闸」= 默认配置，或「已是会员」）——保证 Task 9b
   // 既有的同住人用例无需逐条改动。非会员分支由本文件末尾的 I3 describe 专门覆盖。
   vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ entitled: true })));
@@ -473,7 +473,7 @@ describe("EP-fs-tg TG 会话：候选走中介 + MainButton 保存", () => {
       onClick: vi.fn((cb: () => void) => { mainButtonClick = cb; }),
       offClick: vi.fn(),
     };
-    (window as any).Telegram = {
+    window.Telegram = {
       WebApp: {
         initData: "x",
         MainButton: mb,

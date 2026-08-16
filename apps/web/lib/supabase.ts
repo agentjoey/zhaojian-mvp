@@ -28,7 +28,7 @@ export async function ensureSession(): Promise<string> {
 export async function getWebUser(): Promise<{ id: string; email: string | null; isAnonymous: boolean } | null> {
   const { data } = await supabase().auth.getUser();
   if (!data.user) return null;
-  return { id: data.user.id, email: data.user.email ?? null, isAnonymous: !!(data.user as any).is_anonymous };
+  return { id: data.user.id, email: data.user.email ?? null, isAnonymous: !!data.user.is_anonymous };
 }
 
 export async function upgradeAnonymousToEmail(
@@ -41,8 +41,8 @@ export async function upgradeAnonymousToEmail(
     );
     if (error) return { ok: false, error: error.message };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "升级失败" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "升级失败" };
   }
 }
 
@@ -54,8 +54,8 @@ export async function signInWithEmail(email: string): Promise<{ ok: true } | { o
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "发送失败" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "发送失败" };
   }
 }
 

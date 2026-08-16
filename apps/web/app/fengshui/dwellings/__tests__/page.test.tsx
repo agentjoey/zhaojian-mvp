@@ -110,7 +110,7 @@ beforeEach(() => {
   updateDwelling.mockReset().mockResolvedValue(undefined);
   supabaseSession.current = null;
   tgEnv.inTg = false;
-  delete (window as any).Telegram;
+  delete window.Telegram;
   // 默认 entitled:true。本页自己已不发请求（I2），这个桩留着是给 `DwellingForm`
   // 内部那条合看闸门探测兜底——本文件的 listProfiles 只返回主档案自己，选择器不
   // 渲染、探测也不会发起，但桩在这里意味着即使将来夹具变了也不会打到真 fetch。
@@ -302,7 +302,7 @@ describe("EP-fs-tg TG 会话：原生列表 + 页内两步确认", () => {
     tgEnv.inTg = true;
     // isTelegram 被 mock 成 true 后，useTgMainButton（DwellingForm 保存按钮）会真的
     // 去读 window.Telegram.WebApp.MainButton——jsdom 里没有，必须连 SDK 面一起桩掉。
-    (window as any).Telegram = {
+    window.Telegram = {
       WebApp: {
         initData: "x",
         MainButton: {
@@ -388,7 +388,7 @@ describe("EP-fs-tg spec §4.2：编辑居所入口（web + TG）", () => {
 
   it("TG：点居所 Cell 进入编辑（onClick 挂上后 chevron 才有正当性）", async () => {
     tgEnv.inTg = true;
-    (window as any).Telegram = {
+    window.Telegram = {
       WebApp: {
         initData: "x",
         MainButton: {

@@ -2,13 +2,16 @@ import { supabaseAdmin } from "./admin";
 import { getEntitlement, isMember } from "@/lib/entitlements";
 import type { BirthInput, UnifiedChart } from "@eamvp/core";
 export type Profile = { id: string; nickname: string; birthInput: BirthInput; chart: UnifiedChart; createdAt: string; reading: string | null };
-const toProfile = (r: any): Profile => ({ id: r.id, nickname: r.nickname, birthInput: r.birth_input, chart: r.chart, createdAt: r.created_at, reading: r.reading ?? null });
+/** DB 行 → 领域对象。行来自 Supabase 的松散返回，用最小结构类型而非 any——
+ * any 会让下面每个字段名的拼写错误都静默通过。 */
+type ProfileRow = { id: string; nickname: string; birth_input: BirthInput; chart: UnifiedChart; created_at: string; reading?: string | null };
+const toProfile = (r: ProfileRow): Profile => ({ id: r.id, nickname: r.nickname, birthInput: r.birth_input, chart: r.chart, createdAt: r.created_at, reading: r.reading ?? null });
 
 export async function resolveOrCreateTgUser(tg: { id: number; username?: string; lang?: string }, chatId?: number, ref?: string): Promise<{ supabaseUserId: string }> {
   const sb = supabaseAdmin();
   const { data: existing } = await sb.from("tg_users").select("supabase_user_id, ref").eq("tg_user_id", tg.id).maybeSingle();
   if (existing?.supabase_user_id) {
-    const upd: any = {};
+    const upd: { tg_chat_id?: number; username?: string; ref?: string } = {};
     if (chatId) { upd.tg_chat_id = chatId; upd.username = tg.username; }
     if (ref && !existing.ref) upd.ref = ref;
     if (Object.keys(upd).length > 0) await sb.from("tg_users").update(upd).eq("tg_user_id", tg.id);

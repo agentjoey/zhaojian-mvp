@@ -348,7 +348,7 @@ describe("EP-fs-tg TG 会话：MainButton 提交", () => {
       onClick: vi.fn((cb: () => void) => { mainButtonClick = cb; }),
       offClick: vi.fn(),
     };
-    (window as any).Telegram = {
+    window.Telegram = {
       WebApp: {
         initData: "x",
         MainButton: mb,
@@ -375,7 +375,7 @@ describe("EP-fs-tg TG 会话：MainButton 提交", () => {
   });
 
   it("web 分支（对照组）：页内提交按钮在，MainButton 不被触碰", () => {
-    delete (window as any).Telegram;
+    delete window.Telegram;
     render(<ObjectAdvisorForm fs={fs} />, { wrapper: Wrapper });
     expect(screen.getByRole("button", { name: "看看放哪儿好" })).toBeInTheDocument();
     expect(mb.setText).not.toHaveBeenCalled();

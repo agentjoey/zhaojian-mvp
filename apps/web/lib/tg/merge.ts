@@ -7,7 +7,7 @@ export async function mergeAnonProfiles(
   const admin = supabaseAdmin();
   const { data: u } = await admin.auth.getUser(anonAccessToken);
   const anon = u?.user;
-  if (!anon || anon.id === targetUserId || !(anon as any).is_anonymous) {
+  if (!anon || anon.id === targetUserId || !anon.is_anonymous) {
     return { merged: 0 };
   }
 

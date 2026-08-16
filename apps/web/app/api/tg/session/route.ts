@@ -13,7 +13,8 @@ export async function GET(req: Request): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return new Response("TG 未配置", { status: 503 });
-  const { initData } = await req.json().catch(() => ({} as any));
+  const body: unknown = await req.json().catch(() => ({}));
+  const initData = (body as { initData?: unknown } | null)?.initData;
   if (typeof initData !== "string") return new Response("缺少 initData", { status: 400 });
   const v = verifyInitData(initData, token);
   if (!v.ok) return new Response("initData 校验失败: " + v.reason, { status: 401 });
