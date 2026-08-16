@@ -1418,11 +1418,16 @@ describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
     }
   });
 
-  it("web 分支（对照组）：无 tablist，仍是下划线按钮", async () => {
+  it("web 分支（对照组）：无 tablist，仍是下划线按钮，且**没有 tabpanel**", async () => {
     tgEnv.inTg = false;
     await renderPage();
     await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.getByRole("button", { name: "化解" })).toBeInTheDocument();
+    // 复审必修 A 的反向守卫：tabpanel 属性必须按 inTg 门控。web 上没有 tablist/tab，
+    // 出现 tabpanel 意味着 aria-labelledby 悬空（指向任何状态下都不存在的 id），
+    // 是无障碍回归 + 「web 零变化」红线的双重破坏。只断言 tablist 为 null 抓不到它。
+    expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
+    expect(document.getElementById("fs-panel-chart")).toBeNull();
   });
 });

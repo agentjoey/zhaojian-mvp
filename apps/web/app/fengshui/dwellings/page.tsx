@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DIRECTION_LABEL } from "@eamvp/core";
 import { getActiveProfile, type Profile } from "@/lib/profiles";
@@ -107,6 +107,16 @@ export default function DwellingsPage() {
     }
   }
 
+  // M-b（复验顺手修）：进入编辑态时表单区在页面更下方，居所多于两套时它在首屏
+  // 之外——TG 里点 Cell 会「看起来像没反应」。进入编辑态就把表单区滚进视口；
+  // 被编辑的行同时给选中态（见下面两个列表分支的 tint 背景）。
+  const formSectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!editingId) return;
+    // jsdom 没有实现 scrollIntoView——可选调用，测试环境静默跳过。
+    formSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [editingId]);
+
   if (!ENABLED) return <Centered>{t("fengshui.notEnabled")}</Centered>;
   if (profile === undefined) return <Centered>{t("fengshui.loadingProfile")}</Centered>;
   if (profile === null) {
@@ -186,8 +196,12 @@ export default function DwellingsPage() {
           // TG：原生列表观感（Group + Cell，与 profiles 页同模式）；操作行贴着对应 Cell。
           <Group>
             {dwellings.map((d) => (
-              <div key={d.id}>
-                {/* 点 Cell 进入编辑（spec §4.2）；chevron 只在有 onClick 时渲染（M2）。 */}
+              <div
+                key={d.id}
+                style={editingId === d.id ? { background: "var(--color-tint)" } : undefined}
+              >
+                {/* 点 Cell 进入编辑（spec §4.2）；chevron 只在有 onClick 时渲染（M2）。
+                    编辑中的行给 tint 选中态——没有它，TG 里点 Cell 像没反应（M-b）。 */}
                 <Cell
                   icon={d.name.slice(0, 1)}
                   title={d.name}
@@ -203,7 +217,14 @@ export default function DwellingsPage() {
         ) : (
           <ul className="flex flex-col gap-3">
             {dwellings.map((d) => (
-              <Card key={d.id} className="p-4">
+              // 编辑中的行给选中态描边（M-b；Card 不收 style prop，描边套在外层）。
+              <div
+                key={d.id}
+                style={editingId === d.id
+                  ? { outline: "2px solid var(--color-cinnabar)", borderRadius: "var(--radius-card)" }
+                  : undefined}
+              >
+              <Card className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[15px] text-ink">{d.name}</p>
@@ -221,12 +242,13 @@ export default function DwellingsPage() {
                   </div>
                 </div>
               </Card>
+              </div>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="mt-8">
+      <section className="mt-8" ref={formSectionRef}>
         {/* 新增居所无数量限制、无闸门、无探测（最终评审 I2，理由见文件顶部注释）。
             本页因此不发起任何网络请求——`DwellingForm` 自己会在渲染同住人选择器时
             探测一次合看的会员资格，那是另一条闸门，与「能存几套居所」无关。

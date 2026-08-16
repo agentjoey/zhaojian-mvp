@@ -400,7 +400,7 @@ export const zh = {
     dwelling: {
       title: "我的居所",
       add: "添加居所",
-    editTitle: "编辑居所",
+      editTitle: "编辑居所",
       nameLabel: "名称",
       namePlaceholder: "家 / 办公室",
       kindLabel: "类型",

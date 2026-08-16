@@ -387,7 +387,7 @@ export const en: Messages = {
     dwelling: {
       title: "My Dwellings",
       add: "Add a dwelling",
-    editTitle: "Edit dwelling",
+      editTitle: "Edit dwelling",
       nameLabel: "Name",
       namePlaceholder: "Home / Office",
       kindLabel: "Type",

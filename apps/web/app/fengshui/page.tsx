@@ -513,6 +513,15 @@ export default function FengshuiPage() {
   /** 有居所、但资格未知（探测失败）—— 给「重新确认」，绝不给付费墙。 */
   const hasUnknownDwelling = hasDwellingChart && entitlementUnknown;
 
+  // tabpanel 契约（评审 M4）只在 TG 臂成立——那里才有对应的 tablist/tab。
+  // ⚠️ 绝不能无条件渲染（复审必修 A）：web 没有 tab 行，无条件渲染会留下一个
+  // 没有所属 tablist、aria-labelledby 悬空（任何状态下都不存在的 id）的
+  // tabpanel——为改善无障碍做的修复反而把 web 的无障碍改坏，且踩「web 零变化」红线。
+  const panelProps = (tb: Tab) =>
+    inTg
+      ? ({ role: "tabpanel", id: `fs-panel-${tb}`, "aria-labelledby": `fs-tab-${tb}` } as const)
+      : {};
+
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <h1 className="text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.title")}</h1>
@@ -548,7 +557,7 @@ export default function FengshuiPage() {
       )}
 
       {tab === "chart" && (
-        <div role="tabpanel" id="fs-panel-chart" aria-labelledby="fs-tab-chart">
+        <div {...panelProps("chart")}>
           <NarrativeStatus
             t={t}
             sections={sections}
@@ -710,7 +719,7 @@ export default function FengshuiPage() {
       )}
 
       {tab === "remedy" && (
-        <section className="mt-6" role="tabpanel" id="fs-panel-remedy" aria-labelledby="fs-tab-remedy">
+        <section className="mt-6" {...panelProps("remedy")}>
           <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.remedyTitle")}</h2>
           <NarrativeStatus
             t={t}
@@ -785,7 +794,7 @@ export default function FengshuiPage() {
       )}
 
       {tab === "object" && (
-        <section className="mt-6" role="tabpanel" id="fs-panel-object" aria-labelledby="fs-tab-object">
+        <section className="mt-6" {...panelProps("object")}>
           <Card className="p-5">
             <h2 className="text-[16px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.object.title")}</h2>
             <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.object.subtitle")}</p>

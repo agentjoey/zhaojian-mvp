@@ -513,6 +513,31 @@ describe("EP-fs-tg TG 会话：候选走中介 + MainButton 保存", () => {
     );
   });
 
+  it("TG 的 kind/tenancy 选择器真的接线：点「办公」「自有」→ 保存收到 office/own（复审必修 B）", async () => {
+    // M1 把 TG 下这两个选择器换成了共享原生分段组件——「某个宿主渲染哪个组件」
+    // 是最高回归风险位置。本条的变异对照（复审实跑过）：把 TG 两个选择器的
+    // onChange 双双改成空函数，本条变红。
+    render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
+    await waitFor(() => expect(mb.setText).toHaveBeenCalledWith("保存"));
+    // 组模式的按钮带 aria-pressed；「办公」精确匹配（不与「住宅」混淆——中文
+    // 这里虽不互为子串，但沿用本文件的精确匹配纪律）。
+    const officeBtn = screen.getByRole("button", { name: new RegExp("^办公$") });
+    expect(officeBtn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(officeBtn);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp("^自有$") }));
+    expect(officeBtn).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: new RegExp("^南$") }));
+    await waitFor(() => expect(mb.enable).toHaveBeenCalled());
+    await act(async () => {
+      mainButtonClick!();
+    });
+    await waitFor(() =>
+      expect(createDwelling).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "office", tenancy: "own", facing: "S" }),
+      ),
+    );
+  });
+
   it("web 分支（对照组）：页内保存按钮在，MainButton 不被触碰", () => {
     tgEnv.inTg = false;
     render(<DwellingForm onSaved={vi.fn()} />, { wrapper: Wrapper });
