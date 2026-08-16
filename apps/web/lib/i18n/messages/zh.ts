@@ -371,6 +371,11 @@ export const zh = {
     narrativeFailed: "叙述暂时生成不出来，下面的盘与建议不受影响。",
     narrativeDegraded: "本次叙述中有方位判断被系统纠正，可信度不足，已不展示；下面的盘与建议不受影响。",
     regenerate: "重新生成叙述",
+    castingTitle: "正在起你的八方盘",
+    filterByDirection: "只看{direction}方",
+    filterClear: "清除筛选",
+    filterEmpty: "这个方位暂时没有对应的化解。",
+    generalRemedies: "不限方位",
     disclaimer: "以上用于自我觉察与居住体验改善，不构成专业建议。",
     object: {
       title: "我想添置…",

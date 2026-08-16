@@ -365,6 +365,11 @@ export const en: Messages = {
     narrativeFailed: "The narrative couldn't be generated right now — the chart and suggestions below are unaffected.",
     narrativeDegraded: "This narrative got a direction wrong and was auto-corrected, so it isn't shown — the chart and suggestions below are unaffected.",
     regenerate: "Regenerate narrative",
+    castingTitle: "Casting your eight directions",
+    filterByDirection: "Only {direction}",
+    filterClear: "Clear filter",
+    filterEmpty: "No remedies for this direction yet.",
+    generalRemedies: "Any direction",
     disclaimer: "The above is for self-awareness and improving how you experience your space, and does not constitute professional advice.",
     object: {
       title: "I want to add something…",

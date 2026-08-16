@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import {
   BirthInputSchema,
@@ -90,5 +90,80 @@ describe("EP-fs-07 BaguaWheel", () => {
     for (let i = 1; i < inauspiciousByRank.length; i++) {
       expect(inauspiciousByRank[i]).toBeLessThan(inauspiciousByRank[i - 1]!);
     }
+  });
+});
+
+/**
+ * 2026-08 设计评审后续（feat/fengshui-ui）：星名 pill（P0 对比度）、剪影模式（创意 C）、
+ * 可点扇区（创意 A）、错峰入场（创意 B）。
+ */
+describe("BaguaWheel — 评审后续", () => {
+  it("星名垫 paper 底 pill（critique P0：星名压混色扇区底实测 1.48–3.39:1 不可读）", async () => {
+    const { render: render2, screen: screen2 } = await import("@testing-library/react");
+    render2(<BaguaWheel verdicts={fs.personalDirections} centerLabel="坎1" />);
+    const star = screen2.getByText("生气");
+    const g = star.closest("g")!;
+    const pill = g.querySelector("rect");
+    expect(pill).not.toBeNull();
+    expect(pill).toHaveAttribute("fill", "var(--color-paper)");
+    // pill 必须真的垫在星名底下：几何中心与星名位置重合
+    const starY = Number(star.getAttribute("y"));
+    const pillY = Number(pill!.getAttribute("y")) + Number(pill!.getAttribute("height")) / 2;
+    expect(Math.abs(starY - pillY)).toBeLessThanOrEqual(1);
+  });
+
+  it("剪影模式：八个扇区结构在，但无方位名、无星名、无吉凶着色（付费内容零泄漏）", () => {
+    const { container } = render(<BaguaWheel silhouette verdicts={null} centerLabel="" />);
+    const paths = container.querySelectorAll("path");
+    expect(paths).toHaveLength(8);
+    // 所有扇区同一中性色——吉凶信息不在
+    expect(new Set([...paths].map((p) => p.getAttribute("fill"))).size).toBe(1);
+    expect(screen.queryByText("生气")).toBeNull();
+    expect(screen.queryByText("北")).toBeNull();
+    // 整体对辅助技术隐藏（它是装饰性占位）
+    expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("盘即导航：点击与键盘都触发 onSelectDirection，选中扇区 aria-pressed + 描边", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const onSel = vi.fn();
+    render(
+      <BaguaWheel
+        verdicts={fs.personalDirections}
+        centerLabel="坎1"
+        onSelectDirection={onSel}
+        selectedDirection="S"
+      />,
+    );
+    fireEvent.click(sectorGroup("S"));
+    expect(onSel).toHaveBeenCalledWith("S");
+    expect(sectorGroup("S")).toHaveAttribute("aria-pressed", "true");
+    expect(sectorGroup("S").querySelector("path")).toHaveAttribute("stroke", "var(--color-cinnabar)");
+    // 未选中的扇区不描边
+    expect(sectorGroup("N")).toHaveAttribute("aria-pressed", "false");
+    expect(sectorGroup("N").querySelector("path")).toHaveAttribute("stroke", "var(--color-line)");
+    // 键盘可达（Enter / Space）
+    fireEvent.keyDown(sectorGroup("N"), { key: "Enter" });
+    expect(onSel).toHaveBeenCalledWith("N");
+  });
+
+  it("staggerIn：最吉扇区（生气）先落（delay 0），其余按 rank 错峰递增", () => {
+    render(<BaguaWheel verdicts={fs.personalDirections} centerLabel="坎1" staggerIn />);
+    const sheng = DIRECTIONS.find((d) => fs.personalDirections[d].star === "生气")!;
+    expect(sectorGroup(sheng).style.animationDelay).toBe("0ms");
+    // 所有扇区 delay 互不相同（错峰的意义）
+    const delays = DIRECTIONS.map((d) => sectorGroup(d).style.animationDelay);
+    expect(new Set(delays).size).toBe(8);
+    // 凶方最重的（绝命）排在吉方之后
+    const jue = DIRECTIONS.find((d) => fs.personalDirections[d].star === "绝命")!;
+    expect(parseInt(sectorGroup(jue).style.animationDelay)).toBeGreaterThan(
+      parseInt(sectorGroup(sheng).style.animationDelay),
+    );
+  });
+
+  it("默认（不传 onSelectDirection）扇区不带 button 语义——向后兼容既有调用方", () => {
+    render(<BaguaWheel verdicts={fs.personalDirections} centerLabel="坎1" />);
+    expect(sectorGroup("N")).not.toHaveAttribute("role");
+    expect(sectorGroup("N")).not.toHaveAttribute("aria-pressed");
   });
 });

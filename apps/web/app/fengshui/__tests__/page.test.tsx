@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
 import {
   BirthInputSchema, computeUnifiedChart, computeFengshui, directionsFor, FENGSHUI_ENGINE_VERSION,
+  DIRECTION_LABEL,
 } from "@eamvp/core";
 import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
 import type { Dwelling } from "@/lib/dwellings";
@@ -246,6 +247,9 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   localStorage.clear();
+  // 首揭仪式（feat/fengshui-ui）：默认抑制定场，避免每条测试都被 2.1s 过场打扰；
+  // 专门的「首揭仪式」describe 会自己 removeItem。
+  sessionStorage.setItem("zj.fsReveal.p1", "1");
   reportStore.clear();
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
@@ -1429,5 +1433,92 @@ describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
     // 是无障碍回归 + 「web 零变化」红线的双重破坏。只断言 tablist 为 null 抓不到它。
     expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
     expect(document.getElementById("fs-panel-chart")).toBeNull();
+  });
+});
+
+/**
+ * 2026-08 设计评审后续（feat/fengshui-ui）：首揭仪式（创意 B/P1）、盘即导航（创意 A）、
+ * 剪影付费墙（创意 C）。
+ *
+ * 判别力说明：
+ * - 盘即导航的断言建立在「别的方位的化解不可见」上——过滤被删掉（变异）时这条必红；
+ * - 剪影断言查「无星名文字 + 8 扇区同fill」——把真实宅盘数据塞进去（变异）时必红。
+ */
+describe("2026-08 设计评审后续", () => {
+  it("首揭仪式：首次进入播 CastingOverlay（seal=境），同会话同一档案不重复播", async () => {
+    sessionStorage.removeItem("zj.fsReveal.p1");
+    const first = await renderPage();
+    await waitFor(() => expect(screen.getByText("正在起你的八方盘")).toBeInTheDocument());
+    first.unmount();
+    // 同会话第二次进入：不再播
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByText("正在起你的八方盘")).toBeNull();
+  });
+
+  it("盘即导航：点本命盘扇区 → 切化解 tab、按方位过滤、不限方位组保留、清除后恢复全量", async () => {
+    const { remedyDirection } = await import("../page");
+    // 前提校验：fixture 里确实存在带方位的化解与不带方位的化解，否则本测试无判别力
+    const directional = fs.remedies.filter((r) => remedyDirection(r.target) !== null);
+    const general = fs.remedies.filter((r) => remedyDirection(r.target) === null);
+    expect(directional.length).toBeGreaterThan(1);
+    expect(general.length).toBeGreaterThan(0);
+
+    // 选一个「至少有另一条带方位化解指向别处」的方位，保证过滤真的筛掉了东西
+    const dir = remedyDirection(directional[0]!.target)!;
+    const elsewhere = directional.filter((r) => remedyDirection(r.target) !== dir);
+    expect(elsewhere.length).toBeGreaterThan(0);
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+
+    // 点扇区（扇区的可访问名 = aria-label「南：生气（吉）」格式）
+    const v = fs.personalDirections[dir];
+    fireEvent.click(
+      screen.getByRole("button", { name: `${DIRECTION_LABEL[dir]}：${v.star}（${v.auspicious ? "吉" : "凶"}）` }),
+    );
+
+    // 跳到化解 tab + 过滤条出现
+    await waitFor(() => expect(screen.getByText("可做的事")).toBeInTheDocument());
+    expect(screen.getByText(`只看${DIRECTION_LABEL[dir]}方`)).toBeInTheDocument();
+
+    // 该方位的化解可见；其他方位的化解不可见；不限方位的仍列在通用组
+    for (const r of directional.filter((x) => remedyDirection(x.target) === dir)) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+    for (const r of elsewhere) {
+      expect(screen.queryByText(r.action)).toBeNull();
+    }
+    expect(screen.getByText("不限方位")).toBeInTheDocument();
+    expect(screen.getByText(general[0]!.action)).toBeInTheDocument();
+
+    // 清除筛选 → 全量恢复
+    fireEvent.click(screen.getByText("清除筛选"));
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
+
+  it("剪影付费墙：非会员看到去色剪影（无吉凶数据）+ Paywall，而非纯文字墙", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+
+    const silhouette = document.querySelector('svg[aria-hidden="true"]');
+    expect(silhouette).not.toBeNull();
+    // 「看不清内容」：无星名、无方位名
+    expect(silhouette!.textContent).not.toContain("生气");
+    expect(silhouette!.textContent).not.toContain("南");
+    // 「看得见形状」：八个扇区结构在
+    expect(silhouette!.querySelectorAll("path")).toHaveLength(8);
+    // 真宅盘仍未渲染（剪影不是后门）
+    expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
   });
 });
