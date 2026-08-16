@@ -43,10 +43,11 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ci-placeholder-not-a-secret
 
-      # lint 暂不阻塞：接入时全仓已有 58 errors / 22 warnings（多为既有的
-      # no-explicit-any 与 react-hooks/set-state-in-effect），一次性清会把
-      # 真实行为改动混进来。先把数字晒在 CI 里当基线，再分批清；清干净后
-      # 删掉 continue-on-error 这一行即可转为阻塞。
-      - name: lint（不阻塞，仅暴露基线）
+      # 已转为阻塞（接入时是 58 errors / 22 warnings，现为 0 errors / 18 warnings）。
+      # ⚠️ 只有 error 阻塞，warning 不阻塞——这是刻意的：剩下 18 条 warning
+      # （set-state-in-effect / no-img-element / exhaustive-deps）每一条都需要
+      # 独立的行为判断，不该由「顺手清 lint」的提交来改。它们仍在 CI 注解里可见。
+      # 想连 warning 一起卡，加 `--max-warnings 0`——但先把那 18 条处理掉，
+      # 否则等于把闸门锁死在红灯上。
+      - name: lint（error 阻塞）
         run: pnpm --filter @eamvp/web lint
-        continue-on-error: true
