@@ -2,16 +2,28 @@
 > 线上 https://zhaojian-mvp.vercel.app · 排入 Sprint 后从此处移除。
 
 ## 🔴 HIGH
-### 风水「境」开 flag 前置（EP-fs-*，波1 已交付但 `NEXT_PUBLIC_FENGSHUI_ENABLED` 默认关）
-以下两项**必须先做完再开 flag**，否则功能对外可见即暴露问题。详见 `.agent/CURRENT.md` 风水一节与 `docs/architecture.md` §7b。
+### 风水「境」（EP-fs-*，**flag 2026-08-16 起线上已开**）
+波1 Layer 0 / 波2 Layer 1 / TG 适配均已交付并合并 main。详见 `.agent/CURRENT.md` 风水三节与 `docs/architecture.md` §7b。
 
-- [ ] **[EP-fs-en] [HIGH] 英文侧反幻觉补齐**——当前两道机械校验（`verifyDirectionConsistency` / `sanitizeFengshui`）都是中文匹配，`en` 输出**完全不被校验**，诚实标注只剩一条中文写的 prompt 规则兜底。而 CLAUDE.md 写明首发海外、英文优先，**这条不做就开 flag 等于英文市场裸奔**。含三小项：①两道校验支持英文（方位名/星名/伪科学措辞的英文形态）②`buildFengshuiSystemPrompt("en")` 改为完整英文指令（目前仍是「中文指令 + 末尾一句 English」，该反模式已在 `buildObjectAdviceSystemPrompt` 修好并写进测试注释当反例，主报告这条却没改）③英文页面的确定性内容仍基本是中文：化解 action/traditional/modern、`personalFit`、方位理由、物件品类与材质、`吉/凶`、`东四命/西四命`（`fengshui.group.*` 键已存在但未接线）。
+- [ ] **[EP-fs-en] [HIGH·线上待修] 英文侧反幻觉补齐**——两道机械校验（`verifyDirectionConsistency` / `sanitizeFengshui`）都是中文匹配，`en` 输出**完全不被校验**，诚实标注只剩一条中文写的 prompt 规则兜底。
+  **⚠️ 性质已变**：此项原为「开 flag 前置」，但 flag 已于 2026-08-16 开启（用户知悉并接受该风险），所以现在是**线上待修**而非阻塞项。且暴露面比原描述更大——`detectLocale()`（`lib/i18n/locale.ts:9`）对任何非中文浏览器返回 `en`，那是绝大多数访客的**默认**路径，不是边缘情况。
+  含三小项：①两道校验支持英文（方位名/星名/伪科学措辞的英文形态）②`buildFengshuiSystemPrompt("en")` 改为完整英文指令（目前仍是「中文指令 + 末尾一句 English」；该反模式已在 `buildObjectAdviceSystemPrompt` 修好并写进测试注释当反例）③英文页面的确定性内容仍基本是中文：化解 action/traditional/modern、`personalFit`、方位理由、物件品类与材质、`吉/凶`、`东四命/西四命`（`fengshui.group.*` 键已存在但未接线）。
 
-- [ ] **[EP-fs-tg] [HIGH] 风水的 Telegram 适配**——数据路径已通（两页都写了 `hasTgSession() ? tgGetProfile() : getActiveProfile()`），但 **UI 零 TG 原生化**：风水页不引用 `components/tg/`（`TgUiProvider` / `native.tsx` 的 Section/Group/Cell），在 Mini App 里会是「网页塞进 webview」的观感——而项目已为其他界面做过两轮 TG 原生化（见 Version History 的「TG 原生 UI 地基」「各界面」），风水是唯一没跟上的。另有结构性缺口：`app/api/tg/` 下有 spirit/daily/profile/questionnaire，**没有 fengshui**，报告生成那条链路没走 TG 的 `initData → service_role` 中介鉴权。
+- [x] ~~**[EP-fs-tg] 风水的 Telegram 适配**~~ —— **2026-08-16 交付**（pact：worker `kimi` / reviewer `claude`，两轮 changes-requested）。`api/tg/fengshui` 中介端点 + 数据层按 `hasTgSession()` 分流 + 四界面原生化 + 页内两步确认 + 居所编辑入口。解除了「TG 身份不一致」这一开 flag 阻塞项，并修掉一条 spec 未预见的：TG 的 RLS 下 `getProfile(id)` 逐条读拿 null，**合看在 TG 内一直静默失效**。
+  收尾补丁（`6ff687c`）：TG 首页 `TG_ENTRIES` 加「境」入口——此前风水在 Mini App 内**入口数为零**（只加进了 `AppShell.NAV`，而 TG 不渲染 web 导航）。
 
-## 🟡 MED（风水波2 / 波1 遗留）
-- [ ] **[EP-fs-wave2] 风水波2 · Layer 1 住宅实盘**——`dwellings` / `fengshui_reports` 表（schema 已在 spec 定型并为玄空飞星预留可空字段）、宅卦、多住客合看、租房过滤、物件顾问强版（落到具体房间方位）。同时补两件波1 欠下的：物件顾问的局部方位对拍（`intendedVerdict` 与各 `reason` 里嵌着方位↔星名事实，可构造窄口径基准——**不要再拿「构造不出 facts」当不做的理由**）；物件级化解（Layer 0 只回答「行不行」、不回答「不行怎么办」，而 spec §7 把物件顾问定位为回访钩子）。
-- [ ] **[EP-fs-debt] 风水波1 技术债**——`corrections` 到 route 边界即丢弃、无日志（该失败模式会自我掩盖，建议 `degraded` 时 `console.warn`）；`ObjectQuery.color` 收下但从不读取（要么接 `ELEMENT_COLORS`，要么连同死 i18n 键一起删）；`Remedy.tenancy` 端到端是死字段（**波2 勿假设它有信号**）；重试无次数上限（每次 1600 token）；6 组死 i18n 键待清理；`sessionStorage` 未补 polyfill（与 `localStorage` 同一个 Node 22+ 问题，会绊倒未来给 account/calendar 页写的测试）。
+## 🟡 MED（风水遗留）
+- [x] ~~**[EP-fs-wave2] 风水波2 · Layer 1 住宅实盘**~~ —— **2026-08-16 交付**（12 task，每 task 独立评审 + 最终全分支评审）。`dwellings` / `fengshui_reports` 表（迁移 0011，已 apply 生产）、宅卦、多住客合看、租房过滤、会员闸门、物件顾问强版。
+
+- [ ] **[EP-fs-debt] 风水技术债**（逐条已按当前代码核对，2026-08-16）
+  - `corrections` 到 route 边界即丢弃、**无日志**——`degraded` 布尔量会随 JSON body 传到页面并触发降级 UI，但被纠正的具体内容不落任何日志。该失败模式会自我掩盖，建议 `degraded` 时 `console.warn` 出 corrections。**仍未做。**
+  - `ObjectQuery.color` 收下但从不读取（要么接 `ELEMENT_COLORS`，要么连同死 i18n 键一起删）。**仍未做。**
+  - `sessionStorage` 未补 polyfill（与 `localStorage` 同一个 Node 22+ 问题，会绊倒未来给 account/calendar 页写的测试）。**仍未做。**
+  - 重试无次数上限（每次 1600 token）；死 i18n 键待清理。**仍未做。**
+  - ~~`Remedy.tenancy` 端到端是死字段~~ —— **波2 已接通**：`sortRemedies(list, {tenancy})` 按租住/自有排序，`page.tsx` 真的传了 `dwelling.tenancy`。
+  - **[新增] `TG_ENTRIES` 完全没有 flag 门控**——`app/page.tsx` 的 TG 入口列表里「灵」是无条件显示的，而 `AppShell.NAV` 里它受 `NEXT_PUBLIC_SPIRIT_ENABLED` 门控。今天无用户可见问题（spirit flag 线上开着），但关掉 spirit 后 TG 用户仍会看到入口、点进去是「未启用」页。风水项已按正确方式门控，spirit 项未动（改它会变更线上行为）。
+  - **[新增] `/fengshui` 硬取 `dwellings[0]`，无多居所切换器**。多居所付费墙已在最终评审中撤除（为零可观察产出收费不可辩护）。日后做切换器需**同时**新建服务端写入路由——`createDwelling` 是浏览器直写 Supabase，届时任何纯客户端闸门都可绕过。
+  - **[新增·产品未决] 强版物件顾问对约一半会员零价值**——八宅结构决定 `命卦吉方 ∩ 宅卦吉方` 只可能是 4 或 0，故强弱两版推荐方位逐字节相同，唯一差异是 `dwellingNote` 一句话且只在异组时出现；8 个朝向里 4 个是同组。选项：①并入免费层，会员靠 Layer 1 撑 ②回 core 重新设计 `adviseObject` ③维持现状。
 
 ## ⏸️ 已设计·MVP 后实施
 - [ ] [EP-concurrency] 并发架构（多用户 & LLM 并发）。设计完成 `docs/specs/concurrency-architecture.md`。触发条件：接近 MiniMax 上限或峰值并发上升。MiniMax-M3 限额（官方查证）：**RPM 200 / TPM 10M**（TPS/并发未公布）→ RPM 200 是硬约束、TPM 不是瓶颈；MVP 不会触顶。落地序：Tier0(Fluid Compute+maxDuration+单飞) → Tier1(全局信号量/AI Gateway) → Tier2(异步队列+Realtime)。

@@ -5,7 +5,7 @@ Sprint:         001
 Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵（flag 默认关）** + 🧭 **风水「境」波1+波2+TG适配（flag 线上已开）**
 Last Updated:   2026-08-16 by claude-opus-5（EP-fs-tg：pact worker kimi 实现 / claude 验收，两轮 changes-requested）
 线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai
-测试:           core 154 · llm 177 · web 234（全绿；`pnpm typecheck` 三包全绿）
+测试:           core 154 · llm 177 · web 238（全绿；`pnpm typecheck` 三包全绿）
 
 > ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 > 🌙 **本命之灵（EP-spirit，Phase1+2+3 全交付）**已合 main，但由 `NEXT_PUBLIC_SPIRIT_ENABLED` flag **默认关闭**，对外不可见、不破坏冻结。准备好收集反馈时设 `=1` 即开（命盘页对话面板+问卷+自我画像，日历每日问今）。
@@ -88,6 +88,7 @@ spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md` · pact
 - **计量：刻意不做**（评审必修2 选 a）。web 侧风水路由本就没有计量、同样的花费在本端点出现前即可达；只给 TG 加会造出「TG 有上限、web 没有」的反向不一致。风水全链路统一计量留到接支付（billing T5/T6）时一起做。
 - 四个界面 TG 原生化（`Segmented` 双模式：传 `idBase` = 完整 tab 契约含方向键漫游；不传 = `role="group"` + `aria-pressed`）。**tabpanel 属性必须按 `inTg` 门控**——R2 复审抓到它曾漏到 web 路径，留下没有 tablist、`aria-labelledby` 悬空的孤儿 tabpanel（为改善无障碍做的修复反而把 web 的无障碍改坏）。
 - spec §4.1 全 app 唯一的原生 `confirm()` → 页内两步确认；§4.2 居所编辑入口接上（此前 `initial` 回显有实现有单测但无入口，且 `DwellingForm` 的超限截断逻辑因此不可达 → 持有超限同住人 id 的历史居所用户永远修不好）。
+- **收尾补丁 `6ff687c`：TG 首页入口**。合并后发现风水在 Mini App 内**入口数为零**——`AppShell.tsx:40` 用 `{!tg && (…)}` 把 web 导航整个包住，TG 内唯一导航是 `app/page.tsx` 的 `TG_ENTRIES` 硬编码列表，而风水只加进了 `AppShell.NAV`。本项目**第三次**「建好但不可达」（前两次：波1 合看引擎无选择 UI、居所编辑回显无入口），根因是 EP-fs-tg 的 spec 只列了「四个界面要原生化」，从没问「TG 用户怎么走到它们」。已加入口 + 补 `app/__tests__/page.test.tsx`（`TG_ENTRIES` 此前零覆盖），两个变异实跑验证。
 - 已知未覆盖：**web 侧 kind/tenancy 选择器零点击覆盖**（既有缺口，非本次引入；验收时把两个宿主 4 处 `onChange` 全改空函数只红 1 条）。`Cell` 的 `onClick` 挂在 `<div>` 上无键盘可达性（仓库既有模式，web 侧编辑是真 `<button>`，不受影响）。
 
 **⚠️ 产品未决**：**强版物件顾问对约一半会员零价值**。八宅结构决定命卦吉方 ∩ 宅卦吉方只可能是 4 或 0（枚举 8×8 全组合验证；评审进一步枚举 276,480 组输入确认），故 `usable ≡ good`——强弱两版的 `recommendedDirections` **逐字节相同**，唯一差异是 `dwellingNote` 一句话，且只在异组时出现。8 个朝向里 4 个得到同组宅卦，那些会员的输出与免费层永远完全一致。选项：①并入免费层，会员靠 Layer 1 撑 ②回 core 重新设计 `adviseObject` 让强版真的不同 ③维持现状。**待产品决策，不阻塞合并。**

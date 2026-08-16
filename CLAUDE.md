@@ -45,6 +45,11 @@ cat .agent/CURRENT.md                             # 版本 / Sprint / Open Bugs
 - **引擎深化派生事实在 facts 层算、不进冻结命盘**：旺衰证据(`deriveStrength`)/用神(`deriveUsefulElements`)/紫微三方四正(`deriveTriad`)/西方画像(`deriveWesternProfile`) 均由核心纯函数从既有 `UnifiedChart` 派生，`extractFacts` 时调用 → 新旧冻结命盘通吃、零迁移。旺衰/用神是扶抑启发式（prompt 标「据证判断」）。
 - **时序层按年现算、不进冻结**：`computeZiweiHoroscope`(大限/流年四化) → `generateTimeline` 时序声部（非事件预测）；/chart 当下时序卡 + /calendar 本年上下文，按 (档案,年) 缓存。
 - **MiniMax-M3 支持 prompt cache_control**（anthropic 线，`LLM_CACHE` 默认开）；LLM 客户端含退避重试(`withRetry`)+非流式 60s 超时（见 `docs/specs/engine-v2-deepening.md`）。
+- **Telegram 里没有 web 导航——加功能必须改两处**：`AppShell.tsx` 用 `{!tg && (…)}` 把桌面侧栏与移动底栏**整个**包住，TG 内唯一导航是 `app/page.tsx` 的 `TG_ENTRIES` 硬编码列表。只往 `AppShell.NAV` 加入口的新功能，在 Mini App 里**入口数为零**（风水就这么静默失踪过一次：flag 开着、页面上线、web 有入口、全套测试绿）。两处的 flag 门控条件也要一致。回归由 `app/__tests__/page.test.tsx` 守。
+- **风水两套八方不得互推**：「本命八方」由命卦定、「房屋八方」由宅卦定，同一方位在两表里经常是不同的星。`verifyDirectionConsistency` 按分句→整句→块三层解析归属，**无法归属则弃权**而不是拿其中一张表去判另一张的陈述。
+- **八宅结构：命卦吉方 ∩ 宅卦吉方 只可能是 4 或 0**（同东/西四命组则四个全留、异组则一个不留）。推论：物件顾问「强版」与弱版的推荐方位**逐字节相同**，唯一差异是 `dwellingNote`。别再基于「强版给出不同方位」做设计。
+- **中文方位名互相嵌套**：北 ⊂ 东北，东/南/西 ⊂ 东南/西南/西北。任何按方位名做的字符串匹配或测试查询**必须精确匹配**（正则锚定 / `{ exact: true }`）。本仓库已咬过三次。
+- **`packages/core/tsconfig.json` 的 `include` 只有 `["src"]`** → `core/test/` 不过类型检查，写在那里的类型断言是**惰性的**。`packages/llm` 的测试在 `src/` 里，是被检查的。
 
 ## Dev Commands
 ```bash
