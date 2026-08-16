@@ -1,0 +1,52 @@
+name: CI
+
+# 此前仓库**完全没有 CI**：580 条测试、typecheck、build 只有人手跑过，
+# 而仓库是 public 的。这个 workflow 是那道缺失的闸门。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm/action-setup 自动读 package.json 的 packageManager 字段（pnpm@10.33.0），
+      # 不在这里写死版本，避免两处版本各自漂移。
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # package.json engines: node >=24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: typecheck（三包）
+        run: pnpm typecheck
+
+      - name: test（core + llm + web）
+        run: pnpm -r test
+
+      # ⚠️ TELEGRAM_BOT_TOKEN 未配置时 `next build` 会在 /api/tg/webhook 的
+      # page-data 收集阶段直接失败（getBot() 抛错）。构建期不需要真 token，
+      # 给个占位即可——这不是密钥，只是让模块能完成初始化。
+      - name: build（apps/web）
+        run: pnpm --filter @eamvp/web build
+        env:
+          TELEGRAM_BOT_TOKEN: ci-placeholder-not-a-secret
+
+      # lint 暂不阻塞：接入时全仓已有 58 errors / 22 warnings（多为既有的
+      # no-explicit-any 与 react-hooks/set-state-in-effect），一次性清会把
+      # 真实行为改动混进来。先把数字晒在 CI 里当基线，再分批清；清干净后
+      # 删掉 continue-on-error 这一行即可转为阻塞。
+      - name: lint（不阻塞，仅暴露基线）
+        run: pnpm --filter @eamvp/web lint
+        continue-on-error: true
