@@ -182,7 +182,6 @@ html[data-tg-theme="dark"] {
   --shadow-panel: none;
   --color-error-bg: #2a1714;
   --color-error-line: #4a2a23;
-  --fortune-img-filter: brightness(.55) saturate(.92);
 }
 html[data-tg-theme="dark"] body {
   background: var(--color-paper);
@@ -191,10 +190,3 @@ html[data-tg-theme="dark"] body {
 html[data-tg-theme="light"] {
   --color-bg2: #ffffff;
 } /* 亮态沿用素白默认 + 定义 bg2 */
-
-.fortune-hero-img {
-  filter: var(--fortune-img-filter, none);
-}
-html[data-tg-theme="dark"] .fortune-hero-img.has-dark {
-  filter: none;
-}

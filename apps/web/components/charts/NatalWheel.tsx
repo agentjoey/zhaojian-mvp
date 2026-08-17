@@ -87,7 +87,7 @@ export function NatalWheel({ western }: { western: WesternChart | null }) {
           return (
             <g key={sign}>
               <line x1={o.x} y1={o.y} x2={inn.x} y2={inn.y} stroke="var(--color-line)" strokeWidth={1} />
-              <text x={g.x} y={g.y} textAnchor="middle" dominantBaseline="central" fontSize={17} fill="#8C7F66">{SIGN_GLYPH[sign] + VS}</text>
+              <text x={g.x} y={g.y} textAnchor="middle" dominantBaseline="central" fontSize={17} fill="var(--color-metal)">{SIGN_GLYPH[sign] + VS}</text>
             </g>
           );
         })}
