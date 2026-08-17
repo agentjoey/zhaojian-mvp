@@ -8,6 +8,7 @@ import { hasTgSession, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
 import { useIsTelegram } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
 import { Card, SealIcon } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { Group, Cell } from "@/components/tg/native";
 import { useT } from "@/lib/i18n/I18nProvider";
 
@@ -90,20 +91,24 @@ export default function ProfilesPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-[28px] font-black">{t("profiles.title")}</h1>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/account"
-            className="px-4 py-2.5 text-[14px] text-ink-2 transition-colors"
-            style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" }}
-          >
-            {t("nav.account")}
-          </Link>
-          <Link href="/reading" className="px-5 py-2.5 text-[14px] text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("profiles.create")}</Link>
-        </div>
-      </header>
+      <PageHeader
+        kicker="档 案"
+        title={t("profiles.title")}
+        action={
+          <>
+            <Link
+              href="/account"
+              className="px-4 py-2.5 text-[14px] text-ink-2 transition-colors"
+              style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" }}
+            >
+              {t("nav.account")}
+            </Link>
+            <Link href="/reading" className="px-5 py-2.5 text-[14px]" style={{ background: "var(--color-cinnabar)", color: "var(--color-paper)", borderRadius: "var(--radius-button)" }}>{t("profiles.create")}</Link>
+          </>
+        }
+      />
 
+      <div className="mt-8">
       {loading ? (
         <Card><p className="text-[14px] text-muted">{t("profiles.loading")}</p></Card>
       ) : profiles.length === 0 ? (
@@ -159,13 +164,17 @@ export default function ProfilesPage() {
           })}
         </Group>
       ) : (
-        <div className="space-y-3">
-          {profiles.map((p) => {
+        <div>
+          {profiles.map((p, i) => {
             const active = p.id === activeId;
             const editing = editingId === p.id;
             const confirming = confirmDeleteId === p.id;
             return (
-              <Card key={p.id} className="flex items-center justify-between gap-4">
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-4 py-4"
+                style={i > 0 ? { borderTop: "1px solid var(--color-line)" } : undefined}
+              >
                 <button
                   className="flex items-center gap-3 text-left"
                   onClick={() => {
@@ -175,11 +184,11 @@ export default function ProfilesPage() {
                 >
                   <SealIcon char={p.nickname.slice(0, 1)} size={40} variant={active ? "bai" : "zhu"} />
                   <div>
-                    <div className="text-[16px] font-semibold">
+                    <div className="font-serif text-[17px] font-semibold">
                       {p.nickname}
                       {active && <span className="ml-2 text-[11px] text-cinnabar">{t("profiles.current")}</span>}
                     </div>
-                    <div className="latin-label text-[10px] text-muted">
+                    <div className="text-[11px] text-muted">
                       {p.chart.bazi.dayMaster}（{p.chart.bazi.dayMasterElement}）· {p.birthInput.date}
                     </div>
                   </div>
@@ -217,11 +226,12 @@ export default function ProfilesPage() {
                     </button>
                   )}
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
       )}
+      </div>
 
       <p className="mt-8 text-[12px] leading-relaxed text-muted">
         {t("profiles.privacyNotice")}

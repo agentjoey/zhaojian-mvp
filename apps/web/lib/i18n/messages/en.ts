@@ -91,15 +91,15 @@ export const en: Messages = {
     },
     cards: {
       east: {
-        label: "East · 命理结构 (Mingli structure)",
+        label: "命理结构 · Mingli structure",
         text: "紫微十二宫 (Ziwei twelve houses), 八字四柱 (Bazi four pillars), 生年四化 (natal Four Transforms) — computed precisely by an open engine, auditable, never invented.",
       },
       west: {
-        label: "West · 心理映照 (Psychological reflection)",
+        label: "心理映照 · Psychological reflection",
         text: "Sun, Moon, rising, Saturn lessons, inner tension — read through Jungian archetypes as heart imagery.",
       },
       resonance: {
-        label: "Resonance · 共振",
+        label: "共振 · Resonance",
         text: "Only where East and West converge on high-confidence inner-world axes, giving restrained, non-deterministic words for growth.",
       },
     },

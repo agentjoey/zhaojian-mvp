@@ -90,15 +90,15 @@ export const zh = {
     },
     cards: {
       east: {
-        label: "East · 命理结构",
+        label: "命理结构",
         text: "紫微十二宫、八字四柱、生年四化——开源引擎精确计算，可审计、不臆造。",
       },
       west: {
-        label: "West · 心理映照",
+        label: "心理映照",
         text: "太阳月亮上升、土星课题、内在张力——以荣格原型读命盘为心象。",
       },
       resonance: {
-        label: "Resonance · 共振",
+        label: "共振",
         text: "仅在内在世界轴等高置信处东西互证，给出克制、非决定论的成长之言。",
       },
     },

@@ -16,6 +16,7 @@ import { BaguaWheel } from "@/components/charts/BaguaWheel";
 import { CastingOverlay } from "@/components/CastingOverlay";
 import { Markdown } from "@/components/Markdown";
 import { Card } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { Group, Cell, Segmented } from "@/components/tg/native";
 import { Paywall } from "@/components/Paywall";
 import { supabase } from "@/lib/supabase";
@@ -611,30 +612,51 @@ export default function FengshuiPage() {
       </Group>
       </div>
     ) : (
-      <ul className="mt-3 flex flex-col gap-3">
-        {items.map((r) => (
-          <Card key={r.id} className="p-4">
-            <div className="flex items-center gap-2 text-[12px] text-muted">
-              <span>{t(`fengshui.effortLabel.${r.effort}`)}</span>
-              <span>·</span>
-              <span>{r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}</span>
-            </div>
-            <p className="mt-1.5 text-[15px] text-ink">{r.action}</p>
-            <p className="mt-2 text-[13px] text-ink-2">{t("fengshui.traditionalLabel")}：{r.traditional}</p>
-            {r.modern && (
-              <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
-            )}
-            {SPIRIT_ENABLED && (
-              <Link
-                href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
-                className="mt-3 inline-block text-[13px]"
-                style={{ color: "var(--color-cinnabar)" }}
-              >
-                {t("fengshui.askMira")}
-              </Link>
-            )}
-          </Card>
-        ))}
+      // web：细线分隔的编辑式清单（2026-08 当代东方）——方位字做行首锚点（朱砂宋体），
+      // 成本分级小号右对齐，行间与列表上下各一条 1px 细线；诚实标注（传统象征 vs
+      // 传统+现代）与传统/现代两行说明照旧保留——它们是产品可信度的核心，不能丢。
+      <ul className="mt-3 border-y border-[var(--color-line)] [&>li+li]:border-t [&>li+li]:border-[var(--color-line)]">
+        {items.map((r) => {
+          const dir = remedyDirection(r.target);
+          return (
+            <li key={r.id} className="py-4">
+              <div className="flex items-baseline gap-3">
+                {dir && (
+                  <span
+                    className="font-serif text-[16px] font-semibold"
+                    style={{ color: "var(--color-cinnabar)" }}
+                  >
+                    {DIRECTION_LABEL[dir]}
+                  </span>
+                )}
+                <span
+                  className="ml-auto shrink-0 text-[10px] tracking-[0.3em]"
+                  style={{ color: "var(--color-muted)" }}
+                >
+                  {t(`fengshui.effortLabel.${r.effort}`)}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[13px] text-ink">{r.action}</p>
+              <p className="mt-2 text-[12px] text-ink-2">
+                {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
+                {" · "}
+                {t("fengshui.traditionalLabel")}：{r.traditional}
+              </p>
+              {r.modern && (
+                <p className="mt-1 text-[12px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
+              )}
+              {SPIRIT_ENABLED && (
+                <Link
+                  href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                  className="mt-2 inline-block text-[13px]"
+                  style={{ color: "var(--color-cinnabar)" }}
+                >
+                  {t("fengshui.askMira")}
+                </Link>
+              )}
+            </li>
+          );
+        })}
       </ul>
     );
   }
@@ -649,8 +671,7 @@ export default function FengshuiPage() {
           title={t("fengshui.castingTitle")}
         />
       )}
-      <h1 className="text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.title")}</h1>
-      <p className="mt-1 text-[13px] text-muted">{t("fengshui.subtitle")}</p>
+      <PageHeader kicker="境" title={t("fengshui.title")} annotation={t("fengshui.subtitle")} />
 
       {inTg ? (
         <div className="mt-5">
