@@ -50,13 +50,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          {/* 移动：底部毛玻璃图标栏 */}
+          {/* 移动：底部素白图标栏 */}
           <nav
             className="fixed inset-x-0 bottom-0 z-30 flex items-start justify-around pt-2.5 md:hidden"
             style={{
-              background: "rgba(246,245,241,.92)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
+              background: "var(--color-paper)",
               borderTop: "1px solid var(--color-line)",
               paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
             }}
@@ -85,12 +83,9 @@ function NavItem({ href, char, label, active, compact }: { href: string; char: s
           borderRadius: "var(--radius-icon)",
           fontFamily: "var(--font-serif)",
           fontSize: 18,
-          background: active ? "var(--color-cinnabar)" : "transparent",
-          color: active ? "#fff" : "var(--color-muted)",
-          boxShadow: active ? "0 7px 16px rgba(203,70,54,.34)" : "none",
-          transform: active ? "translateY(-3px)" : "none",
-          transition: "background .25s, color .25s, box-shadow .25s, transform .25s",
-          animation: active ? "zjPop .45s var(--ease-pop)" : undefined,
+          background: active ? "var(--color-ink)" : "transparent",
+          color: active ? "var(--color-on-ink)" : "var(--color-muted)",
+          transition: "background .25s, color .25s",
         }}
       >
         {char}

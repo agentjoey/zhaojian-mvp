@@ -72,9 +72,7 @@ export function SealIcon({
         lineHeight: 1,
         background: isBai ? "var(--color-seal)" : "var(--color-paper)",
         color: isBai ? "var(--color-paper)" : "var(--color-seal)",
-        boxShadow: isBai
-          ? "inset 0 0 0 1.5px rgba(243,241,234,.4)"
-          : "inset 0 0 0 2px var(--color-seal)",
+        boxShadow: isBai ? undefined : "inset 0 0 0 2px var(--color-seal)",
       }}
       aria-hidden
     >
@@ -92,17 +90,17 @@ export function Button({
 }: {
   variant?: "primary" | "secondary" | "text";
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const base = "zj-btn inline-flex items-center justify-center gap-2 text-[15px] font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
+  const base = "zj-btn inline-flex items-center justify-center gap-2 text-[15px] font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
   const styles =
     variant === "primary"
-      ? "px-6 py-3 text-white bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)] hover:-translate-y-0.5"
+      ? "px-6 py-3 text-white bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)]"
       : variant === "secondary"
-        ? "px-6 py-3 text-[var(--color-ink)] bg-transparent border border-[var(--color-line)] hover:border-[var(--color-cinnabar)] hover:-translate-y-0.5"
-        : "text-[var(--color-gold)] underline underline-offset-[5px] hover:text-[var(--color-cinnabar)]";
+        ? "px-6 py-3 text-[var(--color-ink)] bg-transparent border border-[var(--color-line)] hover:border-[var(--color-line-strong)]"
+        : "text-[var(--color-ink-2)] underline underline-offset-[5px] hover:text-[var(--color-ink)]";
   return (
     <button
       className={cn(base, styles, className)}
-      style={variant === "primary" ? { borderRadius: "var(--radius-button)", boxShadow: "var(--shadow-btn)" } : variant === "secondary" ? { borderRadius: "var(--radius-button)" } : undefined}
+      style={variant === "primary" || variant === "secondary" ? { borderRadius: "var(--radius-button)" } : undefined}
       {...rest}
     >
       {children}
@@ -110,7 +108,7 @@ export function Button({
   );
 }
 
-// —— 信息卡（可选顶边强调色：fire/water/metal/none，对应命理/心理/共振）——
+// —— 信息卡（细线描边，无阴影；可选顶边强调色：fire/water/metal/none）——
 export function Card({
   topAccent,
   dark = false,
@@ -130,8 +128,8 @@ export function Card({
         borderRadius: "var(--radius-card)",
         background: dark ? "var(--color-ink)" : "var(--color-surface)",
         color: dark ? "var(--color-on-ink)" : "var(--color-ink)",
-        boxShadow: dark ? "var(--shadow-panel)" : "var(--shadow-card)",
-        borderTop: accentVar ? `3px solid ${accentVar}` : undefined,
+        border: dark ? undefined : "1px solid var(--color-line)",
+        borderTop: accentVar ? `2px solid ${accentVar}` : undefined,
       }}
     >
       {children}
@@ -197,7 +195,7 @@ export function GanzhiBadge({
         color: fg,
         fontFamily: "var(--font-serif)",
         fontSize: size * 0.46,
-        boxShadow: highlight ? "0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-fire)" : undefined,
+        boxShadow: highlight ? "0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-cinnabar)" : undefined,
       }}
     >
       {char}
