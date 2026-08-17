@@ -1,37 +1,40 @@
 @import "tailwindcss";
 
 /* ============================================================
-   照见 Zhaojian · Design Tokens —— 素白 v2（现代化方向）
+   照见 Zhaojian · Design Tokens —— 当代东方 v3（2026-08 重设计）
+   依据 docs/assets/zhaojian-eastern-ui.pen 设计稿：
+   宣纸暖白 / 墨阶 / 朱砂唯一强调 / 0–8px 圆角 / 默认无阴影。
    令牌即单一事实源，勿写裸十六进制。
    ============================================================ */
 @theme {
   /* —— 纸 / 墨阶 —— */
-  --color-paper: #f6f5f1; /* App 页面底 · 素白（冷调） */
+  --color-paper: #f8f6f0; /* App 页面底 · 宣纸暖白（2026-08 当代东方重设计：#f6f5f1 偏冷，调暖一档） */
   --color-panel-strong: #1f1d19;
-  --color-on-strong: #f6f5f1;
+  --color-on-strong: #f8f6f0;
   --color-surface: #ffffff; /* 卡片 / 浮层 */
   --color-float: #ffffff;
-  --color-tint: #f1efea; /* 区块浅底 / chip 底 */
+  --color-tint: #f1ede4; /* 区块浅底 / chip 底 */
   --color-rail: #ffffff; /* 网页左侧图标栏底 */
-  --color-backdrop: #e4e2db;
-  --color-line: #eceae3; /* 描边 / 分隔线（弱化） */
-  --color-divider: #eceae3;
-  --color-spoke: #ddd9cf; /* 命盘辐条/淡线 */
+  --color-backdrop: #e6e2d8;
+  --color-line: #e3ded2; /* 描边 / 分隔线（弱化） */
+  --color-divider: #e3ded2;
+  --color-line-strong: #d8d3c6; /* 需要更清晰分隔时的一档深线 */
+  --color-spoke: #d8d3c6; /* 命盘辐条/淡线 */
 
   --color-ink: #1f1d19; /* 主文字 + 深色锚点底 */
   --color-ink-2: #6b6457; /* 次文字 */
   --color-muted: #716b60; /* 辅助 / 说明 / 占位（2026-08 critique P0：#9c9486 在 paper 上仅 2.75:1；按相对亮度实算提到此值，paper 上 ≈4.84:1、tint 上 ≈4.60:1、surface 上 ≈5.28:1，过 AA 4.5:1。暗主题覆写在下方，本就达标，不动） */
 
   /* 深色锚点上的文字 */
-  --color-on-ink: #f6f5f1;
+  --color-on-ink: #f8f6f0;
   --color-on-ink-gold: #c7a878;
   --color-on-ink-muted: #a79e8c;
   --color-on-ink-faint: #827a68;
 
-  /* —— 强调色 —— */
-  --color-cinnabar: #cb4636;
-  --color-cinnabar-press: #b43a2c;
-  --color-seal: #c0392b;
+  /* —— 强调色（朱砂：只做决定性动作与签名细节，0–2% 面积） —— */
+  --color-cinnabar: #a84638; /* 2026-08 重设计：#cb4636 偏艳，降为陶瓷调朱砂（白字其上 ≈5.8:1，过 AA） */
+  --color-cinnabar-press: #8f3a2e;
+  --color-seal: #a84638;
   --color-bell-red: #e0694f;
   --color-gold: #b89a63;
 
@@ -47,13 +50,13 @@
   --color-on-metal: #fcfaf4;
   --color-on-water: #edf4f8;
 
-  /* —— 圆角 —— */
-  --radius-chip: 11px;
-  --radius-icon: 11px;
-  --radius-seal: 11px;
-  --radius-button: 16px;
-  --radius-card: 16px;
-  --radius-panel: 20px;
+  /* —— 圆角（当代东方：0–8px，克制的几何） —— */
+  --radius-chip: 4px;
+  --radius-icon: 4px;
+  --radius-seal: 4px;
+  --radius-button: 8px;
+  --radius-card: 8px;
+  --radius-panel: 8px;
 
   /* —— 缓动 —— */
   --ease-rise: cubic-bezier(0.22, 1, 0.36, 1);
@@ -61,14 +64,14 @@
   --ease-cast: cubic-bezier(0.5, 0, 0.5, 1);
 }
 
-/* 阴影（克制，不入 @theme，直接用变量） */
+/* 阴影（当代东方：默认无阴影，层级靠间距/色调/细线表达；令牌保留为 none 以免消费方报错） */
 :root {
-  --shadow-card: 0 5px 18px rgba(31, 29, 25, 0.05);
-  --shadow-card-hover: 0 11px 26px rgba(31, 29, 25, 0.09);
-  --shadow-soft: 0 6px 22px rgba(31, 29, 25, 0.06);
-  --shadow-btn: 0 12px 28px rgba(203, 70, 54, 0.28);
-  --shadow-btn-hover: 0 16px 34px rgba(203, 70, 54, 0.34);
-  --shadow-panel: 0 18px 50px rgba(31, 29, 25, 0.1);
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-soft: none;
+  --shadow-btn: none;
+  --shadow-btn-hover: none;
+  --shadow-panel: none;
   --color-error-bg: #FBEEEC;
   --color-error-line: #EFD6D2;
 }
@@ -169,13 +172,14 @@ html[data-tg-theme="dark"] {
   --color-muted: #8a8276;
   --color-panel-strong: #241f19;
   --color-on-strong: #ece6da;
-  --color-cinnabar: #d4564a;
-  --color-cinnabar-press: #b8463c;
+  --color-line-strong: #3a352c;
+  --color-cinnabar: #c05a4a;
+  --color-cinnabar-press: #a84638;
   --color-seal: #e0786c;
-  --shadow-card: 0 6px 20px rgba(0,0,0,.5);
-  --shadow-card-hover: 0 12px 28px rgba(0,0,0,.6);
-  --shadow-soft: 0 6px 22px rgba(0,0,0,.45);
-  --shadow-panel: 0 18px 50px rgba(0,0,0,.6);
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-soft: none;
+  --shadow-panel: none;
   --color-error-bg: #2a1714;
   --color-error-line: #4a2a23;
   --fortune-img-filter: brightness(.55) saturate(.92);
