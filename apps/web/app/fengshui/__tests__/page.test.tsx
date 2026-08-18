@@ -1444,7 +1444,7 @@ describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
  * - remedyDirection 的期望值全部是字面量（评审 C2：旧版从被测函数自身推导期望值，
  *   「先长后短」倒过来也全绿）；盘即导航的 dir/锚点断言同样写死，不碰 SUT；
  * - 盘即导航的过滤断言建立在「别的方位的化解不可见」上——过滤被删掉（变异）时必红；
- * - 剪影断言查「无星名文字 + 8 扇区同fill」——把真实宅盘数据塞进去（变异）时必红；
+ * - 剪影断言查「无星名/卦字文字 + 8 占位块」——把真实宅盘数据塞进去（变异）时必红；
  * - I1 的「切走再切回不重放」同时守两端：首揭中 delay 必须在（变异 C 红），
  *   切回后 delay 必须不在（去掉 staggerIn 复位红）。
  */
@@ -1601,11 +1601,14 @@ describe("2026-08 设计评审后续", () => {
     await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
 
     const silhouette = screen.getByTestId("bagua-silhouette");
-    // 「看不清内容」：无星名、无方位名
+    // 「看不清内容」：无星名、无方位名、无卦字（EP-east-ui-r2：盘上内容物已从
+    // 扇区+星名 pill 变为卦字，泄漏面随之改查卦字）
     expect(silhouette.textContent).not.toContain("生气");
     expect(silhouette.textContent).not.toContain("南");
-    // 「看得见形状」：八个扇区结构在
-    expect(silhouette.querySelectorAll("path")).toHaveLength(8);
+    expect(silhouette.textContent).not.toContain("乾");
+    expect(silhouette.textContent).not.toContain("坎");
+    // 「看得见形状」：八个卦字占位块结构在
+    expect(silhouette.querySelectorAll("rect")).toHaveLength(8);
     // 真宅盘仍未渲染（剪影不是后门）
     expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
   });

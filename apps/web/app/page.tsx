@@ -126,8 +126,11 @@ export default function Home() {
 
       {inTg && (
         <div className="px-5 pt-10">
-          <div className="mb-5">
-            <h1 className="font-serif text-[24px] font-bold tracking-[0.08em]">{t("common.brand")}</h1>
+          <div className="mb-5 pb-5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+            <p className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>
+              — {t("home.kickerHero")} —
+            </p>
+            <h1 className="mt-3 font-serif text-[24px] font-bold tracking-[0.08em]">{t("common.brand")}</h1>
             <p className="mt-1 text-[13px] text-muted">{t("home.tg.tagline")}</p>
           </div>
           <Group>
