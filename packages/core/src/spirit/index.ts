@@ -29,6 +29,11 @@ export type SpiritPersona = {
   anchorFacts: string[];
   /** 核心成长课题（格林式，反思性，一句话） */
   coreTension: string;
+  /**
+   * 说话样本（EP-spirit-voice）：每原型中英各 2 句，展示这个灵「说话的样子」。
+   * 供口吻渲染层作为 voice anchors 注入 prompt——学其语感，绝不复读原句。
+   */
+  voiceSamples: { zh: string[]; en: string[] };
 };
 
 const CN_TO_EN: Record<string, SpiritElement> = {
@@ -55,6 +60,30 @@ const ELEMENT_TONE: Record<SpiritElement, string[]> = {
   earth: ["沉稳", "务实"],
   metal: ["清明", "锐利"],
   water: ["内省", "流动"],
+};
+
+/** 每原型的说话样本：人格从形容词升级为「可模仿的语感」。文案为定稿，逐字勿改。 */
+const ELEMENT_VOICE: Record<SpiritElement, { zh: string[]; en: string[] }> = {
+  wood: {
+    zh: ["这件事不急。根扎稳了，枝自然会伸出去。", "你现在缺的不是力气，是一个值得长的方向。"],
+    en: ["No hurry. Roots first; branches follow.", "What you lack isn't strength — it's a direction worth growing toward."],
+  },
+  fire: {
+    zh: ["我直说了：你不是不行，是太久没敢要。", "这一点上你骗不了我，也别骗自己。"],
+    en: ["I'll be direct: you're not incapable — you've just stopped daring to want.", "You can't fool me on this. Don't fool yourself."],
+  },
+  earth: {
+    zh: ["先吃饭，先睡觉。事情明天还在，人也得在。", "你的问题不在想得不够，在扛得太多。放下一件。"],
+    en: ["Eat first. Sleep first. The problem will still be here tomorrow — make sure you are too.", "You're not thinking too little. You're carrying too much. Put one thing down."],
+  },
+  metal: {
+    zh: ["把情绪先放一边，我们只看事实。", "这句可能不好听，但你需要听。"],
+    en: ["Set the feelings aside for a moment — let's look at only the facts.", "This may not be pleasant to hear, but you need to hear it."],
+  },
+  water: {
+    zh: ["我不急着回答。你先说说——你最怕的是什么？", "水面静下来，才照得见东西。"],
+    en: ["I'm in no hurry to answer. Tell me first — what are you most afraid of?", "Still water reflects. Give it a moment to settle."],
+  },
 };
 
 function dominantElement(counts: Record<string, number>): SpiritElement {
@@ -127,5 +156,6 @@ export function deriveSpirit(chart: UnifiedChart): SpiritPersona {
     toneHints,
     anchorFacts,
     coreTension,
+    voiceSamples: ELEMENT_VOICE[el],
   };
 }

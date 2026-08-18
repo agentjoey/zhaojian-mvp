@@ -35,6 +35,47 @@ describe("buildSpiritSystemPrompt", () => {
     expect(sys).toContain("MEMORY_MARKER_42");
     expect(sys).toContain("QUESTIONNAIRE_MARKER_7");
   });
+
+  it("中文硬规则：短答上限 / 单事实引用 / 默认不问句结尾 / 锚点不重复", () => {
+    const sys = buildSpiritSystemPrompt(deriveSpirit(chart), chart, "zh");
+    expect(sys).toContain("最多 3 句");
+    expect(sys).toContain("120 字");
+    expect(sys).toContain("至多引用一处");
+    expect(sys).toContain("不以问句结尾");
+    expect(sys).toContain("只引用一次");
+  });
+
+  it("英文硬规则与中文版对齐（英文是多数访客的默认路径）", () => {
+    const sys = buildSpiritSystemPrompt(deriveSpirit(chart), chart, "en");
+    expect(sys).toMatch(/at most 3 sentences/i);
+    expect(sys).toMatch(/under 80 words/i);
+    expect(sys).toMatch(/at most ONE chart fact/i);
+    expect(sys).toMatch(/do NOT end with a question/i);
+    expect(sys).toMatch(/at most once per conversation/i);
+  });
+
+  it("Voice anchors 按语言选样本：zh 给中文样本，en 给英文样本", () => {
+    const p = deriveSpirit(chart);
+    const sysZh = buildSpiritSystemPrompt(p, chart, "zh");
+    const sysEn = buildSpiritSystemPrompt(p, chart, "en");
+    expect(sysZh).toContain("Voice anchors");
+    for (const s of p.voiceSamples.zh) expect(sysZh).toContain(s);
+    for (const s of p.voiceSamples.en) expect(sysEn).toContain(s);
+    // 语感锚点必须强调「不复读原句」，否则样本会被当成引用素材
+    expect(sysZh).toMatch(/绝不复读原句/);
+    expect(sysEn).toMatch(/NEVER recite these lines/i);
+  });
+
+  it("禁用清单按语言双版", () => {
+    const sysZh = buildSpiritSystemPrompt(deriveSpirit(chart), chart, "zh");
+    const sysEn = buildSpiritSystemPrompt(deriveSpirit(chart), chart, "en");
+    for (const w of ["首先", "总而言之", "我理解你的感受", "作为你的本命之灵", "值得注意的是"]) {
+      expect(sysZh).toContain(w);
+    }
+    for (const w of ["Firstly", "Moreover", "In conclusion", "I understand how you feel", "As your natal spirit"]) {
+      expect(sysEn).toContain(w);
+    }
+  });
 });
 
 describe("summarizeSpiritMemory", () => {

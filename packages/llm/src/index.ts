@@ -28,3 +28,6 @@ export type { Verdict } from "./eval/score";
 export { runEval } from "./eval/run";
 export type { EvalReport, CaseResult } from "./eval/run";
 export { EVAL_CASES } from "./eval/cases";
+export { checkVoice, anchorKeyTerms, VOICE_LIMITS, BANNED_ZH, BANNED_EN } from "./eval/voice";
+export type { VoiceViolation, VoiceOptions } from "./eval/voice";
+export { runVoiceProbe } from "./eval/voice-run";

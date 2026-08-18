@@ -24,6 +24,18 @@ describe("deriveSpirit", () => {
     expect(s.anchorFacts.length).toBeGreaterThan(0);
   });
 
+  it("voiceSamples 随主导五行派生：中英各 2 句，非空", () => {
+    const s = deriveSpirit(chart);
+    expect(s.voiceSamples.zh).toHaveLength(2);
+    expect(s.voiceSamples.en).toHaveLength(2);
+    for (const line of [...s.voiceSamples.zh, ...s.voiceSamples.en]) {
+      expect(line.trim().length).toBeGreaterThan(0);
+    }
+    // 样本语言不得放错槽位：zh 槽含中文、en 槽不含
+    expect(s.voiceSamples.zh.every((l) => /[一-鿿]/.test(l))).toBe(true);
+    expect(s.voiceSamples.en.every((l) => !/[一-鿿]/.test(l))).toBe(true);
+  });
+
   it("西方盘缺失时仍可派生（退紫微命宫主星 + 化忌张力）", () => {
     const s = deriveSpirit({ ...chart, western: null });
     expect(s.archetype).toBeTruthy();
