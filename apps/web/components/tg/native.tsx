@@ -12,7 +12,7 @@ export function Section({
   return (
     <div className="mb-4">
       {title && (
-        <div className="mx-1 mb-2 text-[12px] uppercase tracking-wide text-[var(--color-muted)]">
+        <div className="mx-1 mb-2 text-[11px] tracking-[0.24em] text-[var(--color-muted)]">
           {title}
         </div>
       )}
@@ -27,6 +27,7 @@ export function Group({ children }: { children: React.ReactNode }) {
       className="overflow-hidden [&>*+*]:border-t [&>*+*]:border-[var(--color-line)]"
       style={{
         background: "var(--color-bg2)",
+        border: "1px solid var(--color-line)",
         borderRadius: "var(--radius-card)",
         boxShadow: "var(--shadow-card)",
       }}
@@ -57,7 +58,7 @@ export function Cell({
       }`}
     >
       <div
-        className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[11px] font-serif text-[16px] text-white"
+        className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[var(--radius-icon)] font-serif text-[16px] text-white"
         style={{ background: accent || "var(--color-cinnabar)" }}
       >
         {icon}
@@ -145,10 +146,9 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className="flex-1 px-3 py-1.5 text-[13px]"
             style={{
-              borderRadius: "calc(var(--radius-button) - 2px)",
+              borderRadius: "var(--radius-chip)",
               background: active ? "var(--color-paper)" : "transparent",
               color: active ? "var(--color-ink)" : "var(--color-muted)",
-              boxShadow: active ? "var(--shadow-card)" : "none",
             }}
           >
             {o.label}

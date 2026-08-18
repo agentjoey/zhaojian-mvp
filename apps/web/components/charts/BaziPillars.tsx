@@ -1,11 +1,6 @@
 "use client";
 
 import type { BaziChart, Pillar } from "@eamvp/core";
-import {
-  GanzhiBadge,
-  WUXING_LABEL_TO_KEY,
-  cn,
-} from "@/components/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 // 五行计数小芯片的固定顺序：木火土金水
@@ -21,55 +16,56 @@ type ColumnDef = { key: string; labelKey: string; pillar: Pillar; isDay: boolean
 
 function PillarColumn({ col }: { col: ColumnDef }) {
   const t = useT();
-  const { labelKey, pillar, isDay } = col;
+  const { key, labelKey, pillar, isDay } = col;
   const tenGod = isDay ? t("chart.dayMaster") : pillar.tenGodStem ?? "—";
   const hidden = pillar.hiddenStems.length > 0 ? pillar.hiddenStems.join(" ") : "—";
 
-  const body = (
-    <div className="flex min-w-[64px] flex-1 flex-col items-center gap-2 py-3">
-      {/* 柱名 年/月/日/时 */}
-      <div
-        className={cn("text-[12px]", isDay ? "opacity-80" : "text-muted")}
-      >
-        {t(labelKey)}
-      </div>
-      {/* 十神 / 日主 */}
-      <div
-        className={cn(
-          "text-[11px]",
-          isDay ? "opacity-70" : "text-muted",
-        )}
-      >
-        {tenGod}
-      </div>
-      {/* 天干 */}
-      <GanzhiBadge char={pillar.stem} highlight={isDay} size={44} />
-      {/* 地支 */}
-      <GanzhiBadge char={pillar.branch} size={44} />
-      {/* 藏干 */}
-      <div
-        className={cn(
-          "text-center text-[11px] leading-tight",
-          isDay ? "opacity-70" : "text-muted",
-        )}
-      >
-        {hidden}
-      </div>
-    </div>
-  );
-
-  if (!isDay) return body;
-
-  // 日柱：深色锚点
   return (
     <div
-      style={{
-        background: "var(--color-panel-strong)",
-        color: "var(--color-on-strong)",
-        borderRadius: "var(--radius-card)",
-      }}
+      data-testid={`pillar-col-${key}`}
+      className="flex min-w-[64px] flex-1 flex-col items-center gap-1.5 py-4"
     >
-      {body}
+      {/* 十神 / 日主（muted 小字） */}
+      <div className="text-muted text-[11px]">{tenGod}</div>
+      {/* 天干：宋体大字 */}
+      <div
+        className="text-ink leading-none"
+        style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(30px, 7vw, 34px)" }}
+      >
+        {pillar.stem}
+      </div>
+      {/* 地支：宋体大字 */}
+      <div
+        className="text-ink leading-none"
+        style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(30px, 7vw, 34px)" }}
+      >
+        {pillar.branch}
+      </div>
+      {/* 藏干（muted 小字） */}
+      <div className="text-muted text-center text-[11px] leading-tight">{hidden}</div>
+      {/* 柱名标签：年/月/时 为 muted 小字；日柱加一枚朱砂白文方章「主」 */}
+      <div className="mt-1 flex items-center gap-1.5">
+        <span className="text-muted text-[11px]">{t(labelKey)}</span>
+        {isDay && (
+          <span
+            data-testid="bazi-day-seal"
+            role="img"
+            aria-label={t("chart.dayMaster")}
+            className="inline-flex items-center justify-center leading-none"
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: "var(--radius-seal)",
+              background: "var(--color-cinnabar)",
+              color: "var(--color-paper)",
+              fontFamily: "var(--font-serif)",
+              fontSize: 13,
+            }}
+          >
+            主
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -94,24 +90,29 @@ export function BaziPillars({ bazi }: { bazi: BaziChart }) {
     columns.push({ key: "hour", labelKey: "chart.pillarHour", pillar: pillars.hour, isDay: false });
   }
 
-  const dmKey = WUXING_LABEL_TO_KEY[bazi.dayMasterElement];
-  const dmColor = dmKey ? `var(--color-${dmKey})` : "var(--color-ink)";
-
   return (
-    <div className="bg-surface text-ink" style={{ borderRadius: "var(--radius-card)" }}>
-      {/* 四柱 */}
-      <div className="flex flex-wrap items-stretch gap-2 px-2">
-        {columns.map((col) => (
-          <PillarColumn key={col.key} col={col} />
-        ))}
+    <div className="text-ink">
+      {/* 四柱：整组上下各一条 1px 细线，内部横排四列 */}
+      <div
+        data-testid="bazi-pillars-grid"
+        style={{
+          borderTop: "1px solid var(--color-line)",
+          borderBottom: "1px solid var(--color-line)",
+        }}
+      >
+        <div className="flex flex-wrap items-stretch">
+          {columns.map((col) => (
+            <PillarColumn key={col.key} col={col} />
+          ))}
+        </div>
       </div>
 
       {/* 汇总条 */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-line px-3 py-4">
-        {/* 日主 */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
+        {/* 日主（单 accent 原则：不再用五行语义色着字符） */}
         <div className="flex items-baseline gap-2">
           <span className="text-muted text-[11px]">{t("chart.dayMaster")}</span>
-          <span className="text-[15px]" style={{ color: dmColor }}>
+          <span className="text-[15px]">
             {bazi.dayMaster}
             {bazi.dayMasterElement ? `·${bazi.dayMasterElement}` : ""}
           </span>
@@ -123,7 +124,7 @@ export function BaziPillars({ bazi }: { bazi: BaziChart }) {
           <span className="text-[15px]">{strengthLabel[bazi.dayMasterStrength]}</span>
         </div>
 
-        {/* 五行计数 */}
+        {/* 五行计数：细边 chip（1px line、无底色填充，元素名墨色） */}
         <div className="flex items-center gap-1.5">
           <span className="text-muted mr-1 text-[11px]">{t("chart.fiveElements")}</span>
           {WUXING_ORDER.map(({ countKey, elementKey, i18nKey }) => {
@@ -131,15 +132,16 @@ export function BaziPillars({ bazi }: { bazi: BaziChart }) {
             return (
               <span
                 key={elementKey}
+                data-testid={`wuxing-chip-${elementKey}`}
                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[12px]"
                 style={{
                   borderRadius: "var(--radius-chip)",
-                  background: `var(--color-${elementKey})`,
-                  color: `var(--color-on-${elementKey})`,
+                  border: "1px solid var(--color-line)",
+                  background: "transparent",
                 }}
               >
-                <span>{t(i18nKey)}</span>
-                <span className="tabular-nums">{count}</span>
+                <span className="text-ink">{t(i18nKey)}</span>
+                <span className="text-muted tabular-nums">{count}</span>
               </span>
             );
           })}

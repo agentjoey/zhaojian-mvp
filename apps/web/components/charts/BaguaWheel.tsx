@@ -1,28 +1,41 @@
 "use client";
 
-import { DIRECTIONS, DIRECTION_LABEL, type Direction, type DirectionVerdict } from "@eamvp/core";
+import { DIRECTIONS, DIRECTION_GUA, DIRECTION_LABEL, type Direction, type DirectionVerdict } from "@eamvp/core";
 
 /**
  * 八方位盘图（EP-fs-07）——「境」页视觉主体。
- * 八扇区按吉凶着色；确定性数据驱动，来自 core 查表结果，不依赖 LLM，
+ * 确定性数据驱动，来自 core 查表结果，不依赖 LLM，
  * 保证「LLM 挂了页面不白」——本组件独立成立，无需任何叙述文本。
  *
  * 与 ZiweiBoard / NatalWheel / WuxingRadar 同为 components/charts/ 下的可视化，
  * 配色一律走 CSS 变量令牌，不硬编码颜色值（项目在 TG 暗色主题上栽过硬编码色值的跟头）。
  *
- * 2026-08 设计评审后续（feat/fengshui-ui）：
- * - 星名垫 paper 底小 pill（critique P0：星名压在扇区混色底上实测 1.48–3.39:1，
- *   自称的「吉凶冗余通道」本身读不清；pill 后朱砂/灰字对 paper 底 ≈4.5–6:1）；
- * - `onSelectDirection` + `selectedDirection`：扇区可点（盘即导航，点扇区过滤化解）；
- * - `staggerIn`：首次揭晓时扇区按吉凶 rank 错峰淡入（首揭仪式的一部分）；
- * - `silhouette`：剪影模式——只有结构、无吉凶无色阶无文字，用于付费墙占位
- *   （「看得见形状、看不清内容」；不携带任何会员层数据，非会员浏览器可安全渲染）。
+ * EP-east-ui-r2（S5 细环卦字版，对齐已确认的 Pencil 设计稿）：
+ * 由「填充扇区 + 星名 pill」重绘为「双细环 + 八方正位卦字」——
+ * - 无扇区填充、无 pill：外环 1px line-strong、内环 1px line，吉凶全靠卦字
+ *   颜色/字重表达（四吉 ink 600、生气方朱砂、四凶 muted 400——凶方用 muted
+ *   而非更浅的色，是为过 AA 4.5:1；浅色文字是上一轮评审的红线）；
+ * - 卦字与方位的对应取自 core 的 DIRECTION_GUA（后天八卦定位），不自己发明映射；
+ * - 四吉方位卦字下加星名小字（生气朱砂、其余三吉 muted）；凶方不出星名；
+ * - 交互模型不变：`onSelectDirection`/`selectedDirection`/`staggerIn`/`silhouette`
+ *   四个 prop 的 API 与语义均未动，点击目标从扇区变为卦字所在的 <g>，
+ *   可访问名称保持「方位：星名（吉/凶）」格式；选中态 = 卦字变朱砂 + 向心侧
+ *   2px 朱砂短划线；`staggerIn` 错峰移到卦字上，delay 序列语义不变（生气 0ms 起）；
+ * - `silhouette`（付费墙剪影）适配新皮肤：卦字渲染为墨色占位块，
+ *   逻辑不变（verdicts=null，不携带任何会员层数据）。
  */
 
-const R_OUT = 150;
-const R_IN = 58;
 const CX = 160;
 const CY = 160;
+/** 双细环：外环 line-strong、内环 line。 */
+const RING_OUT = 150;
+const RING_IN = 96;
+/** 卦字在双环环带中央的半径；短划线与星名小字在卦字向心一侧。 */
+const GUA_R = 126;
+const DASH_R = 112;
+const STAR_R = 101;
+/** 中心宅卦圆（保留旧皮肤的几何）。 */
+const CENTER_R = 54;
 
 /** 半径 r、角度 deg（顺时针，0° = 正上方/正北）处的屏幕坐标。 */
 function polar(r: number, deg: number): [number, number] {
@@ -30,38 +43,20 @@ function polar(r: number, deg: number): [number, number] {
   return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
 }
 
-/** 第 index 个方位（顺时针自正北起）的扇形路径，45° 一格。 */
-function sectorPath(index: number): string {
-  const half = 22.5;
-  const mid = index * 45;
-  const a0 = mid - half;
-  const a1 = mid + half;
-  const [x0, y0] = polar(R_OUT, a0);
-  const [x1, y1] = polar(R_OUT, a1);
-  const [x2, y2] = polar(R_IN, a1);
-  const [x3, y3] = polar(R_IN, a0);
-  return `M ${x0} ${y0} A ${R_OUT} ${R_OUT} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${R_IN} ${R_IN} 0 0 0 ${x3} ${y3} Z`;
-}
-
-/** 吉方朱色（cinnabar）、凶方墨色（ink）——两条色阶互不相同，一眼可辨。 */
-function sectorColor(v: DirectionVerdict): string {
-  return v.auspicious ? "var(--color-cinnabar)" : "var(--color-ink)";
+/** 方位角 deg 处的切向单位向量（与半径垂直），用来画选中态的短划线。 */
+function tangent(deg: number): [number, number] {
+  const rad = ((deg - 90) * Math.PI) / 180;
+  return [-Math.sin(rad), Math.cos(rad)];
 }
 
 /**
- * 深浅随 rank 分级：1（最吉/最凶）最深，向 4 递浅。
- *
- * ⚠️ 区间下限不能再压低。初版用 0.30−0.05r / 0.16−0.02r，把令牌值对两种主题背景
- * 做 alpha 混合后实测：凶方四档相邻仅差 ~4 个 RGB 单位、首末跨度 ~12，低于可感知阈值，
- * 等于 rank 分级白做。现区间实测相邻 9–14、跨度 28–40（暗底与浅底均成立）。
+ * 卦字着色：四凶 muted 400；四吉 ink 600，其中生气方朱砂。
+ * 凶方坚持 muted（≈4.8:1）不用更浅的色阶——浅色文字是上一轮评审踩过的红线。
  */
-function sectorOpacity(v: DirectionVerdict): number {
-  return v.auspicious ? 0.46 - v.rank * 0.07 : 0.34 - v.rank * 0.05;
+function guaColor(v: DirectionVerdict): string {
+  if (!v.auspicious) return "var(--color-muted)";
+  return v.star === "生气" ? "var(--color-cinnabar)" : "var(--color-ink)";
 }
-
-/** 星名 pill 尺寸：八星名均为两个汉字（生气/天医/延年/伏位/绝命/五鬼/六煞/祸害），定宽即可。 */
-const PILL_W = 36;
-const PILL_H = 18;
 
 /** 错峰入场顺序：最吉（生气）先落，按「吉 rank 1→4、再凶 rank 1→4」排序。 */
 function staggerDelay(v: DirectionVerdict): number {
@@ -84,14 +79,14 @@ type BaguaWheelProps = {
    * 波1 的字面量不变，向后兼容所有既有调用方；仅第二个盘实例需要显式传入。
    */
   ariaLabel?: string;
-  /** 盘即导航（2026-08 创意 A）：传入后扇区可点/可键盘触发，选中扇区描朱砂边。 */
+  /** 盘即导航（2026-08 创意 A）：传入后卦字可点/可键盘触发，选中方位卦字变朱砂 + 短划线。 */
   onSelectDirection?: (d: Direction) => void;
   selectedDirection?: Direction | null;
-  /** 首揭仪式：扇区按吉凶 rank 错峰淡入一次。仅首次渲染时传 true。 */
+  /** 首揭仪式：卦字按吉凶 rank 错峰淡入一次。仅首次渲染时传 true。 */
   staggerIn?: boolean;
 } & (
   | {
-      /** 付费墙剪影：只有结构，无吉凶、无色阶、无文字。 */
+      /** 付费墙剪影：只有结构，无吉凶、无卦字、无文字。 */
       silhouette: true;
       /** 剪影模式传 null（不携带任何真实吉凶数据）。 */
       verdicts: null;
@@ -114,17 +109,25 @@ export function BaguaWheel(props: BaguaWheelProps) {
   if (props.silhouette) {
     return (
       <svg viewBox="0 0 320 320" width={size} height={size} aria-hidden data-testid="bagua-silhouette">
-        {DIRECTIONS.map((d, i) => (
-          <path
-            key={d}
-            d={sectorPath(i)}
-            fill="var(--color-ink)"
-            fillOpacity={0.08}
-            stroke="var(--color-line)"
-            strokeWidth={1}
-          />
-        ))}
-        <circle cx={CX} cy={CY} r={R_IN - 4} fill="var(--color-surface)" stroke="var(--color-line)" />
+        <circle cx={CX} cy={CY} r={RING_OUT} fill="none" stroke="var(--color-line)" strokeWidth={1} />
+        <circle cx={CX} cy={CY} r={RING_IN} fill="none" stroke="var(--color-line)" strokeWidth={1} />
+        {/* 卦字的墨色占位块：「看得见形状、看不清内容」，不含任何吉凶信息。 */}
+        {DIRECTIONS.map((d, i) => {
+          const [bx, by] = polar(GUA_R, i * 45);
+          return (
+            <rect
+              key={d}
+              x={bx - 9}
+              y={by - 9}
+              width={18}
+              height={18}
+              rx={2}
+              fill="var(--color-ink)"
+              fillOpacity={0.1}
+            />
+          );
+        })}
+        <circle cx={CX} cy={CY} r={CENTER_R} fill="var(--color-surface)" stroke="var(--color-line)" />
         <text
           x={CX}
           y={CY + 8}
@@ -140,15 +143,18 @@ export function BaguaWheel(props: BaguaWheelProps) {
   const v0 = props.verdicts;
   const interactive = !!onSelectDirection;
 
-  // 评审 I2：可交互扇区是 <g role="button">，不能嵌在 role="img" 里——ARIA 1.2 规定
+  // 评审 I2：可交互卦字是 <g role="button">，不能嵌在 role="img" 里——ARIA 1.2 规定
   // img 是 children-presentational，用户代理必须不暴露其后代，屏幕阅读器会完全
   // 看不见这 8 个按钮。可交互时 svg 用 role="group"（aria-label 保留），
   // 非交互（纯展示）时保持 role="img"。
   return (
     <svg viewBox="0 0 320 320" width={size} height={size} role={interactive ? "group" : "img"} aria-label={ariaLabel}>
+      <circle cx={CX} cy={CY} r={RING_OUT} fill="none" stroke="var(--color-line-strong)" strokeWidth={1} />
+      <circle cx={CX} cy={CY} r={RING_IN} fill="none" stroke="var(--color-line)" strokeWidth={1} />
       {DIRECTIONS.map((d, i) => {
         const v = v0[d];
-        const [lx, ly] = polar((R_OUT + R_IN) / 2, i * 45);
+        const deg = i * 45;
+        const [gx, gy] = polar(GUA_R, deg);
         const selected = selectedDirection === d;
         const sectorAria = `${DIRECTION_LABEL[d]}：${v.star}（${v.auspicious ? "吉" : "凶"}）`;
         return (
@@ -177,45 +183,61 @@ export function BaguaWheel(props: BaguaWheelProps) {
                 : {}),
             }}
           >
-            <path
-              d={sectorPath(i)}
-              fill={sectorColor(v)}
-              fillOpacity={sectorOpacity(v)}
-              stroke={selected ? "var(--color-cinnabar)" : "var(--color-line)"}
-              strokeWidth={selected ? 2.5 : 1}
-            />
             <text
-              x={lx}
-              y={ly - 7}
-              textAnchor="middle"
-              style={{ fontFamily: "var(--font-serif)", fontSize: 15, fill: "var(--color-ink)" }}
-            >
-              {DIRECTION_LABEL[d]}
-            </text>
-            {/* 星名垫 paper 底 pill：混色扇区底上文字实测不可读（critique P0）。
-                pill 只垫不遮，纸色微透，朱砂/灰字对纸底对比度过 AA。 */}
-            <rect
-              x={lx - PILL_W / 2}
-              y={ly + 2}
-              width={PILL_W}
-              height={PILL_H}
-              rx={PILL_H / 2}
-              fill="var(--color-paper)"
-              fillOpacity={0.92}
-            />
-            <text
-              x={lx}
-              y={ly + 11}
+              x={gx}
+              y={gy}
               textAnchor="middle"
               dominantBaseline="central"
-              style={{ fontSize: 12, fill: v.auspicious ? "var(--color-cinnabar)" : "var(--color-muted)" }}
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: 22,
+                fontWeight: v.auspicious ? 600 : 400,
+                fill: selected ? "var(--color-cinnabar)" : guaColor(v),
+              }}
             >
-              {v.star}
+              {DIRECTION_GUA[d]}
             </text>
+            {/* 四吉方位在卦字向心侧标注星名小字：生气朱砂，天医/延年/伏位 muted。
+                凶方不出星名——吉凶冗余通道由卦字颜色/字重承担。 */}
+            {v.auspicious &&
+              (() => {
+                const [sx, sy] = polar(STAR_R, deg);
+                return (
+                  <text
+                    x={sx}
+                    y={sy}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: "0.2em",
+                      fill: v.star === "生气" ? "var(--color-cinnabar)" : "var(--color-muted)",
+                    }}
+                  >
+                    {v.star}
+                  </text>
+                );
+              })()}
+            {/* 选中态：卦字已变朱砂，再在向心侧补一条 2px 朱砂短划线（沿切向）。 */}
+            {selected &&
+              (() => {
+                const [dx, dy] = polar(DASH_R, deg);
+                const [tx, ty] = tangent(deg);
+                return (
+                  <line
+                    x1={dx - tx * 10}
+                    y1={dy - ty * 10}
+                    x2={dx + tx * 10}
+                    y2={dy + ty * 10}
+                    stroke="var(--color-cinnabar)"
+                    strokeWidth={2}
+                  />
+                );
+              })()}
           </g>
         );
       })}
-      <circle cx={CX} cy={CY} r={R_IN - 4} fill="var(--color-surface)" stroke="var(--color-line)" />
+      <circle cx={CX} cy={CY} r={CENTER_R} fill="var(--color-surface)" stroke="var(--color-line)" />
       <text
         x={CX}
         y={CY + 8}

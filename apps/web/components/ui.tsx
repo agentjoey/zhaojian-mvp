@@ -171,7 +171,7 @@ export function Tag({
   );
 }
 
-// —— 天干地支圆徽 ——
+// —— 天干地支圆徽（墨底纸字；日主朱砂双描边）——
 export function GanzhiBadge({
   char,
   highlight = false,
@@ -181,9 +181,6 @@ export function GanzhiBadge({
   highlight?: boolean; // 日主双描边
   size?: number;
 }) {
-  const el = elementOf(char);
-  const bg = el ? `var(--color-${el})` : "var(--color-tint)";
-  const fg = el ? `var(--color-on-${el})` : "var(--color-ink)";
   return (
     <span
       className="inline-flex items-center justify-center font-semibold"
@@ -191,11 +188,11 @@ export function GanzhiBadge({
         width: size,
         height: size,
         borderRadius: "50%",
-        background: bg,
-        color: fg,
+        background: "var(--color-ink)",
+        color: "var(--color-paper)",
         fontFamily: "var(--font-serif)",
         fontSize: size * 0.46,
-        boxShadow: highlight ? "0 0 0 2px var(--color-surface), 0 0 0 3px var(--color-cinnabar)" : undefined,
+        boxShadow: highlight ? "0 0 0 2px var(--color-paper), 0 0 0 3px var(--color-cinnabar)" : undefined,
       }}
     >
       {char}
