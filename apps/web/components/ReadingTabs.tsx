@@ -56,9 +56,9 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
   const overview = sections.find((s) => !s.accent);
 
   const TABS = [
-    { k: "命理" as const, label: t("chart.tabMingli"), kicker: t("chart.kickerMingli"), sec: byAccent("fire"), chips: liChips(chart), dark: false },
-    { k: "心理" as const, label: t("chart.tabPsych"), kicker: t("chart.kickerPsych"), sec: byAccent("water"), chips: xinChips(chart), dark: false },
-    { k: "共振" as const, label: t("chart.tabResonance"), kicker: t("chart.kickerResonance"), sec: byAccent("metal"), chips: [t("chart.resonanceExampleChip")], dark: true },
+    { k: "命理" as const, label: t("chart.tabMingli"), kicker: t("chart.kickerMingli"), sec: byAccent("fire"), chips: liChips(chart) },
+    { k: "心理" as const, label: t("chart.tabPsych"), kicker: t("chart.kickerPsych"), sec: byAccent("water"), chips: xinChips(chart) },
+    { k: "共振" as const, label: t("chart.tabResonance"), kicker: t("chart.kickerResonance"), sec: byAccent("metal"), chips: [t("chart.resonanceExampleChip")] },
   ];
   const progress = { 命理: "34%", 心理: "67%", 共振: "100%" }[tab];
   const cur = TABS.find((t) => t.k === tab)!;
@@ -78,15 +78,15 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
 
       {/* sticky Tab */}
       <div className="sticky top-[3px] z-10 mt-4 py-2" style={{ background: "var(--color-paper)" }}>
-        <div className="flex gap-1 p-1" style={{ background: "var(--color-tint)", borderRadius: "13px" }}>
+        <div className="flex gap-1 p-1" style={{ background: "var(--color-tint)", borderRadius: "var(--radius-button)" }}>
           {TABS.map((item) => {
             const on = item.k === tab;
             return (
               <button
                 key={item.k}
                 onClick={() => setTab(item.k)}
-                className="flex-1 py-2.5 text-[13.5px] font-medium transition-all duration-200"
-                style={{ borderRadius: "10px", background: on ? "var(--color-surface)" : "transparent", color: on ? "var(--color-ink)" : "var(--color-muted)", boxShadow: on ? "0 2px 8px rgba(31,29,25,.1)" : "none" }}
+                className="flex-1 py-2.5 text-[13.5px] font-medium transition-colors duration-200"
+                style={{ borderRadius: "var(--radius-chip)", background: on ? "var(--color-surface)" : "transparent", color: on ? "var(--color-ink)" : "var(--color-muted)", border: on ? "1px solid var(--color-line)" : "1px solid transparent" }}
               >
                 {item.label}
               </button>
@@ -95,37 +95,37 @@ export function ReadingTabs({ sections, chart, streaming }: { sections: ReadingS
         </div>
       </div>
 
-      {/* 摘要先行卡 */}
+      {/* 摘要先行卡（细线描边，无阴影；顶边 2px 五行语义色） */}
       <div
         key={tab}
         className="zj-rise mt-3 p-6"
         style={{
-          borderRadius: "18px",
-          background: cur.dark ? "var(--color-ink)" : "var(--color-surface)",
-          color: cur.dark ? "var(--color-on-ink)" : "var(--color-ink)",
-          boxShadow: cur.dark ? "var(--shadow-panel)" : "var(--shadow-soft)",
-          borderTop: `3px solid var(--color-${cur.dark ? "metal" : tab === "命理" ? "fire" : "water"})`,
+          borderRadius: "var(--radius-card)",
+          background: "var(--color-surface)",
+          color: "var(--color-ink)",
+          border: "1px solid var(--color-line)",
+          borderTop: `2px solid var(--color-${tab === "命理" ? "fire" : tab === "心理" ? "water" : "metal"})`,
         }}
       >
-        <div className="latin-label text-[11px]" style={{ color: cur.dark ? "var(--color-on-ink-gold)" : "var(--color-muted)" }}>{cur.kicker}</div>
+        <div className="text-[11px] tracking-[0.2em]" style={{ color: "var(--color-muted)" }}>{cur.kicker}</div>
         {head ? (
           <div className="mt-2 font-serif text-[21px] font-bold leading-[1.5]">{head}</div>
         ) : (
-          <div className="mt-2 text-[14px]" style={{ color: cur.dark ? "var(--color-on-ink-muted)" : "var(--color-muted)" }}>{streaming ? t("chart.generating") : "—"}</div>
+          <div className="mt-2 text-[14px]" style={{ color: "var(--color-muted)" }}>{streaming ? t("chart.generating") : "—"}</div>
         )}
         {cur.chips.length > 0 && (
           <div className="mt-3.5 flex flex-wrap gap-1.5">
             {cur.chips.map((ch, i) => (
-              <span key={i} className="px-2.5 py-1 text-[12px]" style={{ borderRadius: "9px", background: cur.dark ? "#34322C" : "var(--color-tint)", color: cur.dark ? "var(--color-on-ink-muted)" : "var(--color-ink-2)" }}>{ch}</span>
+              <span key={i} className="px-2.5 py-1 text-[12px]" style={{ borderRadius: "var(--radius-chip)", background: "var(--color-tint)", color: "var(--color-ink-2)" }}>{ch}</span>
             ))}
           </div>
         )}
         {rest && (
-          <div className="reading-prose mt-3.5" style={cur.dark ? { color: "var(--color-on-ink-muted)" } : undefined}>
+          <div className="reading-prose mt-3.5">
             <Markdown text={rest} />
           </div>
         )}
-        {cur.dark && <div className="mt-3.5 text-[11px] leading-[1.6]" style={{ color: "var(--color-on-ink-faint)" }}>{t("chart.resonanceNote")}</div>}
+        {tab === "共振" && <div className="mt-3.5 text-[11px] leading-[1.6]" style={{ color: "var(--color-muted)" }}>{t("chart.resonanceNote")}</div>}
       </div>
 
       <p className="mt-3 text-[12px] text-muted">

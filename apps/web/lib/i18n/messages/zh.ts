@@ -4,6 +4,7 @@ export const zh = {
     loading: "加载中…",
     cancel: "取消",
     confirm: "确认",
+    casting: "排 盘 中",
     save: "保存",
     delete: "删除",
     edit: "编辑",
@@ -25,6 +26,11 @@ export const zh = {
   },
   account: {
     title: "账号",
+    kicker: "账 户",
+    sectionSubscription: "订 阅",
+    sectionBinding: "绑 定",
+    sectionLogin: "登 录",
+    sectionData: "数 据",
     saveYourZhaojian: "保存你的照见",
     signIn: "登录",
     signOut: "登出",
@@ -79,6 +85,8 @@ export const zh = {
   },
   home: {
     heroTitle1: "你的命盘，",
+    kickerHero: "卷 首",
+    kickerToc: "目 录",
     heroTitle2: "是一面镜子",
     heroSubtitle: "紫微 · 八字 × 深层心理。观照自身，而非预言吉凶。",
     ctaButton: "为我起盘 · 即时生成",
@@ -90,15 +98,15 @@ export const zh = {
     },
     cards: {
       east: {
-        label: "East · 命理结构",
+        label: "命理结构",
         text: "紫微十二宫、八字四柱、生年四化——开源引擎精确计算，可审计、不臆造。",
       },
       west: {
-        label: "West · 心理映照",
+        label: "心理映照",
         text: "太阳月亮上升、土星课题、内在张力——以荣格原型读命盘为心象。",
       },
       resonance: {
-        label: "Resonance · 共振",
+        label: "共振",
         text: "仅在内在世界轴等高置信处东西互证，给出克制、非决定论的成长之言。",
       },
     },
@@ -118,6 +126,7 @@ export const zh = {
   },
   reading: {
     heroTitle1: "告诉我，",
+    kicker: "起 盘",
     heroTitle2: "你何时来到这世间。",
     intro:
       "我们即时推算你的八字、紫微斗数与西方本命盘。出生地用于校正真太阳时；若缺出生时辰，将略去心理（西方）层，仅呈现命理。",
@@ -151,6 +160,8 @@ export const zh = {
   },
   chart: {
     title: "命盘",
+    kicker: "命 盘",
+    wuxingTitle: "五 行",
     loadingProfile: "正在读取档案…",
     noProfile: "尚无命盘档案。",
     goCast: "去起盘",
@@ -177,9 +188,9 @@ export const zh = {
     tabMingli: "命理",
     tabPsych: "心理",
     tabResonance: "共振",
-    kickerMingli: "East · 命理结构",
-    kickerPsych: "West · 心理映照",
-    kickerResonance: "Resonance · 共振",
+    kickerMingli: "命理结构",
+    kickerPsych: "心理映照",
+    kickerResonance: "共振",
     readingSaved: "此解读已为你保存，下次回到命盘可直接查看。",
     resonanceNote: "※ 仅在「内在世界」高置信锚点谈共振，非硬等价。",
     resonanceExampleChip: "福德宫 ↔ 月亮 · 土星",
@@ -219,6 +230,8 @@ export const zh = {
     selfPortraitSubtitle: "由命盘结构与自我自陈合成的内在侧写",
   },
   calendar: {
+    kicker: "流 日",
+    dimsTitle: "五 维",
     title: "运势日历",
     loadingProfile: "正在读取档案…",
     noProfileForFortune: "尚无命盘档案，无法生成每日运势。",
@@ -314,6 +327,7 @@ export const zh = {
     complete: "完成 · 让本命之灵更懂你",
   },
   fengshui: {
+    kicker: "境",
     title: "境",
     subtitle: "本命方位 · 人与空间",
     notEnabled: "「境」尚未开启。",
@@ -371,8 +385,14 @@ export const zh = {
     narrativeFailed: "叙述暂时生成不出来，下面的盘与建议不受影响。",
     narrativeDegraded: "本次叙述中有方位判断被系统纠正，可信度不足，已不展示；下面的盘与建议不受影响。",
     regenerate: "重新生成叙述",
+    castingTitle: "正在起你的八方盘",
+    filterByDirection: "只看{direction}方",
+    filterClear: "清除筛选",
+    filterEmpty: "这个方位暂时没有对应的化解。",
+    generalRemedies: "不限方位",
     disclaimer: "以上用于自我觉察与居住体验改善，不构成专业建议。",
     object: {
+      kicker: "物 件",
       title: "我想添置…",
       subtitle: "说说物件，给你落位建议",
       category: "品类",
@@ -399,6 +419,7 @@ export const zh = {
       dwellingUnknown: "会员状态暂时确认不了，下面先只按你的本命方位给建议——不代表你没有权限。",
     },
     dwelling: {
+      kicker: "居 所",
       title: "我的居所",
       add: "添加居所",
       editTitle: "编辑居所",
@@ -432,6 +453,7 @@ export const zh = {
   },
   profiles: {
     title: "我的档案",
+    kicker: "档 案",
     create: "新建档案",
     loading: "正在读取档案…",
     empty: "尚无档案。建档后命盘一次生成并冻结，不再更改。",

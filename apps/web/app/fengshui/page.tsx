@@ -3,18 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  computeFengshui, FENGSHUI_ENGINE_VERSION, directionsFor, DIRECTION_LABEL,
-  type FengshuiChart, type DwellingInput, type CohabitantInput,
+  computeFengshui, FENGSHUI_ENGINE_VERSION, directionsFor, DIRECTION_LABEL, DIRECTIONS,
+  type FengshuiChart, type DwellingInput, type CohabitantInput, type Direction,
 } from "@eamvp/core";
 import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
 import { listDwellings, type Dwelling } from "@/lib/dwellings";
 import { MAX_COHABITANTS } from "@/lib/fengshui-limits";
 import { hasTgSession, tgGetProfile, tgListProfiles } from "@/lib/tg/client";
-import { useIsTelegram } from "@/lib/tg/ui";
+import { useIsTelegram, haptics } from "@/lib/tg/ui";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 import { BaguaWheel } from "@/components/charts/BaguaWheel";
+import { CastingOverlay } from "@/components/CastingOverlay";
 import { Markdown } from "@/components/Markdown";
 import { Card } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { Group, Cell, Segmented } from "@/components/tg/native";
 import { Paywall } from "@/components/Paywall";
 import { supabase } from "@/lib/supabase";
@@ -36,6 +38,19 @@ const SPIRIT_QUERY_MAX_LEN = 80;
 /** 供 /spirit 端拼出「关于这条化解的提问」的原始素材；超限截断，避免 URL 无限增长。 */
 export function truncateForSpiritQuery(text: string, max = SPIRIT_QUERY_MAX_LEN): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/** 方位标签 → Direction 反查（盘即导航的过滤依据）。 */
+const LABEL_TO_DIRECTION = new Map<string, Direction>(DIRECTIONS.map((d) => [DIRECTION_LABEL[d], d]));
+
+/**
+ * 从化解的 `target` 字段提取方位（2026-08 创意 A「盘即导航」）。target 形如
+ * 「南（生气方）」。**先长后短**：「北」是「东北」的子串，两字方位必须优先匹配
+ * （方位名子串陷阱在本仓库已咬过三次）。
+ * 与方位无关的化解（宜用色与材/物件类）返回 null，过滤时归入「不限方位」组。
+ */
+export function remedyDirection(target: string): Direction | null {
+  return LABEL_TO_DIRECTION.get(target.slice(0, 2)) ?? LABEL_TO_DIRECTION.get(target.slice(0, 1)) ?? null;
 }
 
 /** 居所加载超时（复审必修2 次级风险）：见下方 withTimeout 的文档。 */
@@ -197,6 +212,43 @@ export default function FengshuiPage() {
   // 点一次「重新确认」就 +1，出现在下方闸门探测 effect 的依赖数组里——与
   // retryNonce/dwellingsRetryNonce 同一手法，让探测失败可以被用户自己救回来。
   const [entitlementRetryNonce, setEntitlementRetryNonce] = useState(0);
+
+  // 首揭仪式（2026-08 创意 B / critique P1）：每会话每档案一次——复用 calendar 的
+  // CastingOverlay（seal 换「境」），盘扇区随后按吉凶 rank 错峰入场。用户第一次看到
+  // 「自己的八方吉凶」是这条产品线的存在理由，不能是一个 SVG 瞬间出现。
+  const [revealing, setRevealing] = useState(false);
+  const [staggerIn, setStaggerIn] = useState(false);
+  // 盘即导航（创意 A）：点本命盘扇区 → 化解 tab 按方位过滤；再点同一扇区取消过滤。
+  const [dirFilter, setDirFilter] = useState<Direction | null>(null);
+
+  useEffect(() => {
+    if (!ENABLED || !profile) return;
+    try {
+      const key = `zj.fsReveal.${profile.id}`;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      return; // sessionStorage 不可用（隐私模式等）→ 不播过场，不挡内容
+    }
+    setRevealing(true);
+    setStaggerIn(true);
+    const timer = setTimeout(() => {
+      setRevealing(false);
+      // 错峰入场与过场同属「首揭仪式」，必须在同一定时器里一并复位（评审 I1）：
+      // 盘挂在 tab 条件渲染下，点扇区会切到化解 tab——staggerIn 不复位的话，
+      // 切回命盘 tab 时盘重新挂载、staggerIn 仍为 true，会在没有 CastingOverlay
+      // 解释的情况下重放一次错峰淡入（BaguaWheel 的 prop 文档写明「仅首次渲染时传 true」）。
+      setStaggerIn(false);
+    }, 2100);
+    return () => clearTimeout(timer);
+  }, [profile]);
+
+  function selectDirection(d: Direction) {
+    haptics.light();
+    const next = dirFilter === d ? null : d;
+    setDirFilter(next);
+    if (next) setTab("remedy");
+  }
 
   useEffect(() => {
     if (!ENABLED) return;
@@ -521,10 +573,113 @@ export default function FengshuiPage() {
       ? ({ role: "tabpanel", id: `fs-panel-${tb}`, "aria-labelledby": `fs-tab-${tb}` } as const)
       : {};
 
+  // 盘即导航：dirFilter 生效时清单只留落在该方位的化解；「不限方位」的通用化解
+  // （色/材/物件类）单列一组照列——它们与方位无关，过滤掉就是丢内容。
+  const visibleRemedies = dirFilter
+    ? f.remedies.filter((r) => remedyDirection(r.target) === dirFilter)
+    : f.remedies;
+  const generalRemedies = dirFilter
+    ? f.remedies.filter((r) => remedyDirection(r.target) === null)
+    : [];
+
+  /** 化解清单（TG=Group+Cell / web=Card 列表）。两个宿主共享同一份条目。 */
+  function renderRemedyList(items: typeof f.remedies) {
+    return inTg ? (
+      // TG：化解清单用原生 Group+Cell。诚实标注（传统象征 vs 传统+现代）与
+      // 成本分级一并保留在副标题——它们是产品可信度的核心，不能在原生化的
+      // 名义下丢掉。
+      <div className="mt-3">
+      <Group>
+        {items.map((r) => (
+          <Cell
+            key={r.id}
+            icon={t(`fengshui.effortLabel.${r.effort}`).slice(0, 1)}
+            title={r.action}
+            subtitle={
+              <span className="flex flex-col gap-1 pt-0.5">
+                <span>
+                  {t(`fengshui.effortLabel.${r.effort}`)} ·{" "}
+                  {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
+                </span>
+                <span>{t("fengshui.traditionalLabel")}：{r.traditional}</span>
+                {r.modern && <span>{t("fengshui.modernLabel")}：{r.modern}</span>}
+                {SPIRIT_ENABLED && (
+                  <Link
+                    href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                    className="inline-block"
+                    style={{ color: "var(--color-cinnabar)" }}
+                  >
+                    {t("fengshui.askMira")}
+                  </Link>
+                )}
+              </span>
+            }
+          />
+        ))}
+      </Group>
+      </div>
+    ) : (
+      // web：细线分隔的编辑式清单（2026-08 当代东方）——方位字做行首锚点（朱砂宋体），
+      // 成本分级小号右对齐，行间与列表上下各一条 1px 细线；诚实标注（传统象征 vs
+      // 传统+现代）与传统/现代两行说明照旧保留——它们是产品可信度的核心，不能丢。
+      <ul className="mt-3 border-y border-[var(--color-line)] [&>li+li]:border-t [&>li+li]:border-[var(--color-line)]">
+        {items.map((r) => {
+          const dir = remedyDirection(r.target);
+          return (
+            <li key={r.id} className="py-4">
+              <div className="flex items-baseline gap-3">
+                {dir && (
+                  <span
+                    className="font-serif text-[16px] font-semibold"
+                    style={{ color: "var(--color-cinnabar)" }}
+                  >
+                    {DIRECTION_LABEL[dir]}
+                  </span>
+                )}
+                <span
+                  className="ml-auto shrink-0 text-[11px] tracking-[0.1em]"
+                  style={{ color: "var(--color-muted)" }}
+                >
+                  {t(`fengshui.effortLabel.${r.effort}`)}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[14px] text-ink">{r.action}</p>
+              <p className="mt-2 text-[13px] text-ink-2">
+                {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
+                {" · "}
+                {t("fengshui.traditionalLabel")}：{r.traditional}
+              </p>
+              {r.modern && (
+                <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
+              )}
+              {SPIRIT_ENABLED && (
+                <Link
+                  href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
+                  className="mt-2 inline-block text-[13px]"
+                  style={{ color: "var(--color-cinnabar)" }}
+                >
+                  {t("fengshui.askMira")}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
-      <h1 className="text-[24px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.title")}</h1>
-      <p className="mt-1 text-[13px] text-muted">{t("fengshui.subtitle")}</p>
+      {revealing && profile && (
+        <CastingOverlay
+          gan={profile.chart.bazi.pillars.day.stem}
+          zhi={profile.chart.bazi.pillars.day.branch}
+          seal="境"
+          title={t("fengshui.castingTitle")}
+          hint={t("common.casting")}
+        />
+      )}
+      <PageHeader kicker={t("fengshui.kicker")} title={t("fengshui.title")} annotation={t("fengshui.subtitle")} />
 
       {inTg ? (
         <div className="mt-5">
@@ -601,7 +756,15 @@ export default function FengshuiPage() {
             )}
 
             <div className="mt-4 flex flex-col items-center">
-              <BaguaWheel verdicts={activeVerdicts} centerLabel={`${activeMingGua.guaName}${activeMingGua.gua}`} />
+              {/* 盘即导航（创意 A）：本命盘扇区可点——点「生气」等扇区跳到化解 tab
+                  并按该方位过滤。宅盘不挂交互（化解清单的方位语义是本命卦的）。 */}
+              <BaguaWheel
+                verdicts={activeVerdicts}
+                centerLabel={`${activeMingGua.guaName}${activeMingGua.gua}`}
+                staggerIn={staggerIn}
+                selectedDirection={dirFilter}
+                onSelectDirection={selectDirection}
+              />
               <p className="mt-2 text-[13px] text-ink-2">
                 {t("fengshui.mingGua")}：{activeMingGua.guaName}{activeMingGua.gua}（{activeMingGua.group}）
               </p>
@@ -658,7 +821,15 @@ export default function FengshuiPage() {
               // 隐藏（用户能看见「有东西在这里，需要会员才能看」，而不是以为自己压根
               // 没登记居所——那会误导去 /fengshui/dwellings 重复登记）。
               // reason="member"：这里没有"上限"、也没有要"保存"的东西（修复单 Important 5）。
+              // 剪影付费墙（2026-08 创意 C）：「看得见形状、看不清内容」。silhouette
+              // 模式不携带任何真实宅卦数据（verdicts=null），付费内容不进非会员浏览器
+              // 的规矩不破——剪影只是八个扇区的结构，不含吉凶。
               <section className="mt-8">
+                <div className="relative flex justify-center py-2" aria-hidden>
+                  <div style={{ filter: "blur(5px)", opacity: 0.5 }}>
+                    <BaguaWheel silhouette verdicts={null} centerLabel="" size={260} />
+                  </div>
+                </div>
                 <Paywall reason="member" />
               </section>
             ) : hasUnknownDwelling ? (
@@ -728,66 +899,35 @@ export default function FengshuiPage() {
             onRetry={regenerate}
             render={(s) => <div className="reading-prose mt-2"><Markdown text={s.actions} /></div>}
           />
-          {inTg ? (
-            // TG：化解清单用原生 Group+Cell。诚实标注（传统象征 vs 传统+现代）与
-            // 成本分级一并保留在副标题——它们是产品可信度的核心，不能在原生化的
-            // 名义下丢掉。
-            <div className="mt-3">
-            <Group>
-              {f.remedies.map((r) => (
-                <Cell
-                  key={r.id}
-                  icon={t(`fengshui.effortLabel.${r.effort}`).slice(0, 1)}
-                  title={r.action}
-                  subtitle={
-                    <span className="flex flex-col gap-1 pt-0.5">
-                      <span>
-                        {t(`fengshui.effortLabel.${r.effort}`)} ·{" "}
-                        {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
-                      </span>
-                      <span>{t("fengshui.traditionalLabel")}：{r.traditional}</span>
-                      {r.modern && <span>{t("fengshui.modernLabel")}：{r.modern}</span>}
-                      {SPIRIT_ENABLED && (
-                        <Link
-                          href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
-                          className="inline-block"
-                          style={{ color: "var(--color-cinnabar)" }}
-                        >
-                          {t("fengshui.askMira")}
-                        </Link>
-                      )}
-                    </span>
-                  }
-                />
-              ))}
-            </Group>
+          {dirFilter && (
+            <div className="mt-3 flex items-center gap-3 text-[13px]">
+              <span
+                className="rounded-[var(--radius-chip)] px-3 py-1"
+                style={{ background: "var(--color-tint)", color: "var(--color-ink)" }}
+              >
+                {t("fengshui.filterByDirection", { direction: DIRECTION_LABEL[dirFilter] })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setDirFilter(null)}
+                style={{ color: "var(--color-cinnabar)" }}
+              >
+                {t("fengshui.filterClear")}
+              </button>
             </div>
+          )}
+          {visibleRemedies.length === 0 ? (
+            <p className="mt-3 text-[13px] text-muted">{t("fengshui.filterEmpty")}</p>
           ) : (
-          <ul className="mt-3 flex flex-col gap-3">
-            {f.remedies.map((r) => (
-              <Card key={r.id} className="p-4">
-                <div className="flex items-center gap-2 text-[12px] text-muted">
-                  <span>{t(`fengshui.effortLabel.${r.effort}`)}</span>
-                  <span>·</span>
-                  <span>{r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}</span>
-                </div>
-                <p className="mt-1.5 text-[15px] text-ink">{r.action}</p>
-                <p className="mt-2 text-[13px] text-ink-2">{t("fengshui.traditionalLabel")}：{r.traditional}</p>
-                {r.modern && (
-                  <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
-                )}
-                {SPIRIT_ENABLED && (
-                  <Link
-                    href={`/spirit?topic=fengshui&q=${encodeURIComponent(truncateForSpiritQuery(r.action))}`}
-                    className="mt-3 inline-block text-[13px]"
-                    style={{ color: "var(--color-cinnabar)" }}
-                  >
-                    {t("fengshui.askMira")}
-                  </Link>
-                )}
-              </Card>
-            ))}
-          </ul>
+            renderRemedyList(visibleRemedies)
+          )}
+          {dirFilter && generalRemedies.length > 0 && (
+            <>
+              <h3 className="mt-6 text-[14px]" style={{ fontFamily: "var(--font-serif)" }}>
+                {t("fengshui.generalRemedies")}
+              </h3>
+              {renderRemedyList(generalRemedies)}
+            </>
           )}
         </section>
       )}

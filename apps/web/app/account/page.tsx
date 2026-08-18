@@ -1,15 +1,28 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
 import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
 import { useIsTelegram } from "@/lib/tg/ui";
 import { Paywall } from "@/components/Paywall";
+import { PageHeader } from "@/components/PageHeader";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { LocaleSwitch } from "@/lib/i18n/switch";
 
 const TG_USERNAME_KEY = "zj_tg_username";
+
+/** 信息分区：小标签 + 内容，区间 1px 细线（当代东方编辑式）。 */
+function Section({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="py-7" style={{ borderTop: "1px solid var(--color-line)" }}>
+      <h2 className="mb-4 text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>
+        {label}
+      </h2>
+      {children}
+    </section>
+  );
+}
 
 type ViewState =
   | { kind: "loading" }
@@ -274,21 +287,33 @@ export default function AccountPage() {
     );
   }
 
-  const identitiesSection = (
-    <div
-      className="mb-6 rounded-xl p-4 text-left"
-      style={{
-        background: "var(--color-paper)",
-        border: "1px solid var(--color-line)",
-      }}
-    >
-      <h2
-        className="mb-3 text-sm font-medium"
-        style={{ color: "var(--color-ink)" }}
-      >
-        {t("account.linked")}
-      </h2>
-      <div className="space-y-2 text-sm">
+  const title =
+    view.kind === "telegram"
+      ? view.username
+        ? `@${view.username}`
+        : t("account.title")
+      : view.kind === "email"
+        ? view.email
+        : t("account.saveYourZhaojian");
+  const annotation = view.kind === "telegram" ? t("account.loggedInViaTelegram") : undefined;
+
+  const primaryBtn = "w-full px-4 py-3 text-[14px] font-medium transition-colors disabled:opacity-60";
+  const primaryStyle = {
+    background: "var(--color-cinnabar)",
+    color: "var(--color-paper)",
+    borderRadius: "var(--radius-button)",
+  };
+  const inputCls =
+    "w-full border bg-transparent px-4 py-3 text-[14px] outline-none transition-colors focus:border-[var(--color-cinnabar)]";
+  const inputSt = {
+    borderColor: "var(--color-line)",
+    color: "var(--color-ink)",
+    borderRadius: "var(--radius-button)",
+  };
+
+  const identitiesRows = (
+    <>
+      <div className="space-y-2 text-[13px]">
         <div className="flex items-center justify-between">
           <span style={{ color: "var(--color-muted)" }}>{t("account.email")}</span>
           <span style={{ color: "var(--color-ink)" }}>
@@ -314,257 +339,196 @@ export default function AccountPage() {
         </div>
       )}
       {linkError && (
-        <p
-          className="mt-3 text-center text-sm"
-          style={{ color: "var(--color-cinnabar)" }}
-        >
+        <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
           {linkError}
         </p>
       )}
-    </div>
+    </>
   );
 
-  const title =
-    view.kind === "email" || view.kind === "telegram" ? t("account.title") : t("account.saveYourZhaojian");
-
   return (
-    <main className="flex min-h-screen items-start justify-center p-6 pt-24" style={{ background: "var(--color-bg)" }}>
-      <section
-        className="w-full max-w-md rounded-2xl p-8 shadow-sm"
-        style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-line)",
-        }}
-      >
-        <h1
-          className="mb-3 text-center text-2xl font-semibold"
-          style={{ fontFamily: "var(--font-serif)", color: "var(--color-ink)" }}
+    <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
+      <PageHeader kicker={t("account.kicker")} title={title} annotation={annotation} />
+
+      <div className="mt-6 flex items-center justify-between py-2">
+        <span className="text-[13px]" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
+        <LocaleSwitch />
+      </div>
+
+      {mergeNotice !== null && (
+        <div
+          className="mt-2 px-4 py-3 text-[13px]"
+          style={{
+            background: "var(--color-tint)",
+            color: "var(--color-cinnabar)",
+            borderRadius: "var(--radius-chip)",
+          }}
         >
-          {title}
-        </h1>
-
-        <div className="mb-6 flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)" }}>
-          <span className="text-sm" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
-          <LocaleSwitch />
+          {t("account.mergedProfiles", { count: mergeNotice })}
         </div>
+      )}
 
-        {mergeNotice !== null && (
-          <div
-            className="mb-4 rounded-xl px-4 py-3 text-center text-sm"
-            style={{
-              background: "rgba(224, 78, 57, 0.12)",
-              color: "var(--color-cinnabar)",
-            }}
-          >
-            {t("account.mergedProfiles", { count: mergeNotice })}
-          </div>
-        )}
-
-        {billing && (
-          <div
-            className="mb-6 rounded-xl p-4"
-            style={{
-              background: "var(--color-paper)",
-              border: "1px solid var(--color-line)",
-            }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>
-                  {billing.tier === "member" ? t("account.tierMember") : t("account.tierFree")}
+      {billing && (
+        <Section label={t("account.sectionSubscription")}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-medium" style={{ color: "var(--color-ink)" }}>
+                {billing.tier === "member" ? t("account.tierMember") : t("account.tierFree")}
+              </p>
+              {billing.tier === "member" && billing.memberUntil ? (
+                <p className="text-[12px]" style={{ color: "var(--color-muted)" }}>
+                  {t("account.expiresOn", { date: new Date(billing.memberUntil).toLocaleDateString("zh-CN") })}
                 </p>
-                {billing.tier === "member" && billing.memberUntil ? (
-                  <p className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    {t("account.expiresOn", { date: new Date(billing.memberUntil).toLocaleDateString("zh-CN") })}
-                  </p>
-                ) : (
-                  <p className="text-xs" style={{ color: "var(--color-muted)" }}>
-                    {t("account.usageThisMonth", { used: billing.used, free: billing.free })}
-                  </p>
-                )}
-              </div>
-              {billing.tier !== "member" && (
-                <button
-                  type="button"
-                  onClick={() => setShowPaywall(true)}
-                  className="rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.98]"
-                  style={{ background: "var(--color-cinnabar)", color: "#fff" }}
-                >
-                  {t("paywall.upgrade")}
-                </button>
+              ) : (
+                <p className="text-[12px]" style={{ color: "var(--color-muted)" }}>
+                  {t("account.usageThisMonth", { used: billing.used, free: billing.free })}
+                </p>
               )}
             </div>
-            {showPaywall && (
-              <div className="mt-4">
-                <Paywall reason="quota" onClose={() => setShowPaywall(false)} />
-              </div>
+            {billing.tier !== "member" && (
+              <button
+                type="button"
+                onClick={() => setShowPaywall(true)}
+                className="px-4 py-2 text-[13px] font-medium transition-colors"
+                style={{ background: "var(--color-cinnabar)", color: "var(--color-paper)", borderRadius: "var(--radius-button)" }}
+              >
+                {t("paywall.upgrade")}
+              </button>
             )}
           </div>
-        )}
+          {showPaywall && (
+            <div className="mt-4">
+              <Paywall reason="quota" onClose={() => setShowPaywall(false)} />
+            </div>
+          )}
+        </Section>
+      )}
 
-        {view.kind === "telegram" ? (
-          <div className="space-y-6 text-center">
-            {identitiesSection}
-            {identities && identities.email === null && (
-              <div className="space-y-3 text-left">
-                <label htmlFor="link-email" className="block text-sm" style={{ color: "var(--color-ink)" }}>
-                  {t("account.linkEmailLabel")}
-                </label>
-                <input
-                  id="link-email"
-                  type="email"
-                  value={linkEmail}
-                  onChange={(e) => setLinkEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full rounded-xl border bg-transparent px-4 py-3 outline-none transition focus:ring-2"
-                  style={{
-                    borderColor: "var(--color-line)",
-                    color: "var(--color-ink)",
-                  }}
-                  onKeyDown={(e) => e.key === "Enter" && handleLinkEmail()}
-                />
-                <button
-                  onClick={handleLinkEmail}
-                  disabled={linkEmailStatus === "sending"}
-                  className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98] disabled:opacity-60"
-                  style={{
-                    background: "var(--color-cinnabar)",
-                    color: "#fff",
-                  }}
-                >
-                  {linkEmailStatus === "sending" ? t("common.sending") : t("account.linkEmailLabel")}
-                </button>
-                {linkEmailStatus === "sent" && (
-                  <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                    {t("account.linkEmailSent")}
-                  </p>
-                )}
-                {typeof linkEmailStatus === "object" && "error" in linkEmailStatus && (
-                  <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                    {linkEmailStatus.error}
-                  </p>
-                )}
-              </div>
-            )}
-            <p style={{ color: "var(--color-ink)" }}>
-              {t("account.loggedInViaTelegram")}
-              {view.username ? `（${view.username}）` : null}
-            </p>
-            <button
-              onClick={handleLogout}
-              className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98]"
-              style={{
-                background: "var(--color-cinnabar)",
-                color: "#fff",
-              }}
-            >
-              {t("account.signOut")}
-            </button>
-          </div>
-        ) : view.kind === "email" ? (
-          <div className="space-y-6 text-center">
-            {identitiesSection}
-            <p style={{ color: "var(--color-ink)" }}>{view.email}</p>
-            <button
-              onClick={handleLogout}
-              className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98]"
-              style={{
-                background: "var(--color-cinnabar)",
-                color: "#fff",
-              }}
-            >
-              {t("account.signOut")}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            <p className="text-center text-sm leading-relaxed" style={{ color: "var(--color-muted)" }}>
-              {t("account.anonymousDescription")}
-            </p>
-
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm" style={{ color: "var(--color-ink)" }}>
-                {t("account.emailAddress")}
+      {view.kind === "telegram" ? (
+        <Section label={t("account.sectionBinding")}>
+          {identitiesRows}
+          {identities && identities.email === null && (
+            <div className="mt-5 space-y-3">
+              <label htmlFor="link-email" className="block text-[13px]" style={{ color: "var(--color-ink)" }}>
+                {t("account.linkEmailLabel")}
               </label>
               <input
-                id="email"
+                id="link-email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={linkEmail}
+                onChange={(e) => setLinkEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="w-full rounded-xl border bg-transparent px-4 py-3 outline-none transition focus:ring-2"
-                style={{
-                  borderColor: "var(--color-line)",
-                  color: "var(--color-ink)",
-                }}
-                onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
+                className={inputCls}
+                style={inputSt}
+                onKeyDown={(e) => e.key === "Enter" && handleLinkEmail()}
+              />
+              <button
+                onClick={handleLinkEmail}
+                disabled={linkEmailStatus === "sending"}
+                className={primaryBtn}
+                style={primaryStyle}
+              >
+                {linkEmailStatus === "sending" ? t("common.sending") : t("account.linkEmailLabel")}
+              </button>
+              {linkEmailStatus === "sent" && (
+                <p className="text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+                  {t("account.linkEmailSent")}
+                </p>
+              )}
+              {typeof linkEmailStatus === "object" && "error" in linkEmailStatus && (
+                <p className="text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+                  {linkEmailStatus.error}
+                </p>
+              )}
+            </div>
+          )}
+        </Section>
+      ) : view.kind === "email" ? (
+        <Section label={t("account.sectionBinding")}>
+          {identitiesRows}
+        </Section>
+      ) : (
+        <Section label={t("account.sectionLogin")}>
+          <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
+            {t("account.anonymousDescription")}
+          </p>
+
+          <div className="mt-4 space-y-2">
+            <label htmlFor="email" className="block text-[13px]" style={{ color: "var(--color-ink)" }}>
+              {t("account.emailAddress")}
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
+              className={inputCls}
+              style={inputSt}
+              onKeyDown={(e) => e.key === "Enter" && handleSendLink()}
+            />
+          </div>
+
+          <button
+            onClick={handleSendLink}
+            disabled={status === "sending"}
+            className={`${primaryBtn} mt-4`}
+            style={primaryStyle}
+          >
+            {status === "sending" ? t("common.sending") : t("account.sendMagicLink")}
+          </button>
+
+          {status === "sent" && (
+            <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+              {t("account.magicLinkSent")}
+            </p>
+          )}
+          {typeof status === "object" && "error" in status && (
+            <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+              {status.error}
+            </p>
+          )}
+
+          {inTg && (
+            <div className="mt-4 flex justify-center" id="tg-login-container">
+              {/* 换专属 bot 时改 data-telegram-login + BotFather /setdomain */}
+              <Script
+                src="https://telegram.org/js/telegram-widget.js?22"
+                data-telegram-login="analyst_helen_bot"
+                data-onauth="onTelegramAuth(user)"
+                data-request-access="write"
+                strategy="afterInteractive"
               />
             </div>
+          )}
+        </Section>
+      )}
 
-            <button
-              onClick={handleSendLink}
-              disabled={status === "sending"}
-              className="w-full rounded-xl px-4 py-3 font-medium transition active:scale-[0.98] disabled:opacity-60"
-              style={{
-                background: "var(--color-cinnabar)",
-                color: "#fff",
-              }}
-            >
-              {status === "sending" ? t("common.sending") : t("account.sendMagicLink")}
-            </button>
-
-            {status === "sent" && (
-              <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                {t("account.magicLinkSent")}
-              </p>
-            )}
-            {typeof status === "object" && "error" in status && (
-              <p className="text-center text-sm" style={{ color: "var(--color-cinnabar)" }}>
-                {status.error}
-              </p>
-            )}
-
-            {inTg && (
-              <div className="flex justify-center pt-2" id="tg-login-container">
-                {/* 换专属 bot 时改 data-telegram-login + BotFather /setdomain */}
-                <Script
-                  src="https://telegram.org/js/telegram-widget.js?22"
-                  data-telegram-login="analyst_helen_bot"
-                  data-onauth="onTelegramAuth(user)"
-                  data-request-access="write"
-                  strategy="afterInteractive"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {(view.kind === "telegram" || view.kind === "email") && (
+      {(view.kind === "telegram" || view.kind === "email") && (
+        <Section label={t("account.sectionData")}>
           <div
-            className="mt-8 rounded-xl p-4"
+            className="p-4"
             style={{
-              background: "rgba(224, 78, 57, 0.08)",
               border: "1px solid var(--color-cinnabar)",
+              borderRadius: "var(--radius-card)",
             }}
           >
-            <h2
-              className="mb-2 text-sm font-medium"
-              style={{ color: "var(--color-cinnabar)" }}
-            >
+            <h3 className="mb-2 text-[13px] font-medium" style={{ color: "var(--color-cinnabar)" }}>
               {t("account.dangerZone")}
-            </h2>
-            <p className="mb-3 text-xs leading-relaxed" style={{ color: "var(--color-cinnabar)" }}>
+            </h3>
+            <p className="mb-3 text-[12px] leading-relaxed" style={{ color: "var(--color-cinnabar)" }}>
               {t("account.deleteWarning")}
             </p>
             {!deleteOpen ? (
               <button
                 type="button"
                 onClick={() => setDeleteOpen(true)}
-                className="w-full rounded-xl border px-4 py-3 text-sm font-medium transition active:scale-[0.98]"
+                className="w-full px-4 py-3 text-[13px] font-medium transition-colors"
                 style={{
-                  borderColor: "var(--color-cinnabar)",
+                  border: "1px solid var(--color-cinnabar)",
                   color: "var(--color-cinnabar)",
                   background: "transparent",
+                  borderRadius: "var(--radius-button)",
                 }}
               >
                 {t("account.deleteAccount")}
@@ -578,7 +542,7 @@ export default function AccountPage() {
                     onChange={(e) => setDeleteChecked(e.target.checked)}
                     className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-cinnabar)]"
                   />
-                  <span className="text-xs leading-relaxed" style={{ color: "var(--color-ink)" }}>
+                  <span className="text-[12px] leading-relaxed" style={{ color: "var(--color-ink)" }}>
                     {t("account.deleteAcknowledge")}
                   </span>
                 </label>
@@ -586,24 +550,38 @@ export default function AccountPage() {
                   type="button"
                   onClick={handleDeleteAccount}
                   disabled={!deleteChecked || deleteLoading}
-                  className="w-full rounded-xl px-4 py-3 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50"
-                  style={{
-                    background: "var(--color-cinnabar)",
-                    color: "#fff",
-                  }}
+                  className="w-full px-4 py-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+                  style={primaryStyle}
                 >
                   {deleteLoading ? t("account.deleting") : t("account.confirmDelete")}
                 </button>
                 {deleteError && (
-                  <p className="text-center text-xs" style={{ color: "var(--color-cinnabar)" }}>
+                  <p className="text-[12px]" style={{ color: "var(--color-cinnabar)" }}>
                     {deleteError}
                   </p>
                 )}
               </div>
             )}
           </div>
-        )}
-      </section>
+        </Section>
+      )}
+
+      {(view.kind === "telegram" || view.kind === "email") && (
+        <div className="py-7" style={{ borderTop: "1px solid var(--color-line)" }}>
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-3 text-[14px] font-medium transition-colors"
+            style={{
+              border: "1px solid var(--color-line)",
+              color: "var(--color-ink)",
+              background: "transparent",
+              borderRadius: "var(--radius-button)",
+            }}
+          >
+            {t("account.signOut")}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

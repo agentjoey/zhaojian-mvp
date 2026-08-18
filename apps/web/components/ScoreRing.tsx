@@ -3,18 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * 评分环（素白 v2）：SVG 双环 + requestAnimationFrame 计数 0→target（easeOutCubic）
- * + stroke-dashoffset 过渡。深色锚点上用（如今日运势 hero）。
+ * 评分环（当代东方 v3）：SVG 双环 + requestAnimationFrame 计数 0→target（easeOutCubic）
+ * + stroke-dashoffset 过渡。纸底细环，墨色进度。
  */
 export function ScoreRing({
   score,
   max = 10,
   size = 104,
   label = "今日指数",
-  track = "#34322C",
-  accent = "var(--color-cinnabar)",
-  textColor = "var(--color-on-ink)",
-  subColor = "#A89E89",
+  track = "var(--color-line)",
+  accent = "var(--color-ink)",
+  textColor = "var(--color-ink)",
+  subColor = "var(--color-muted)",
 }: {
   score: number;
   max?: number;

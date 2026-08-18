@@ -31,3 +31,6 @@ coverage/
 # worktrees
 .worktrees/
 .vercel
+
+# 设计源文件（Pencil）——内容已另行留存，仓库只保留落地后的代码
+docs/assets/*.pen

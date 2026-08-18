@@ -5,7 +5,7 @@ Sprint:         001
 Sprint Status:  🔒 **MVP 冻结** + 🌙 **本命之灵（flag 默认关）** + 🧭 **风水「境」波1+波2+TG适配（flag 线上已开）**
 Last Updated:   2026-08-16 by claude-opus-5（EP-fs-tg：pact worker kimi 实现 / claude 验收，两轮 changes-requested）
 线上:           https://zhaojian-mvp.vercel.app · zhaojian.agentjoey.ai
-测试:           core 154 · llm 177 · web 238（全绿；`pnpm typecheck` 三包全绿）
+测试:           core 154 · llm 182 · web 256（全绿；`pnpm typecheck` 三包全绿；`lint` 0 errors 已为阻塞闸门）
 
 > ⏸️ **现处于「收集反馈」阶段**：除非用户反馈驱动或线上 bug，否则不主动改代码。新需求先入 BACKLOG，待反馈后排期。
 > 🌙 **本命之灵（EP-spirit，Phase1+2+3 全交付）**已合 main，但由 `NEXT_PUBLIC_SPIRIT_ENABLED` flag **默认关闭**，对外不可见、不破坏冻结。准备好收集反馈时设 `=1` 即开（命盘页对话面板+问卷+自我画像，日历每日问今）。
@@ -137,3 +137,4 @@ spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md` · pact
 | 🧭 风水「境」波1 | 2026-08-15 | EP-fs-01~08：命·运·境第三条线。零新输入从出生数据派生本命卦/八方吉凶/用神色材/分级化解/物件顾问；派生层非第四引擎、无迁移；诚实标注由判别联合编译期强制；反幻觉四道 + degraded 降级信号；flag 默认关。SDD 编排 15 task，每 task 独立 review + 最终全分支 review。core122/llm130/web65。⚠️ 开 flag 前须先补英文侧机械校验 |
 | 风水波2 · Layer 1 | 2026-08-16 | EP-fs-11~18：居所/宅卦/房屋八方 + 合看 + 宅层化解 + 会员闸门 + 物件顾问强版；迁移 0011（已 apply 生产）。最终全分支评审揪出跨 task 缝隙 C1——反幻觉第四道只认识命卦表，会把关于房屋的正确陈述改写成假话并永久 degraded；已修为按归属分辨两张表、无法归属则弃权 |
 | 风水 TG 适配 + 开 flag | 2026-08-16 | EP-fs-tg：`api/tg/fengshui` 中介端点 + 数据层会话分流 + 四界面原生化；解除 TG 身份不一致阻塞项，并修掉「合看在 TG 内静默失效」。同日 `NEXT_PUBLIC_FENGSHUI_ENABLED` 线上开启（Production + Preview）。pact：worker kimi / reviewer claude，两轮 changes-requested |
+| 🏮 全站当代东方重设计 | 2026-08-18 | EP-east-ui：依据 contemporary-eastern 指南+Pencil 稿——令牌重建(暖白纸底/朱砂#A84638/圆角0-8px/阴影清零/--color-line-strong)；PageHeader 统一全站页头(中文眉标,拉丁 kicker 全清)；卡片网格→细线编辑式列表；首页卷首(风铃+盘环出血)/calendar 花窗日签(FortuneFrame 复活+干支圆章+宜忌方标)/CastingOverlay 纸底仪式；导航激活墨底去投影回弹。TG 原生臂组件未重排（仅吃令牌变化）。本分支还含 `d275ca0`（风水 UI：muted 对比度 P0、星名 pill、首揭仪式、盘即导航、剪影付费墙 +168 行测试）。web256 绿 · typecheck 0 · lint 0 errors · 6 路由 200 |

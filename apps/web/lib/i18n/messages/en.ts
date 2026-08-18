@@ -6,6 +6,7 @@ export const en: Messages = {
     loading: "Loading…",
     cancel: "Cancel",
     confirm: "Confirm",
+    casting: "Casting",
     save: "Save",
     delete: "Delete",
     edit: "Edit",
@@ -27,6 +28,11 @@ export const en: Messages = {
   },
   account: {
     title: "Account",
+    kicker: "Account",
+    sectionSubscription: "Subscription",
+    sectionBinding: "Bindings",
+    sectionLogin: "Sign in",
+    sectionData: "Data",
     saveYourZhaojian: "Save your 照见 (Zhaojian)",
     signIn: "Sign in",
     signOut: "Sign out",
@@ -79,6 +85,8 @@ export const en: Messages = {
   },
   home: {
     heroTitle1: "Your chart,",
+    kickerHero: "Prologue",
+    kickerToc: "Contents",
     heroTitle2: "is a mirror",
     heroSubtitle:
       "Ziwei · Bazi × depth psychology. A mirror for self-reflection, not a verdict on fortune.",
@@ -91,15 +99,15 @@ export const en: Messages = {
     },
     cards: {
       east: {
-        label: "East · 命理结构 (Mingli structure)",
+        label: "命理结构 · Mingli structure",
         text: "紫微十二宫 (Ziwei twelve houses), 八字四柱 (Bazi four pillars), 生年四化 (natal Four Transforms) — computed precisely by an open engine, auditable, never invented.",
       },
       west: {
-        label: "West · 心理映照 (Psychological reflection)",
+        label: "心理映照 · Psychological reflection",
         text: "Sun, Moon, rising, Saturn lessons, inner tension — read through Jungian archetypes as heart imagery.",
       },
       resonance: {
-        label: "Resonance · 共振",
+        label: "共振 · Resonance",
         text: "Only where East and West converge on high-confidence inner-world axes, giving restrained, non-deterministic words for growth.",
       },
     },
@@ -119,6 +127,7 @@ export const en: Messages = {
   },
   reading: {
     heroTitle1: "Tell me,",
+    kicker: "Cast a Chart",
     heroTitle2: "when you came into this world.",
     intro:
       "We instantly calculate your 八字 (Bazi), 紫微斗数 (Ziwei Doushu), and Western natal chart. Birthplace is used to correct 真太阳时 (True Solar Time); if birth time is unknown, the psychological (Western) layer will be omitted, showing only 命理 (Mingli).",
@@ -156,6 +165,8 @@ export const en: Messages = {
   },
   chart: {
     title: "命盘 (Chart)",
+    kicker: "Birth Chart",
+    wuxingTitle: "Wuxing · Five Elements",
     loadingProfile: "Loading profile…",
     noProfile: "No chart profile yet.",
     goCast: "去起盘 (Cast chart) →",
@@ -183,8 +194,8 @@ export const en: Messages = {
     tabMingli: "命理 (Mingli)",
     tabPsych: "心理 (Psych)",
     tabResonance: "共振 (Resonance)",
-    kickerMingli: "East · 命理结构 (Mingli Structure)",
-    kickerPsych: "West · 心理映照 (Psychological Reflection)",
+    kickerMingli: "Mingli Structure · 命理结构",
+    kickerPsych: "Psychological Reflection · 心理映照",
     kickerResonance: "Resonance · 共振",
     readingSaved: "This reading has been saved; return to Chart to view it again.",
     resonanceNote: "※ 仅在「内在世界 (inner world)」高置信锚点谈共振，非硬等价。",
@@ -225,6 +236,8 @@ export const en: Messages = {
     selfPortraitSubtitle: "An inner profile synthesized from chart structure and self-reported traits.",
   },
   calendar: {
+    kicker: "Daily Fortune",
+    dimsTitle: "Five Dimensions",
     title: "运势日历 (Fortune Calendar)",
     loadingProfile: "Loading profile…",
     noProfileForFortune:
@@ -320,6 +333,7 @@ export const en: Messages = {
     complete: "Complete · Help your 本命之灵 (Natal Spirit) understand you",
   },
   fengshui: {
+    kicker: "Feng Shui",
     title: "Space",
     subtitle: "Your natal directions · you and your space",
     notEnabled: "Space is not enabled yet.",
@@ -365,8 +379,14 @@ export const en: Messages = {
     narrativeFailed: "The narrative couldn't be generated right now — the chart and suggestions below are unaffected.",
     narrativeDegraded: "This narrative got a direction wrong and was auto-corrected, so it isn't shown — the chart and suggestions below are unaffected.",
     regenerate: "Regenerate narrative",
+    castingTitle: "Casting your eight directions",
+    filterByDirection: "Only {direction}",
+    filterClear: "Clear filter",
+    filterEmpty: "No remedies for this direction yet.",
+    generalRemedies: "Any direction",
     disclaimer: "The above is for self-awareness and improving how you experience your space, and does not constitute professional advice.",
     object: {
+      kicker: "Objects",
       title: "I want to add something…",
       subtitle: "Tell us about the piece and we'll suggest where it fits",
       category: "Category",
@@ -386,6 +406,7 @@ export const en: Messages = {
       dwellingUnknown: "We couldn't confirm your membership just now, so the suggestions below use your natal directions only — it doesn't mean you lack access.",
     },
     dwelling: {
+      kicker: "Dwellings",
       title: "My Dwellings",
       add: "Add a dwelling",
       editTitle: "Edit dwelling",
@@ -420,6 +441,7 @@ export const en: Messages = {
   },
   profiles: {
     title: "我的档案 (My Profiles)",
+    kicker: "Profiles",
     create: "新建档案 (Create Profile)",
     loading: "Loading profiles…",
     empty:

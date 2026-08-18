@@ -11,6 +11,7 @@ import { listDwellings } from "@/lib/dwellings";
 import { supabase } from "@/lib/supabase";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useT } from "@/lib/i18n/I18nProvider";
+import { PageHeader } from "@/components/PageHeader";
 import { ObjectAdvisorForm } from "../ObjectAdvisorForm";
 
 const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
@@ -173,8 +174,9 @@ export default function FengshuiObjectPage() {
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
-      <h1 className="mt-3 text-[22px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.object.title")}</h1>
-      <p className="mt-1 text-[13px] text-muted">{t("fengshui.object.subtitle")}</p>
+      <div className="mt-3">
+        <PageHeader kicker={t("fengshui.object.kicker")} title={t("fengshui.object.title")} annotation={<span style={{ fontSize: 13 }}>{t("fengshui.object.subtitle")}</span>} />
+      </div>
       {showProbeFailedNote && (
         <div className="mt-3">
           <p className="text-[13px] text-muted">{t("fengshui.object.dwellingUnknown")}</p>

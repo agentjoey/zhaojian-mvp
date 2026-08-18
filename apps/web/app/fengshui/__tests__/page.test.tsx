@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
 import {
   BirthInputSchema, computeUnifiedChart, computeFengshui, directionsFor, FENGSHUI_ENGINE_VERSION,
+  DIRECTION_LABEL,
 } from "@eamvp/core";
 import { fengshuiFingerprint, type FengshuiSections } from "@/lib/fengshui-report";
 import type { Dwelling } from "@/lib/dwellings";
@@ -246,6 +247,9 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
   localStorage.clear();
+  // 首揭仪式（feat/fengshui-ui）：默认抑制定场，避免每条测试都被 2.1s 过场打扰；
+  // 专门的「首揭仪式」describe 会自己 removeItem。
+  sessionStorage.setItem("zj.fsReveal.p1", "1");
   reportStore.clear();
   dwellingsFixture.current = [];
   dwellingsFixture.error = null;
@@ -1429,5 +1433,180 @@ describe("EP-fs-tg TG 会话：原生分段 Tab + 原生化解清单", () => {
     // 是无障碍回归 + 「web 零变化」红线的双重破坏。只断言 tablist 为 null 抓不到它。
     expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
     expect(document.getElementById("fs-panel-chart")).toBeNull();
+  });
+});
+
+/**
+ * 2026-08 设计评审后续（feat/fengshui-ui）：首揭仪式（创意 B/P1）、盘即导航（创意 A）、
+ * 剪影付费墙（创意 C）。
+ *
+ * 判别力说明：
+ * - remedyDirection 的期望值全部是字面量（评审 C2：旧版从被测函数自身推导期望值，
+ *   「先长后短」倒过来也全绿）；盘即导航的 dir/锚点断言同样写死，不碰 SUT；
+ * - 盘即导航的过滤断言建立在「别的方位的化解不可见」上——过滤被删掉（变异）时必红；
+ * - 剪影断言查「无星名文字 + 8 扇区同fill」——把真实宅盘数据塞进去（变异）时必红；
+ * - I1 的「切走再切回不重放」同时守两端：首揭中 delay 必须在（变异 C 红），
+ *   切回后 delay 必须不在（去掉 staggerIn 复位红）。
+ */
+describe("2026-08 设计评审后续", () => {
+  it("首揭仪式：首次进入播 CastingOverlay（seal=境），同会话同一档案不重复播", async () => {
+    sessionStorage.removeItem("zj.fsReveal.p1");
+    const first = await renderPage();
+    await waitFor(() => expect(screen.getByText("正在起你的八方盘")).toBeInTheDocument());
+    first.unmount();
+    // 同会话第二次进入：不再播
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    expect(screen.queryByText("正在起你的八方盘")).toBeNull();
+  });
+
+  it("remedyDirection 字面量断言：先长后短（中文方位名子串陷阱，评审 C2）", async () => {
+    const { remedyDirection } = await import("../page");
+    // 长短同前缀两对：「东」⊂「东南」、「北」⊂「东北」。先短后长的实现会把
+    // 「东南（生气方）」错配成 E——这些字面量断言是变异 A 的守卫，必须变红。
+    expect(remedyDirection("东南（生气方）")).toBe("SE");
+    expect(remedyDirection("东（天医方）")).toBe("E");
+    expect(remedyDirection("东北（五鬼方）")).toBe("NE");
+    expect(remedyDirection("北（伏位方）")).toBe("N");
+    expect(remedyDirection("西南（绝命方）")).toBe("SW");
+    // 与方位无关的化解（宜用色与材/物件类）→ null，过滤时归入「不限方位」组
+    expect(remedyDirection("形煞 / 屋内杂乱")).toBeNull();
+  });
+
+  it("盘即导航：点本命盘扇区 → 切化解 tab、按方位过滤、方位锚点显示期望标签、不限方位组保留、清除后恢复全量", async () => {
+    // 评审 C2：期望值一律写死，绝不再从被测函数 remedyDirection 推导（旧实现
+    // `dir = remedyDirection(directional[0].target)` 让任何映射错误都自洽、不可见——
+    // 评审把「先长后短」倒过来跑，69/69 全绿，而生产里点东南扇区会得到
+    // 「这个方位暂时没有对应的化解」）。fixture（1990-06-15 男 = 坎1）的带方位
+    // 化解只有这三条：
+    const TARGET_TO_DIRECTION: Record<string, "SE" | "E" | "SW"> = {
+      "东南（生气方）": "SE",
+      "东（天医方）": "E",
+      "西南（绝命方）": "SW",
+    };
+    // 前提校验：fixture 结构没变（变了就光明正大失败，而不是悄悄失去判别力）
+    const directional = fs.remedies.filter((r) => r.target in TARGET_TO_DIRECTION);
+    const general = fs.remedies.filter((r) => !(r.target in TARGET_TO_DIRECTION));
+    expect(directional).toHaveLength(3);
+    expect(general.length).toBeGreaterThan(0);
+
+    const dir = "SE" as const;
+    const seRemedies = directional.filter((r) => TARGET_TO_DIRECTION[r.target] === dir);
+    const elsewhere = directional.filter((r) => TARGET_TO_DIRECTION[r.target] !== dir);
+    expect(seRemedies.length).toBeGreaterThan(0);
+    expect(elsewhere.length).toBeGreaterThan(0);
+
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+
+    // 点扇区（扇区的可访问名 = aria-label「东南：生气（吉）」格式）
+    const v = fs.personalDirections[dir];
+    fireEvent.click(
+      screen.getByRole("button", { name: `${DIRECTION_LABEL[dir]}：${v.star}（${v.auspicious ? "吉" : "凶"}）` }),
+    );
+
+    // 跳到化解 tab + 过滤条出现
+    await waitFor(() => expect(screen.getByText("可做的事")).toBeInTheDocument());
+    expect(screen.getByText(`只看${DIRECTION_LABEL[dir]}方`)).toBeInTheDocument();
+
+    // 该方位的化解可见；其他方位的化解不可见；不限方位的仍列在通用组
+    for (const r of seRemedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+    for (const r of elsewhere) {
+      expect(screen.queryByText(r.action)).toBeNull();
+    }
+    expect(screen.getByText("不限方位")).toBeInTheDocument();
+    expect(screen.getByText(general[0]!.action)).toBeInTheDocument();
+
+    // 评审 C2 第 3 条：web 臂化解行行首的方位锚点（朱砂宋体方向字）必须显示
+    // **期望的**方位标签——「东南（生气方）」→「东南」。必须精确匹配：中文方位名
+    // 互为子串（北⊂东北、东⊂东南），模糊匹配抓不到错配。删掉锚点（变异 B）
+    // 或渲染错方位标签时这条变红。
+    const seRow = screen.getByText(seRemedies[0]!.action).closest("li")!;
+    const anchor = within(seRow).getByText("东南", { exact: true });
+    expect(anchor.getAttribute("style")).toContain("var(--color-cinnabar)");
+
+    // 清除筛选 → 全量恢复
+    fireEvent.click(screen.getByText("清除筛选"));
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
+
+  it("盘即导航：再点同一扇区取消过滤（selectDirection 的注释承诺，评审 Minor——此前零覆盖）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
+    const v = fs.personalDirections.SE;
+    const sectorName = `东南：${v.star}（${v.auspicious ? "吉" : "凶"}）`;
+    const swAction = fs.remedies.find((r) => r.target === "西南（绝命方）")!.action;
+
+    // 第一次点：过滤生效（西南的化解被筛掉）
+    fireEvent.click(screen.getByRole("button", { name: sectorName }));
+    await waitFor(() => expect(screen.getByText("只看东南方")).toBeInTheDocument());
+    expect(screen.queryByText(swAction)).toBeNull();
+
+    // 切回命盘 tab，再点同一扇区：过滤清除（且不再跳回化解 tab）
+    fireEvent.click(screen.getByRole("button", { name: "盘" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: sectorName })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: sectorName }));
+
+    // 回到化解 tab：过滤条消失，完整列表恢复（含西南那条）
+    fireEvent.click(screen.getByRole("button", { name: "化解" }));
+    await waitFor(() => expect(screen.getByText("可做的事")).toBeInTheDocument());
+    expect(screen.queryByText("只看东南方")).toBeNull();
+    for (const r of fs.remedies) {
+      expect(screen.getByText(r.action)).toBeInTheDocument();
+    }
+  });
+
+  it("首揭仪式错峰只播一次：点扇区切走再切回命盘 tab 不重放（评审 I1）", async () => {
+    sessionStorage.removeItem("zj.fsReveal.p1");
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("正在起你的八方盘")).toBeInTheDocument());
+
+    // 首揭进行中：扇区带错峰 animationDelay（staggerIn=true 确实接到了盘上）。
+    // 这条同时是变异 C（调用点硬编码 staggerIn={false}）的守卫——那样首揭就
+    // 不再错峰，本断言变红。
+    const v = fs.personalDirections.SE; // 生气方，rank 1 → delay 0ms
+    const sectorName = `东南：${v.star}（${v.auspicious ? "吉" : "凶"}）`;
+    expect(screen.getByLabelText(sectorName).style.animationDelay).toBe("0ms");
+
+    // 揭示结束：2100ms 定时器统一复位 revealing + staggerIn。用真实等待——
+    // 定时器在挂载时已按真实时钟排定，事后再开 fake timers 接管不到它；
+    // revealing/staggerIn 在同一个 setTimeout 回调里复位，overlay 消失即两者都已落定。
+    await waitFor(() => expect(screen.queryByText("正在起你的八方盘")).toBeNull(), { timeout: 4000 });
+
+    // 点扇区 → 化解 tab（盘随之卸载）
+    fireEvent.click(screen.getByRole("button", { name: sectorName }));
+    await waitFor(() => expect(screen.getByText("可做的事")).toBeInTheDocument());
+
+    // 切回命盘 tab：盘重新挂载，staggerIn 必须已复位——扇区不再带错峰 delay。
+    // 没有这条复位（I1 的 bug），这里会是无过场解释的第二次错峰淡入。
+    fireEvent.click(screen.getByRole("button", { name: "盘" }));
+    await waitFor(() => expect(screen.getByLabelText(sectorName)).toBeInTheDocument());
+    expect(screen.getByLabelText(sectorName).style.animationDelay).toBe("");
+  });
+
+  it("剪影付费墙：非会员看到去色剪影（无吉凶数据）+ Paywall，而非纯文字墙", async () => {
+    dwellingsFixture.current = [dwellingL1(["p2"])];
+    vi.stubGlobal(
+      "fetch",
+      methodRouter({
+        GET: () => jsonResponse({ entitled: false }),
+        POST: () => jsonResponse({ sections: SECTIONS, degraded: false }),
+      }),
+    );
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("升级会员，解锁无限")).toBeInTheDocument());
+
+    const silhouette = screen.getByTestId("bagua-silhouette");
+    // 「看不清内容」：无星名、无方位名
+    expect(silhouette.textContent).not.toContain("生气");
+    expect(silhouette.textContent).not.toContain("南");
+    // 「看得见形状」：八个扇区结构在
+    expect(silhouette.querySelectorAll("path")).toHaveLength(8);
+    // 真宅盘仍未渲染（剪影不是后门）
+    expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
   });
 });

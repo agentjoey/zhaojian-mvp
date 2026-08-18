@@ -7,6 +7,7 @@ import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
 import { Card } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { ReadingTabs } from "@/components/ReadingTabs";
@@ -160,58 +161,59 @@ export default function ChartPage() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
-      <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-[28px] font-black">{profile.nickname} · {t("chart.title")}</h1>
-          <p className="latin-label mt-1 text-[11px] text-muted">{chart.normalizedSolarTime}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {isTelegram() && (
-            <button
-              onClick={() => {
-                const username = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || "analyst_helen_bot";
-                window.Telegram?.WebApp?.openTelegramLink?.(
-                  "https://t.me/share/url?url=" +
-                    encodeURIComponent(`https://t.me/${username}?startapp=zhaojian`) +
-                    "&text=" +
-                    encodeURIComponent(t("chart.shareText"))
-                );
-              }}
-              className="text-[13px] text-cinnabar underline underline-offset-4"
-            >
-              {t("chart.share")}
-            </button>
-          )}
-          <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">{t("chart.todayFortune")}</Link>
-        </div>
-      </header>
+      <PageHeader
+        kicker={t("chart.kicker")}
+        title={<>{profile.nickname} · {t("chart.title")}</>}
+        annotation={chart.normalizedSolarTime}
+        action={
+          <>
+            {isTelegram() && (
+              <button
+                onClick={() => {
+                  const username = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || "analyst_helen_bot";
+                  window.Telegram?.WebApp?.openTelegramLink?.(
+                    "https://t.me/share/url?url=" +
+                      encodeURIComponent(`https://t.me/${username}?startapp=zhaojian`) +
+                      "&text=" +
+                      encodeURIComponent(t("chart.shareText"))
+                  );
+                }}
+                className="text-[13px] text-cinnabar underline underline-offset-4"
+              >
+                {t("chart.share")}
+              </button>
+            )}
+            <Link href="/calendar" className="text-[13px] text-gold underline underline-offset-4">{t("chart.todayFortune")}</Link>
+          </>
+        }
+      />
 
-      {/* 八字 + 五行 */}
-      <Section title={t("chart.baziTitle")}>
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
-          <Card><BaziPillars bazi={chart.bazi} /></Card>
-          <Card><WuxingRadar counts={chart.bazi.fiveElementCounts} /></Card>
-        </div>
-      </Section>
+      {/* 四柱 */}
+      <ChartBlock label={t("chart.baziTitle")}>
+        <BaziPillars bazi={chart.bazi} />
+      </ChartBlock>
+
+      {/* 五行 */}
+      <ChartBlock label={t("chart.wuxingTitle")}>
+        <WuxingRadar counts={chart.bazi.fiveElementCounts} />
+      </ChartBlock>
 
       {/* 紫微 */}
-      <Section title={t("chart.ziweiTitle")}>
-        <Card><ZiweiBoard ziwei={chart.ziwei} /></Card>
-      </Section>
+      <ChartBlock label={t("chart.ziweiTitle")}>
+        <ZiweiBoard ziwei={chart.ziwei} />
+      </ChartBlock>
 
       {/* 西方本命盘（降级隐藏） */}
-      {chart.western ? (
-        <Section title={t("chart.westernTitle")}>
-          <Card><NatalWheel western={chart.western} /></Card>
-        </Section>
-      ) : (
-        <Section title={t("chart.westernTitle")}>
-          <Card><p className="text-[14px] text-muted">{t("chart.westernMissing")}</p></Card>
-        </Section>
-      )}
+      <ChartBlock label={t("chart.westernTitle")}>
+        {chart.western ? (
+          <NatalWheel western={chart.western} />
+        ) : (
+          <p className="text-[14px] text-muted">{t("chart.westernMissing")}</p>
+        )}
+      </ChartBlock>
 
       {/* 三段式解读 */}
-      <Section title={t("chart.readingTitle")}>
+      <ChartBlock label={t("chart.readingTitle")}>
         {!inTg && !reading && !streaming && (
           <button
             onClick={generate}
@@ -232,15 +234,15 @@ export default function ChartPage() {
           <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>{err}</div>
         )}
         {reading && <ReadingTabs sections={sections} chart={chart} streaming={streaming} />}
-      </Section>
+      </ChartBlock>
 
       {timeline && (
-        <Section title={t("chart.timelineTitle")}>
+        <ChartBlock label={t("chart.timelineTitle")}>
           <Card topAccent="metal">
             <div className="reading-prose"><Markdown text={timeline.replace(/^##\s*本年时序\s*/, "")} /></div>
             <p className="mt-3 text-[11px] text-muted">{t("chart.timelineDisclaimer", { year: YEAR })}</p>
           </Card>
-        </Section>
+        </ChartBlock>
       )}
 
       <p className="mt-10 text-[12px] leading-relaxed text-muted">
@@ -250,10 +252,11 @@ export default function ChartPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// 图表区块：小标签 + 直接落纸底，区块间 1px 细线分隔（取代旧 Section 的朱砂破折号 + Card 包装）
+function ChartBlock({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="mb-10">
-      <h2 className="mb-4 text-[15px] font-semibold text-ink-2"><span className="text-cinnabar">— </span>{title}</h2>
+    <section className="mt-10 pt-8" style={{ borderTop: "1px solid var(--color-line)" }}>
+      <h2 className="mb-6 text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>{label}</h2>
       {children}
     </section>
   );

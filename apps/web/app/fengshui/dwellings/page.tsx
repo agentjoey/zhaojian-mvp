@@ -8,7 +8,7 @@ import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useIsTelegram, haptics } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 import { listDwellings, deleteDwelling, type Dwelling } from "@/lib/dwellings";
-import { Card } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { Group, Cell } from "@/components/tg/native";
 import { DwellingForm } from "../DwellingForm";
 
@@ -39,7 +39,8 @@ const ENABLED = process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1";
  * ① 删除确认从原生 `confirm()` 改为**页内两步确认**（与 profiles/page.tsx 同一模式：
  * 点删除 → 原地出现「确认删除?」+ 确认/取消）。原生阻塞对话框在 TG webview 里表现
  * 很差；页内确认在两个宿主里都不差于原生弹窗，所以 **web 与 TG 都改**（spec §4）。
- * ② TG 会话下列表渲染为 `<Group>` + `<Cell>` 原生观感（web 路径保持 Card 列表不变）。
+ * ② TG 会话下列表渲染为 `<Group>` + `<Cell>` 原生观感；web 路径为细线分隔的
+ *    编辑式清单（2026-08 当代东方重设计，原为 Card 列表）。
  * ③ 数据层分流不在本页：`listDwellings`/`deleteDwelling` 内部已按 hasTgSession()
  * 分流到 /api/tg/fengshui 中介（见 lib/dwellings.ts）。
  */
@@ -180,7 +181,9 @@ export default function DwellingsPage() {
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
-      <h1 className="mt-3 text-[22px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.dwelling.title")}</h1>
+      <div className="mt-3">
+        <PageHeader kicker={t("fengshui.dwelling.kicker")} title={t("fengshui.dwelling.title")} />
+      </div>
       {deleteError && (
         <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>{deleteError}</p>
       )}
@@ -213,20 +216,25 @@ export default function DwellingsPage() {
             ))}
           </Group>
         ) : (
-          <ul className="flex flex-col gap-3">
+          // web：细线分隔的编辑式清单（2026-08 当代东方）——居所名宋体做行首，
+          // 信息行小号 muted，操作按钮靠右；行间与列表上下各一条 1px 细线。
+          <ul className="border-y border-[var(--color-line)] [&>li+li]:border-t [&>li+li]:border-[var(--color-line)]">
             {dwellings.map((d) => (
-              // 编辑中的行给选中态描边（M-b；Card 不收 style prop，描边套在外层）。
-              <div
+              // 编辑中的行给选中态（M-b）：2px 朱砂描边 + tint 浅底，
+              // 让「正在编辑哪一套」在没有阴影/上浮的语言里仍然一眼可辨。
+              // 评审 I3：1px line-strong + tint 实测只有 ~1.3:1，过不了 WCAG 1.4.11
+              // 对状态指示的 3:1——描边改回 2px 朱砂（对纸底 5.40:1）。
+              <li
                 key={d.id}
+                className="px-3 py-4"
                 style={editingId === d.id
-                  ? { outline: "2px solid var(--color-cinnabar)", borderRadius: "var(--radius-card)" }
+                  ? { outline: "2px solid var(--color-cinnabar)", background: "var(--color-tint)" }
                   : undefined}
               >
-              <Card className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[15px] text-ink">{d.name}</p>
-                    <p className="mt-1 text-[13px] text-ink-2">{subtitleOf(d)}</p>
+                    <p className="font-serif text-[17px] text-ink">{d.name}</p>
+                    <p className="mt-1 text-[11px]" style={{ color: "var(--color-muted)" }}>{subtitleOf(d)}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -239,8 +247,7 @@ export default function DwellingsPage() {
                     {deleteControls(d)}
                   </div>
                 </div>
-              </Card>
-              </div>
+              </li>
             ))}
           </ul>
         )}
