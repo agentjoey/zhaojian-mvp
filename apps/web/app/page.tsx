@@ -79,7 +79,7 @@ export default function Home() {
                   {t("home.ctaButton")}
                 </Link>
                 <Link href="/calendar" className="text-[13px] text-ink-2 underline-offset-4 hover:underline">
-                  {t("home.entries.calendar.title")} →
+                  {t("home.ctaSecondary")}
                 </Link>
               </div>
             </div>
@@ -119,6 +119,9 @@ export default function Home() {
 
             <p className="mt-12 text-[12px] leading-relaxed text-muted">
               {t("home.disclaimer")}
+            </p>
+            <p className="mt-10 text-[11px] tracking-[0.2em] text-muted">
+              {t("home.footerBrand")}
             </p>
           </div>
         </>

@@ -47,7 +47,15 @@ export function HeroWheel({ className, style }: { className?: string; style?: Re
   );
 }
 
-// —— 印章图标（朱红方章，单字成标）——
+// —— 印章图标（方章，单字成标）——
+//
+// 三个 variant，各自对应一种「这是谁/处于什么状态」的判读，不是随手三种配色：
+// - bai  白文＝朱底镂字：当前选中/激活项（如档案列表里的「当前档案」）
+// - zhu  朱文＝纸底朱字+朱色描边：需要「引起注意但未选中」的项（如待确认的危险操作）
+// - ink  墨文＝墨底白字：存在但未选中的普通项（档案列表里非当前的档案，见对照设计稿）
+//   —— 此前只有 bai/zhu 两档，非当前档案被迫复用 zhu（朱色描边），与设计要的
+//   「墨色实底」不是一回事：zhu 传达的是「需要注意」，ink 传达的只是「存在但非当前」，
+//   两种语义不能用同一个 variant 兼任。
 export function SealIcon({
   char,
   variant = "bai",
@@ -55,11 +63,19 @@ export function SealIcon({
   className,
 }: {
   char: string;
-  variant?: "bai" | "zhu"; // 白文=朱底镂字 / 朱文=纸底朱字
+  variant?: "bai" | "zhu" | "ink";
   size?: number;
   className?: string;
 }) {
-  const isBai = variant === "bai";
+  const style: React.CSSProperties = { background: "var(--color-seal)", color: "var(--color-paper)" };
+  if (variant === "zhu") {
+    style.background = "var(--color-paper)";
+    style.color = "var(--color-seal)";
+    style.boxShadow = "inset 0 0 0 2px var(--color-seal)";
+  } else if (variant === "ink") {
+    style.background = "var(--color-ink)";
+    style.color = "var(--color-on-ink)";
+  }
   return (
     <span
       className={cn("inline-flex items-center justify-center font-bold select-none", className)}
@@ -70,9 +86,7 @@ export function SealIcon({
         fontFamily: "var(--font-serif)",
         fontSize: size * 0.5,
         lineHeight: 1,
-        background: isBai ? "var(--color-seal)" : "var(--color-paper)",
-        color: isBai ? "var(--color-paper)" : "var(--color-seal)",
-        boxShadow: isBai ? undefined : "inset 0 0 0 2px var(--color-seal)",
+        ...style,
       }}
       aria-hidden
     >

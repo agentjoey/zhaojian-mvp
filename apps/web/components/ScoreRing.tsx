@@ -15,6 +15,7 @@ export function ScoreRing({
   accent = "var(--color-ink)",
   textColor = "var(--color-ink)",
   subColor = "var(--color-muted)",
+  showLabel = true,
 }: {
   score: number;
   max?: number;
@@ -24,6 +25,9 @@ export function ScoreRing({
   accent?: string;
   textColor?: string;
   subColor?: string;
+  /** 小尺寸复用时（如挪作次要指标）关掉——两行文字挤在小圆里会重叠成一团。
+   * `aria-label` 不受影响，视觉隐藏不等于信息丢失。 */
+  showLabel?: boolean;
 }) {
   const [n, setN] = useState(0);
   const raf = useRef(0);
@@ -53,10 +57,20 @@ export function ScoreRing({
         strokeDasharray={CIRC} strokeDashoffset={CIRC - CIRC * (n / max)}
         transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset .1s linear" }}
       />
-      <text x="60" y="58" textAnchor="middle" fontFamily="var(--font-latin)" fontSize="34" fontWeight="600" fill={textColor}>
+      <text
+        x="60"
+        y={showLabel ? 58 : 68}
+        textAnchor="middle"
+        fontFamily="var(--font-latin)"
+        fontSize={showLabel ? 34 : 40}
+        fontWeight="600"
+        fill={textColor}
+      >
         {Number.isInteger(n) ? n : n.toFixed(1)}
       </text>
-      <text x="60" y="78" textAnchor="middle" fontFamily="var(--font-sans)" fontSize="11" fill={subColor}>{label}</text>
+      {showLabel && (
+        <text x="60" y="78" textAnchor="middle" fontFamily="var(--font-sans)" fontSize="11" fill={subColor}>{label}</text>
+      )}
     </svg>
   );
 }

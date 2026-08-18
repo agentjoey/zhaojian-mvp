@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listProfiles, getActiveProfileId, setActiveProfile, deleteProfile, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgListProfiles, tgDeleteProfile } from "@/lib/tg/client";
+import { shichenOf } from "@/lib/shichen";
 import { useIsTelegram } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
 import { Card, SealIcon } from "@/components/ui";
@@ -164,8 +165,8 @@ export default function ProfilesPage() {
           })}
         </Group>
       ) : (
-        <div>
-          {profiles.map((p, i) => {
+        <div style={{ borderTop: "1px solid var(--color-line)" }}>
+          {profiles.map((p) => {
             const active = p.id === activeId;
             const editing = editingId === p.id;
             const confirming = confirmDeleteId === p.id;
@@ -173,7 +174,7 @@ export default function ProfilesPage() {
               <div
                 key={p.id}
                 className="flex items-center justify-between gap-4 py-4"
-                style={i > 0 ? { borderTop: "1px solid var(--color-line)" } : undefined}
+                style={{ borderBottom: "1px solid var(--color-line)" }}
               >
                 <button
                   className="flex items-center gap-3 text-left"
@@ -182,14 +183,15 @@ export default function ProfilesPage() {
                     router.push("/chart");
                   }}
                 >
-                  <SealIcon char={p.nickname.slice(0, 1)} size={40} variant={active ? "bai" : "zhu"} />
+                  <SealIcon char={p.nickname.slice(0, 1)} size={40} variant={active ? "bai" : "ink"} />
                   <div>
                     <div className="font-serif text-[17px] font-semibold">
                       {p.nickname}
                       {active && <span className="ml-2 text-[11px] text-cinnabar">{t("profiles.current")}</span>}
                     </div>
                     <div className="text-[11px] text-muted">
-                      {p.chart.bazi.dayMaster}（{p.chart.bazi.dayMasterElement}）· {p.birthInput.date}
+                      {t("profiles.solarPrefix")} {p.birthInput.date}
+                      {p.birthInput.time && ` · ${shichenOf(p.birthInput.time)}`}
                     </div>
                   </div>
                 </button>
@@ -230,6 +232,11 @@ export default function ProfilesPage() {
             );
           })}
         </div>
+      )}
+      {!loading && profiles.length > 0 && !inTg && (
+        <Link href="/reading" className="mt-5 inline-block text-[13px] text-muted transition-colors hover:text-ink">
+          {t("profiles.addNew")}
+        </Link>
       )}
       </div>
 

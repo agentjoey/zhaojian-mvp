@@ -87,6 +87,8 @@ export const en: Messages = {
     heroTitle1: "Your chart,",
     kickerHero: "Prologue",
     kickerToc: "Contents",
+    footerBrand: "Zhaojian · Eastern Mingli",
+    ctaSecondary: "See today’s reading →",
     heroTitle2: "is a mirror",
     heroSubtitle:
       "Ziwei · Bazi × depth psychology. A mirror for self-reflection, not a verdict on fortune.",
@@ -135,7 +137,7 @@ export const en: Messages = {
     disclaimerHighlight: "in your private profile",
     disclaimerEnd:
       " (anonymous, device-isolated, visible only to you) and can be deleted anytime in Profiles. For self-reflection only.",
-    nicknameLabel: "Name (optional)",
+    nicknameLabel: "Name",
     nicknamePlaceholder: "How should I address you?",
     birthDateLabel: "Birth date",
     lunarCheckbox: "I entered the lunar calendar date",
@@ -155,10 +157,10 @@ export const en: Messages = {
     noBirthplaceHint:
       "Without a birthplace, 真太阳时 (True Solar Time) correction and the Western chart will be omitted.",
     genderLabel: "Gender",
-    male: "Male",
-    female: "Female",
+    male: "乾 · Male",
+    female: "坤 · Female",
     castMyChart: "Cast my chart",
-    submit: "Cast my chart · Instant",
+    submit: "Cast My Chart",
     submitting: "Casting your chart…",
     saveProfileError: "Failed to create profile: {message}",
     saveChartError: "Failed to save chart: {message}",
@@ -258,6 +260,7 @@ export const en: Messages = {
     toTimeline: "本年时序 → (Current cycles →)",
 
     scoreLabel: "{grade} · {today}",
+    todayVerdict: "Today's Reading",
     moodLabel: "{today} · {mood}",
     grade: {
       auspicious: "吉 (Auspicious)",
@@ -443,6 +446,8 @@ export const en: Messages = {
     title: "我的档案 (My Profiles)",
     kicker: "Profiles",
     create: "新建档案 (Create Profile)",
+    addNew: "+ Add profile",
+    solarPrefix: "Solar",
     loading: "Loading profiles…",
     empty:
       "No profiles yet. Once created, the chart is generated and frozen, and will not change.",

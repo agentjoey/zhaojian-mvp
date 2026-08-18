@@ -203,15 +203,25 @@ export default function CalendarPage() {
             const imgSrc = useDarkFile ? img.darkFile! : img?.file;
             return (
               <div className="zj-rise lg:col-span-2">
-                <div className="flex items-center gap-6">
-                  <ScoreRing score={fortune.scores.overall} max={10} size={104} label={t("calendar.scoreLabel", { grade: t("calendar.grade." + g), today: t("calendar.today") })} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>{t("calendar.moodLabel", { today: t("calendar.today"), mood: MOOD_LABEL[fortune.relation] })}</div>
-                    <div className="my-2.5 flex gap-2">
-                      <GanzhiBadge char={fortune.dayGanZhi[0]!} size={40} />
-                      <GanzhiBadge char={fortune.dayGanZhi[1]!} size={40} />
-                    </div>
-                    <div className="text-[13px] leading-[1.6] text-muted">{fortune.tone}</div>
+                {/* 主视觉：判词大字当代黄历版（对齐设计稿）。评分环不再是引导视觉——
+                    它降级挪到下方「五维」小节当量化佐证，判词才是这张日签的第一眼。
+                    判词沿用既有四档（吉/顺/平/谨），未新增老黄历值神/吉时/冲词汇。 */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="text-[13px] text-muted">
+                    {selected.replaceAll("-", ".")}
+                    {fortune.lunarDate ? ` · ${fortune.lunarDate}` : ""}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <GanzhiBadge char={fortune.dayGanZhi[0]!} size={36} />
+                    <GanzhiBadge char={fortune.dayGanZhi[1]!} size={36} />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="font-serif text-[64px] font-bold leading-none">{t("calendar.grade." + g)}</div>
+                  <div className="mt-2.5 text-[13px]" style={{ color: "var(--color-muted)" }}>
+                    {t("calendar.todayVerdict")}
+                    <span className="mx-1.5">·</span>
+                    {MOOD_LABEL[fortune.relation]}
                   </div>
                 </div>
                 {img && (
@@ -243,7 +253,17 @@ export default function CalendarPage() {
 
           {/* 五维评分（细线计量，去卡片） */}
           <div style={{ borderTop: "1px solid var(--color-line)" }}>
-            <div className="pt-5 text-[11px] tracking-[0.3em] text-muted">{t("calendar.dimsTitle")}</div>
+            <div className="flex items-center justify-between pt-5">
+              <div className="text-[11px] tracking-[0.3em] text-muted">{t("calendar.dimsTitle")}</div>
+              <ScoreRing
+                score={fortune.scores.overall}
+                max={10}
+                size={40}
+                accent="var(--color-cinnabar)"
+                showLabel={false}
+                label={t("calendar.scoreLabel", { grade: t("calendar.grade." + gradeOf(fortune.scores.overall)), today: t("calendar.today") })}
+              />
+            </div>
             <div className="mt-4 space-y-3">
               {DIMS.map((key) => (
                 <div key={key} className="flex items-center gap-3">

@@ -8,17 +8,12 @@ import { hasTgSession, isTelegram, ensureTgSession, tgReadyExpand } from "@/lib/
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { useT } from "@/lib/i18n/I18nProvider";
 import type { BirthInput } from "@eamvp/core";
+import { shichenOf } from "@/lib/shichen";
 
-const field = "w-full px-3 py-2.5 text-[14px] text-ink outline-none transition-colors";
-const fieldStyle: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: "var(--radius-button)" };
-
-const SHICHEN = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
-function shichenOf(hhmm: string): string {
-  const h = Number(hhmm.slice(0, 2));
-  if (Number.isNaN(h)) return "";
-  const idx = h === 23 ? 0 : Math.floor((h + 1) / 2) % 12;
-  return `${SHICHEN[idx]}时`;
-}
+// 当代东方 v3：字段值是「细线下划的纯文字」，不是方框输入——跟全站去卡片化的
+// 视觉语言对齐（此前 ReadingForm 是唯一还留着方框输入的页面，R1/R2 都没碰过它）。
+const field = "w-full bg-transparent pb-2 text-[16px] text-ink outline-none transition-colors focus:border-b-[var(--color-cinnabar)]";
+const fieldStyle: React.CSSProperties = { borderBottom: "1px solid var(--color-line)" };
 
 export function ReadingForm() {
   const router = useRouter();
@@ -130,18 +125,19 @@ export function ReadingForm() {
 
       {/* 出生时辰 */}
       <Field label={t("reading.birthTimeLabel")}>
-        <div className="flex items-center gap-3">
+        {/* 时辰名在前、时间在后（对齐设计稿「辰时 · 07:30」），单一墨色 accent——
+            此前的 text-gold 是唯一没跟上「单一强调色」原则的地方（BaziPillars 早改过）。 */}
+        <div className="flex items-baseline gap-2" style={{ ...fieldStyle, opacity: timeUnknown ? 0.5 : 1 }}>
+          {time && !timeUnknown && (
+            <span className="shrink-0 text-[16px] text-ink">{shichenOf(time)}<span className="mx-1 text-muted">·</span></span>
+          )}
           <input
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
             disabled={timeUnknown}
-            className={`${field} placeholder:text-muted`}
-            style={{ ...fieldStyle, opacity: timeUnknown ? 0.5 : 1 }}
+            className="w-full bg-transparent pb-2 text-[16px] text-ink outline-none"
           />
-          {time && !timeUnknown && (
-            <span className="shrink-0 text-[13px] text-gold">{shichenOf(time)}</span>
-          )}
         </div>
         <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
           <input type="checkbox" checked={timeUnknown} onChange={(e) => setTimeUnknown(e.target.checked)} className="accent-[var(--color-cinnabar)]" />
@@ -199,7 +195,7 @@ export function ReadingForm() {
       </Field>
 
       <Field label={t("reading.genderLabel")}>
-        <div className="flex gap-2">
+        <div className="flex gap-6 pb-2" style={{ borderBottom: "1px solid var(--color-line)" }}>
           {(
             [
               { value: "male", label: t("reading.male") },
@@ -212,11 +208,11 @@ export function ReadingForm() {
                 key={opt.value}
                 type="button"
                 onClick={() => setGender(opt.value)}
-                className="flex-1 px-3 py-2.5 text-[14px] font-medium rounded-[var(--radius-button)] transition-colors"
+                className="pb-1 text-[16px] transition-colors"
                 style={{
-                  background: selected ? "var(--color-cinnabar)" : "var(--color-tint)",
-                  color: selected ? "var(--color-paper)" : "var(--color-ink)",
-                  border: selected ? "none" : "1px solid var(--color-line)",
+                  color: selected ? "var(--color-cinnabar)" : "var(--color-muted)",
+                  fontWeight: selected ? 600 : 400,
+                  borderBottom: selected ? "2px solid var(--color-cinnabar)" : "2px solid transparent",
                 }}
               >
                 {opt.label}
