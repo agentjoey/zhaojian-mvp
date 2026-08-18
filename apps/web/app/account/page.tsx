@@ -348,7 +348,7 @@ export default function AccountPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-5 py-10 sm:px-8">
-      <PageHeader kicker="账 户" title={title} annotation={annotation} />
+      <PageHeader kicker={t("account.kicker")} title={title} annotation={annotation} />
 
       <div className="mt-6 flex items-center justify-between py-2">
         <span className="text-[13px]" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
@@ -369,7 +369,7 @@ export default function AccountPage() {
       )}
 
       {billing && (
-        <Section label="订 阅">
+        <Section label={t("account.sectionSubscription")}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[14px] font-medium" style={{ color: "var(--color-ink)" }}>
@@ -405,7 +405,7 @@ export default function AccountPage() {
       )}
 
       {view.kind === "telegram" ? (
-        <Section label="绑 定">
+        <Section label={t("account.sectionBinding")}>
           {identitiesRows}
           {identities && identities.email === null && (
             <div className="mt-5 space-y-3">
@@ -444,11 +444,11 @@ export default function AccountPage() {
           )}
         </Section>
       ) : view.kind === "email" ? (
-        <Section label="绑 定">
+        <Section label={t("account.sectionBinding")}>
           {identitiesRows}
         </Section>
       ) : (
-        <Section label="登 录">
+        <Section label={t("account.sectionLogin")}>
           <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
             {t("account.anonymousDescription")}
           </p>
@@ -505,7 +505,7 @@ export default function AccountPage() {
       )}
 
       {(view.kind === "telegram" || view.kind === "email") && (
-        <Section label="数 据">
+        <Section label={t("account.sectionData")}>
           <div
             className="p-4"
             style={{

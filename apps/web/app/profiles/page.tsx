@@ -92,7 +92,7 @@ export default function ProfilesPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
       <PageHeader
-        kicker="档 案"
+        kicker={t("profiles.kicker")}
         title={t("profiles.title")}
         action={
           <>

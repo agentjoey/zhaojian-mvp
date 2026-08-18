@@ -69,18 +69,13 @@ function staggerDelay(v: DirectionVerdict): number {
   return order * 90;
 }
 
-export function BaguaWheel({
-  verdicts,
-  centerLabel,
-  size = 320,
-  ariaLabel = "八方吉凶盘",
-  onSelectDirection,
-  selectedDirection = null,
-  staggerIn = false,
-  silhouette = false,
-}: {
-  /** 剪影模式传 null（不携带任何真实吉凶数据）。 */
-  verdicts: Record<Direction, DirectionVerdict> | null;
+/**
+ * 评审后续 Minor：props 改判别联合——`silhouette: true` 时 `verdicts` 必须传 null
+ * （剪影不携带任何真实吉凶数据）；非剪影时 `verdicts` 必传。类型层面恢复保证，
+ * 不再有 `verdicts!` 非空断言（传 null 又不传 silhouette 的调用方会在编译期报错，
+ * 而不是运行时 TypeError）。
+ */
+type BaguaWheelProps = {
   centerLabel: string;
   size?: number;
   /**
@@ -94,12 +89,31 @@ export function BaguaWheel({
   selectedDirection?: Direction | null;
   /** 首揭仪式：扇区按吉凶 rank 错峰淡入一次。仅首次渲染时传 true。 */
   staggerIn?: boolean;
-  /** 付费墙剪影：只有结构，无吉凶、无色阶、无文字。 */
-  silhouette?: boolean;
-}) {
-  if (silhouette) {
+} & (
+  | {
+      /** 付费墙剪影：只有结构，无吉凶、无色阶、无文字。 */
+      silhouette: true;
+      /** 剪影模式传 null（不携带任何真实吉凶数据）。 */
+      verdicts: null;
+    }
+  | {
+      silhouette?: false;
+      verdicts: Record<Direction, DirectionVerdict>;
+    }
+);
+
+export function BaguaWheel(props: BaguaWheelProps) {
+  const {
+    centerLabel,
+    size = 320,
+    ariaLabel = "八方吉凶盘",
+    onSelectDirection,
+    selectedDirection = null,
+    staggerIn = false,
+  } = props;
+  if (props.silhouette) {
     return (
-      <svg viewBox="0 0 320 320" width={size} height={size} aria-hidden>
+      <svg viewBox="0 0 320 320" width={size} height={size} aria-hidden data-testid="bagua-silhouette">
         {DIRECTIONS.map((d, i) => (
           <path
             key={d}
@@ -123,11 +137,15 @@ export function BaguaWheel({
     );
   }
 
-  const v0 = verdicts!;
+  const v0 = props.verdicts;
   const interactive = !!onSelectDirection;
 
+  // 评审 I2：可交互扇区是 <g role="button">，不能嵌在 role="img" 里——ARIA 1.2 规定
+  // img 是 children-presentational，用户代理必须不暴露其后代，屏幕阅读器会完全
+  // 看不见这 8 个按钮。可交互时 svg 用 role="group"（aria-label 保留），
+  // 非交互（纯展示）时保持 role="img"。
   return (
-    <svg viewBox="0 0 320 320" width={size} height={size} role="img" aria-label={ariaLabel}>
+    <svg viewBox="0 0 320 320" width={size} height={size} role={interactive ? "group" : "img"} aria-label={ariaLabel}>
       {DIRECTIONS.map((d, i) => {
         const v = v0[d];
         const [lx, ly] = polar((R_OUT + R_IN) / 2, i * 45);
@@ -137,6 +155,7 @@ export function BaguaWheel({
           <g
             key={d}
             aria-label={sectorAria}
+            className={interactive ? "zj-wheel-focus" : undefined}
             role={interactive ? "button" : undefined}
             tabIndex={interactive ? 0 : undefined}
             aria-pressed={interactive ? selected : undefined}

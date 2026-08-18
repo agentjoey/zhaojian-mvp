@@ -182,7 +182,7 @@ export default function DwellingsPage() {
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
       <div className="mt-3">
-        <PageHeader kicker="居 所" title={t("fengshui.dwelling.title")} />
+        <PageHeader kicker={t("fengshui.dwelling.kicker")} title={t("fengshui.dwelling.title")} />
       </div>
       {deleteError && (
         <p className="mt-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>{deleteError}</p>
@@ -220,13 +220,15 @@ export default function DwellingsPage() {
           // 信息行小号 muted，操作按钮靠右；行间与列表上下各一条 1px 细线。
           <ul className="border-y border-[var(--color-line)] [&>li+li]:border-t [&>li+li]:border-[var(--color-line)]">
             {dwellings.map((d) => (
-              // 编辑中的行给选中态（M-b）：1px line-strong 描边 + tint 浅底，
+              // 编辑中的行给选中态（M-b）：2px 朱砂描边 + tint 浅底，
               // 让「正在编辑哪一套」在没有阴影/上浮的语言里仍然一眼可辨。
+              // 评审 I3：1px line-strong + tint 实测只有 ~1.3:1，过不了 WCAG 1.4.11
+              // 对状态指示的 3:1——描边改回 2px 朱砂（对纸底 5.40:1）。
               <li
                 key={d.id}
                 className="px-3 py-4"
                 style={editingId === d.id
-                  ? { outline: "1px solid var(--color-line-strong)", background: "var(--color-tint)" }
+                  ? { outline: "2px solid var(--color-cinnabar)", background: "var(--color-tint)" }
                   : undefined}
               >
                 <div className="flex items-start justify-between gap-3">

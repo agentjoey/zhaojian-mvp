@@ -2,7 +2,7 @@
 
 /* ============================================================
    照见 Zhaojian · Design Tokens —— 当代东方 v3（2026-08 重设计）
-   依据 docs/assets/zhaojian-eastern-ui.pen 设计稿：
+   依据 contemporary-eastern 指南与 Pencil 设计稿（稿在 Pencil 应用内，未入库）：
    宣纸暖白 / 墨阶 / 朱砂唯一强调 / 0–8px 圆角 / 默认无阴影。
    令牌即单一事实源，勿写裸十六进制。
    ============================================================ */
@@ -113,14 +113,11 @@ body {
    ============================================================ */
 @keyframes zjRise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 @keyframes zjFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes zjPop { 0% { opacity: 0; transform: scale(0.9); } 60% { opacity: 1; transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }
 @keyframes zjSpinSlow { to { transform: rotate(360deg); } }
 @keyframes zjSpinFast { to { transform: rotate(360deg); } }
-@keyframes zjBell { 0%, 100% { transform: rotate(-11deg); } 50% { transform: rotate(11deg); } }
 @keyframes zjBellIdle { 0%, 100% { transform: rotate(-3.5deg); } 50% { transform: rotate(3.5deg); } }
 @keyframes zjStamp { 0% { opacity: 0; transform: scale(1.7) rotate(-7deg); } 55% { opacity: 1; transform: scale(0.9) rotate(-7deg); } 100% { opacity: 1; transform: scale(1) rotate(-7deg); } }
 @keyframes zjDraw { to { stroke-dashoffset: 0; } }
-@keyframes zjPulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.65; } }
 @keyframes zjGZ { 0% { opacity: 0; transform: translateY(12px) scale(0.6); } 100% { opacity: 1; transform: none; } }
 
 /* 入场：淡入 + 上移；子项错峰用 inline animation-delay */
@@ -128,15 +125,18 @@ body {
 .zj-fade { animation: zjFade 0.5s ease both; }
 .zj-bell-idle { transform-origin: 40px 16px; animation: zjBellIdle 4.5s ease-in-out infinite; }
 .zj-spin-slow { transform-origin: center; animation: zjSpinSlow 72s linear infinite; }
-.zj-pulse { animation: zjPulse 3s ease-in-out infinite; }
+
+/* 键盘焦点（I2：八方盘扇区；全站此前无任何 :focus-visible 规则） */
+.zj-wheel-focus:focus-visible { outline: 2px solid var(--color-cinnabar); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important; /* 错峰 delay 也要中和，否则扇区白等 630ms */
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  .zj-spin-slow, .zj-bell-idle, .zj-pulse { animation: none !important; }
+  .zj-spin-slow, .zj-bell-idle { animation: none !important; }
 }
 
 /* ============================================================
@@ -173,8 +173,8 @@ html[data-tg-theme="dark"] {
   --color-panel-strong: #241f19;
   --color-on-strong: #ece6da;
   --color-line-strong: #3a352c;
-  --color-cinnabar: #c05a4a;
-  --color-cinnabar-press: #a84638;
+  --color-cinnabar: #d95f50; /* 暗态提亮：纸底 5.20:1、surface 4.89:1（正文用法过 AA）；按钮文字随 --color-paper 翻深，其上 4.64:1 */
+  --color-cinnabar-press: #c04a3c;
   --color-seal: #e0786c;
   --shadow-card: none;
   --shadow-card-hover: none;

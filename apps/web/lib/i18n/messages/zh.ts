@@ -4,6 +4,7 @@ export const zh = {
     loading: "加载中…",
     cancel: "取消",
     confirm: "确认",
+    casting: "排 盘 中",
     save: "保存",
     delete: "删除",
     edit: "编辑",
@@ -25,6 +26,11 @@ export const zh = {
   },
   account: {
     title: "账号",
+    kicker: "账 户",
+    sectionSubscription: "订 阅",
+    sectionBinding: "绑 定",
+    sectionLogin: "登 录",
+    sectionData: "数 据",
     saveYourZhaojian: "保存你的照见",
     signIn: "登录",
     signOut: "登出",
@@ -79,6 +85,8 @@ export const zh = {
   },
   home: {
     heroTitle1: "你的命盘，",
+    kickerHero: "卷 首",
+    kickerToc: "目 录",
     heroTitle2: "是一面镜子",
     heroSubtitle: "紫微 · 八字 × 深层心理。观照自身，而非预言吉凶。",
     ctaButton: "为我起盘 · 即时生成",
@@ -118,6 +126,7 @@ export const zh = {
   },
   reading: {
     heroTitle1: "告诉我，",
+    kicker: "起 盘",
     heroTitle2: "你何时来到这世间。",
     intro:
       "我们即时推算你的八字、紫微斗数与西方本命盘。出生地用于校正真太阳时；若缺出生时辰，将略去心理（西方）层，仅呈现命理。",
@@ -151,6 +160,8 @@ export const zh = {
   },
   chart: {
     title: "命盘",
+    kicker: "命 盘",
+    wuxingTitle: "五 行",
     loadingProfile: "正在读取档案…",
     noProfile: "尚无命盘档案。",
     goCast: "去起盘",
@@ -219,6 +230,8 @@ export const zh = {
     selfPortraitSubtitle: "由命盘结构与自我自陈合成的内在侧写",
   },
   calendar: {
+    kicker: "流 日",
+    dimsTitle: "五 维",
     title: "运势日历",
     loadingProfile: "正在读取档案…",
     noProfileForFortune: "尚无命盘档案，无法生成每日运势。",
@@ -314,6 +327,7 @@ export const zh = {
     complete: "完成 · 让本命之灵更懂你",
   },
   fengshui: {
+    kicker: "境",
     title: "境",
     subtitle: "本命方位 · 人与空间",
     notEnabled: "「境」尚未开启。",
@@ -378,6 +392,7 @@ export const zh = {
     generalRemedies: "不限方位",
     disclaimer: "以上用于自我觉察与居住体验改善，不构成专业建议。",
     object: {
+      kicker: "物 件",
       title: "我想添置…",
       subtitle: "说说物件，给你落位建议",
       category: "品类",
@@ -404,6 +419,7 @@ export const zh = {
       dwellingUnknown: "会员状态暂时确认不了，下面先只按你的本命方位给建议——不代表你没有权限。",
     },
     dwelling: {
+      kicker: "居 所",
       title: "我的居所",
       add: "添加居所",
       editTitle: "编辑居所",
@@ -437,6 +453,7 @@ export const zh = {
   },
   profiles: {
     title: "我的档案",
+    kicker: "档 案",
     create: "新建档案",
     loading: "正在读取档案…",
     empty: "尚无档案。建档后命盘一次生成并冻结，不再更改。",

@@ -93,7 +93,7 @@ export function Button({
   const base = "zj-btn inline-flex items-center justify-center gap-2 text-[15px] font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed";
   const styles =
     variant === "primary"
-      ? "px-6 py-3 text-white bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)]"
+      ? "px-6 py-3 text-[var(--color-paper)] bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)]"
       : variant === "secondary"
         ? "px-6 py-3 text-[var(--color-ink)] bg-transparent border border-[var(--color-line)] hover:border-[var(--color-line-strong)]"
         : "text-[var(--color-ink-2)] underline underline-offset-[5px] hover:text-[var(--color-ink)]";

@@ -62,7 +62,7 @@ export default function Home() {
 
             <div className="relative mt-24 lg:mt-32">
               <p className="zj-rise text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)", animationDelay: ".08s" }}>
-                — 卷 首 —
+                — {t("home.kickerHero")} —
               </p>
               <h1 className="zj-rise mt-4 font-serif text-[44px] font-bold leading-[1.18] lg:text-[64px]" style={{ animationDelay: ".16s" }}>
                 {t("home.heroTitle1")}<br />{t("home.heroTitle2")}
@@ -73,8 +73,8 @@ export default function Home() {
               <div className="zj-rise mt-9 flex items-center gap-6" style={{ animationDelay: ".34s" }}>
                 <Link
                   href="/reading"
-                  className="zj-btn inline-flex items-center justify-center px-7 py-3.5 text-[15px] font-medium text-white transition-colors duration-200 hover:bg-[var(--color-cinnabar-press)]"
-                  style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}
+                  className="zj-btn inline-flex items-center justify-center px-7 py-3.5 text-[15px] font-medium transition-colors duration-200 hover:bg-[var(--color-cinnabar-press)]"
+                  style={{ background: "var(--color-cinnabar)", color: "var(--color-paper)", borderRadius: "var(--radius-button)" }}
                 >
                   {t("home.ctaButton")}
                 </Link>
@@ -88,7 +88,7 @@ export default function Home() {
           {/* ===== 目录（细线分隔的入口列表，卡片网格废除） ===== */}
           <div className="relative mt-20 px-7 lg:mx-auto lg:mt-28 lg:max-w-4xl lg:px-16">
             <p className="zj-rise text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)", animationDelay: ".4s" }}>
-              — 目 录 —
+              — {t("home.kickerToc")} —
             </p>
             <div className="zj-rise mt-5" style={{ borderTop: "1px solid var(--color-line)", animationDelay: ".46s" }}>
               {ENTRIES.map((e) => (

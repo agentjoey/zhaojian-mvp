@@ -140,7 +140,7 @@ export default function CalendarPage() {
     return (
       <Centered>
         <p className="text-ink-2">{t("calendar.noProfileForFortune")}</p>
-        <Link href="/reading" className="mt-4 inline-block px-6 py-3 text-on-ink" style={{ background: "var(--color-cinnabar)", borderRadius: "var(--radius-button)" }}>{t("calendar.goCast")}</Link>
+        <Link href="/reading" className="mt-4 inline-block px-6 py-3" style={{ background: "var(--color-cinnabar)", color: "var(--color-paper)", borderRadius: "var(--radius-button)" }}>{t("calendar.goCast")}</Link>
       </Centered>
     );
 
@@ -148,9 +148,9 @@ export default function CalendarPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
-      {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" title={t("calendar.calculating")} />}
+      {casting && <CastingOverlay gan={(fortune?.dayGanZhi ?? "庚申")[0]} zhi={(fortune?.dayGanZhi ?? "庚申")[1]} seal="今" title={t("calendar.calculating")} hint={t("common.casting")} />}
       <PageHeader
-        kicker="流 日"
+        kicker={t("calendar.kicker")}
         title={t("calendar.title")}
         annotation={`${profile.nickname} · ${t("calendar.dayMasterLabel")} ${profile.chart.bazi.dayMaster}（${profile.chart.bazi.dayMasterElement}）`}
       />
@@ -217,7 +217,9 @@ export default function CalendarPage() {
                 {img && (
                   <div className="mx-auto mt-8 max-w-[340px]">
                     <FortuneFrame src={imgSrc!} alt={img.alt} seed={selected} />
-                    <img src={imgSrc} alt="" aria-hidden className="hidden" loading="lazy" onError={() => { if (useDarkFile) setFortuneImgError(true); }} />
+                    {/* 深色变体 404 兜底探测：display:none 的 img 仍会发请求，但 loading="lazy"
+                        在没有布局盒时永不触发——所以这里绝不能加 lazy（C1 评审）。 */}
+                    <img src={imgSrc} alt="" aria-hidden className="hidden" onError={() => { if (useDarkFile) setFortuneImgError(true); }} />
                   </div>
                 )}
                 {polish && (
@@ -225,7 +227,7 @@ export default function CalendarPage() {
                 )}
                 {(fortune.favorableToday || fortune.interactions.length > 0) && (
                   <div className="mt-5 flex flex-wrap justify-center gap-1.5">
-                    {fortune.favorableToday && <span className="px-2.5 py-0.5 text-[11px]" style={{ borderRadius: "var(--radius-chip)", border: "1px solid var(--color-gold)", color: "var(--color-gold)" }}>{t("calendar.favorableToday")}</span>}
+                    {fortune.favorableToday && <span className="px-2.5 py-0.5 text-[11px]" style={{ borderRadius: "var(--radius-chip)", border: "1px solid var(--color-cinnabar)", color: "var(--color-cinnabar)" }}>{t("calendar.favorableToday")}</span>}
                     {fortune.interactions.map((it, i) => (
                       <span key={i} className="px-2.5 py-0.5 text-[11px]" style={{ borderRadius: "var(--radius-chip)", background: "var(--color-tint)", color: "var(--color-muted)" }} title={it.note}>{t("calendar.interaction", { kind: it.kind, withPillar: it.withPillar })}</span>
                     ))}
@@ -241,7 +243,7 @@ export default function CalendarPage() {
 
           {/* 五维评分（细线计量，去卡片） */}
           <div style={{ borderTop: "1px solid var(--color-line)" }}>
-            <div className="pt-5 text-[11px] tracking-[0.3em] text-muted">五 维</div>
+            <div className="pt-5 text-[11px] tracking-[0.3em] text-muted">{t("calendar.dimsTitle")}</div>
             <div className="mt-4 space-y-3">
               {DIMS.map((key) => (
                 <div key={key} className="flex items-center gap-3">
@@ -263,7 +265,7 @@ export default function CalendarPage() {
                 {behavior ? t("calendar.todayYi") : t("calendar.auspiciousYi")}
               </h3>
               <ul className="mt-3 space-y-2 text-[14px] text-ink-2">
-                {(behavior?.do ?? fortune.auspicious).map((item, i) => <li key={i}>{item}</li>)}
+                {(behavior?.do?.length ? behavior.do : fortune.auspicious).map((item, i) => <li key={i}>{item}</li>)}
               </ul>
             </div>
             <div className="pt-5">
@@ -272,7 +274,7 @@ export default function CalendarPage() {
                 {behavior ? t("calendar.todayJi") : t("calendar.cautionJi")}
               </h3>
               <ul className="mt-3 space-y-2 text-[14px] text-ink-2">
-                {(behavior?.dont ?? fortune.caution).map((item, i) => <li key={i}>{item}</li>)}
+                {(behavior?.dont?.length ? behavior.dont : fortune.caution).map((item, i) => <li key={i}>{item}</li>)}
               </ul>
             </div>
           </div>

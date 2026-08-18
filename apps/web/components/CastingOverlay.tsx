@@ -9,11 +9,14 @@ export function CastingOverlay({
   zhi = "申",
   seal = "今",
   title = "正在推算当日流日",
+  hint,
 }: {
   gan?: string;
   zhi?: string;
   seal?: string;
   title?: string;
+  /** 底部小字提示；提供才渲染（文案由调用方按 locale 注入）。 */
+  hint?: string;
 }) {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden zj-fade" style={{ background: "var(--color-paper)" }}>
@@ -47,7 +50,9 @@ export function CastingOverlay({
       >
         {seal}
       </div>
-      <div className="mt-6 text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)", animation: "zjFade .6s ease 1.3s both" }}>排 盘 中</div>
+      {hint && (
+        <div className="mt-6 text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)", animation: "zjFade .6s ease 1.3s both" }}>{hint}</div>
+      )}
     </div>
   );
 }

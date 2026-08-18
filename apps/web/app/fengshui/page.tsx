@@ -232,7 +232,14 @@ export default function FengshuiPage() {
     }
     setRevealing(true);
     setStaggerIn(true);
-    const timer = setTimeout(() => setRevealing(false), 2100);
+    const timer = setTimeout(() => {
+      setRevealing(false);
+      // 错峰入场与过场同属「首揭仪式」，必须在同一定时器里一并复位（评审 I1）：
+      // 盘挂在 tab 条件渲染下，点扇区会切到化解 tab——staggerIn 不复位的话，
+      // 切回命盘 tab 时盘重新挂载、staggerIn 仍为 true，会在没有 CastingOverlay
+      // 解释的情况下重放一次错峰淡入（BaguaWheel 的 prop 文档写明「仅首次渲染时传 true」）。
+      setStaggerIn(false);
+    }, 2100);
     return () => clearTimeout(timer);
   }, [profile]);
 
@@ -630,20 +637,20 @@ export default function FengshuiPage() {
                   </span>
                 )}
                 <span
-                  className="ml-auto shrink-0 text-[10px] tracking-[0.3em]"
+                  className="ml-auto shrink-0 text-[11px] tracking-[0.1em]"
                   style={{ color: "var(--color-muted)" }}
                 >
                   {t(`fengshui.effortLabel.${r.effort}`)}
                 </span>
               </div>
-              <p className="mt-1.5 text-[13px] text-ink">{r.action}</p>
-              <p className="mt-2 text-[12px] text-ink-2">
+              <p className="mt-1.5 text-[14px] text-ink">{r.action}</p>
+              <p className="mt-2 text-[13px] text-ink-2">
                 {r.evidence === "传统象征" ? t("fengshui.evidenceSymbolic") : t("fengshui.evidenceBoth")}
                 {" · "}
                 {t("fengshui.traditionalLabel")}：{r.traditional}
               </p>
               {r.modern && (
-                <p className="mt-1 text-[12px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
+                <p className="mt-1 text-[13px] text-ink-2">{t("fengshui.modernLabel")}：{r.modern}</p>
               )}
               {SPIRIT_ENABLED && (
                 <Link
@@ -669,9 +676,10 @@ export default function FengshuiPage() {
           zhi={profile.chart.bazi.pillars.day.branch}
           seal="境"
           title={t("fengshui.castingTitle")}
+          hint={t("common.casting")}
         />
       )}
-      <PageHeader kicker="境" title={t("fengshui.title")} annotation={t("fengshui.subtitle")} />
+      <PageHeader kicker={t("fengshui.kicker")} title={t("fengshui.title")} annotation={t("fengshui.subtitle")} />
 
       {inTg ? (
         <div className="mt-5">

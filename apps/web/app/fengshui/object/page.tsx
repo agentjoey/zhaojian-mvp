@@ -175,7 +175,7 @@ export default function FengshuiObjectPage() {
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
       <Link href="/fengshui" className="text-[13px] text-ink-2">← {t("fengshui.title")}</Link>
       <div className="mt-3">
-        <PageHeader kicker="物 件" title={t("fengshui.object.title")} annotation={t("fengshui.object.subtitle")} />
+        <PageHeader kicker={t("fengshui.object.kicker")} title={t("fengshui.object.title")} annotation={<span style={{ fontSize: 13 }}>{t("fengshui.object.subtitle")}</span>} />
       </div>
       {showProbeFailedNote && (
         <div className="mt-3">

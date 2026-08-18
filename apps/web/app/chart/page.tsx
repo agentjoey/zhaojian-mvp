@@ -162,7 +162,7 @@ export default function ChartPage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-10 sm:px-8">
       <PageHeader
-        kicker="命 盘"
+        kicker={t("chart.kicker")}
         title={<>{profile.nickname} · {t("chart.title")}</>}
         annotation={chart.normalizedSolarTime}
         action={
@@ -189,22 +189,22 @@ export default function ChartPage() {
       />
 
       {/* 四柱 */}
-      <ChartBlock label="四 柱">
+      <ChartBlock label={t("chart.baziTitle")}>
         <BaziPillars bazi={chart.bazi} />
       </ChartBlock>
 
       {/* 五行 */}
-      <ChartBlock label="五 行">
+      <ChartBlock label={t("chart.wuxingTitle")}>
         <WuxingRadar counts={chart.bazi.fiveElementCounts} />
       </ChartBlock>
 
       {/* 紫微 */}
-      <ChartBlock label="紫 微">
+      <ChartBlock label={t("chart.ziweiTitle")}>
         <ZiweiBoard ziwei={chart.ziwei} />
       </ChartBlock>
 
       {/* 西方本命盘（降级隐藏） */}
-      <ChartBlock label="星 盘">
+      <ChartBlock label={t("chart.westernTitle")}>
         {chart.western ? (
           <NatalWheel western={chart.western} />
         ) : (

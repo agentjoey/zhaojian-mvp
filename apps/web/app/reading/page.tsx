@@ -16,9 +16,9 @@ export default function ReadingPage() {
           <BellLogo size={22} /> {t("common.brand")}
         </Link>
         <PageHeader
-          kicker="起 盘"
+          kicker={t("reading.kicker")}
           title={<>{t("reading.heroTitle1")}<br />{t("reading.heroTitle2")}</>}
-          annotation={t("reading.intro")}
+          annotation={<span style={{ fontSize: 13 }}>{t("reading.intro")}</span>}
         />
       </div>
 

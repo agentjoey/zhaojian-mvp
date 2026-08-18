@@ -228,7 +228,7 @@ export function ReadingForm() {
       </Field>
 
       {!inTg && (
-        <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium transition-colors duration-200 hover:bg-cinnabar-press disabled:opacity-50" style={{ background: "var(--color-cinnabar)", color: "var(--color-on-ink)", borderRadius: "var(--radius-button)" }}>
+        <button type="submit" disabled={pending} className="w-full px-6 py-[15px] text-[16px] font-medium transition-colors duration-200 bg-[var(--color-cinnabar)] hover:bg-[var(--color-cinnabar-press)] disabled:opacity-50" style={{ color: "var(--color-paper)", borderRadius: "var(--radius-button)" }}>
           {pending ? t("reading.submitting") : t("reading.submit")}
         </button>
       )}
