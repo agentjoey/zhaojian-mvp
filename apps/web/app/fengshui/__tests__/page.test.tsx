@@ -243,6 +243,17 @@ async function renderPage(locale: "zh" | "en" = "zh") {
   return result;
 }
 
+/**
+ * 评审后续 #6：situation/youAndSpace 长文默认折叠（条件挂载，不是 CSS 隐藏），
+ * 点「展开完整解读」才会真的出现在 DOM 里。凡是要断言这段内容的既有测试都要
+ * 先调这个 helper——这不是削弱断言，折叠态与展开态背后是同一份数据/同一条
+ * fetch/缓存/degraded 逻辑，测试原本要守的东西一个没变，只是「默认可见」
+ * 变成了「点一下才可见」。
+ */
+function expandNarrative() {
+  fireEvent.click(screen.getByText("展开完整解读 →"));
+}
+
 beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
@@ -275,8 +286,11 @@ describe("EP-fs-07 /fengshui Layer 0", () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("坎1")).toBeInTheDocument());
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
-    // 未降级的正常路径下，叙述本体（situation/youAndSpace）应当照常渲染在默认「盘」
-    // tab 上（与 degraded 测试「queryByText("甲") 为 null」形成对照）。
+    // 未降级的正常路径下，叙述本体（situation/youAndSpace）应当在展开后照常渲染
+    // 在默认「盘」tab 上（与 degraded 测试「展开后 queryByText("甲") 仍为 null」
+    // 形成对照）。
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
     await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
     expect(screen.getByText("乙")).toBeInTheDocument();
     // 复审必修1核心回归：两个 H2 标题必须走 i18n 渲染成真正的标题元素，
@@ -526,7 +540,9 @@ describe("EP-fs-15 Layer 1 指纹与缓存（复审必修1：指纹须真正随�
 
     await renderPage();
 
-    await waitFor(() => expect(screen.getByText("L1-FP-HIT")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("L1-FP-HIT")).toBeInTheDocument();
     expect(fetchSpy.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
   });
 
@@ -672,7 +688,9 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
     const { truncateForSpiritQuery } = await import("../page");
     await renderPage();
     // 等叙述结算完（而非只等盘图），让本测试内该请求的 .then 在测试结束前跑完，避免遗留到下一条测试才 resolve。
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    // 用「展开完整解读」按钮出现当结算信号——它只在 sections && !degraded 时渲染，
+    // 比 getByText("甲") 更准：这条测试不关心叙述内容本身，不需要真的点开它。
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "化解" }));
     const links = screen.getAllByText("和 Mira 聊聊这条");
     // page.tsx 按 fs.remedies 数组原序 .map 渲染卡片，不重新排序——逐条按位置对拍，
@@ -692,7 +710,7 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
   it("灵未开启时不渲染「和 Mira 聊聊这条」链接，避免把用户送进 /spirit 的「尚未开启」死胡同", async () => {
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", ""); // 显式关闭；与「未设置」等价，但意图更明确
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "化解" }));
     expect(screen.getByText("可做的事")).toBeInTheDocument(); // 确认真的切到了会渲染卡片的 tab
     expect(screen.queryByText("和 Mira 聊聊这条")).toBeNull();
@@ -714,7 +732,9 @@ describe("最终评审 Blocking 2：「和 Mira 聊聊这条」链接要带得�
 describe("EP-fs-07 /fengshui Layer 0 — 报告缓存", () => {
   it("成功且未降级时叙述正常渲染，并持久化到服务端供下次直读", async () => {
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("甲")).toBeInTheDocument();
     // 直接查 reportStore（saveFengshuiReport mock 的落点），而不是只断言它「被调用过」——
     // 后者抓不住「指纹算错」或「sections 传错」这类问题（弱断言在本项目已连续栽过跟头）。
     expect(reportStore.get(FP_ZH)).toEqual(SECTIONS);
@@ -725,9 +745,12 @@ describe("EP-fs-07 /fengshui Layer 0 — 报告缓存", () => {
     const fetchSpy = vi.fn(async () => new Response("不该被调用到"));
     vi.stubGlobal("fetch", fetchSpy);
     await renderPage();
-    // 等真正依赖该异步分支的内容（缓存文本），而不是拿盘图（同步可得、不依赖缓存分支）当代理——
-    // 后者会在缓存读取的 effect 真正落定前就先满足，产生间歇性通过的假阳性。
-    await waitFor(() => expect(screen.getByText("缓存内容")).toBeInTheDocument());
+    // 等真正依赖该异步分支的内容出现（「展开」按钮只在 sections && !degraded 落定后
+    // 才渲染），而不是拿盘图（同步可得、不依赖缓存分支）当代理——后者会在缓存读取的
+    // effect 真正落定前就先满足，产生间歇性通过的假阳性。展开后再断言缓存文本本身。
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("缓存内容")).toBeInTheDocument();
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -772,7 +795,7 @@ describe("EP-fs-07 /fengshui Layer 0 — degraded 报告的消费", () => {
   it("未降级（degraded: false）时不显示可信度提示", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: false })));
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
     expect(screen.queryByText(/系统纠正/)).toBeNull();
   });
 });
@@ -782,7 +805,8 @@ describe("EP-fs-07 /fengshui Layer 0 — 英文 locale", () => {
     await renderPage("en");
     // 等叙述结算（内容本身仍是 mock 的中文占位符，与本测试无关；只是借它确保测试结束前
     // 该请求的 .then 已经跑完，不遗留到下一条测试才 resolve、触发 act() 警告）。
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    // 「展开」按钮只在 sections 落定后渲染，同样能当结算信号，不需要真的点开它。
+    await waitFor(() => expect(screen.getByText("Read the full reading →")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Remedies" }));
     // fs-desk-sheng（生气方书桌建议）恒为 buildPersonalRemedies 输出的第一条、effort 恒为「零成本」
     expect(screen.getAllByText("Free").length).toBeGreaterThan(0);
@@ -837,7 +861,9 @@ describe("EP-fs-07 /fengshui Layer 0 — 重试入口（Task 14 复审必修4）
 
     fireEvent.click(screen.getByRole("button", { name: "重新生成叙述" }));
 
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("甲")).toBeInTheDocument();
     expect(screen.queryByText(/系统纠正/)).toBeNull();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -854,7 +880,9 @@ describe("EP-fs-07 /fengshui Layer 0 — 重试入口（Task 14 复审必修4）
 
     fireEvent.click(screen.getByRole("button", { name: "重新生成叙述" }));
 
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("甲")).toBeInTheDocument();
     expect(screen.queryByText(/叙述暂时生成不出来/)).toBeNull();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -883,7 +911,11 @@ describe("EP-fs-07 /fengshui Layer 0 — locale 切换时的状态重置与竞�
 
     fireEvent.click(screen.getByRole("radio", { name: "English" }));
 
-    await waitFor(() => expect(screen.getByText("EN-SITUATION-OK")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Read the full reading →")).toBeInTheDocument());
+    // 这条测试已切到英文 locale，不用共享的 expandNarrative()（硬编码中文按钮文案）——
+    // 直接点刚等到的那个英文按钮。
+    fireEvent.click(screen.getByText("Read the full reading →"));
+    expect(screen.getByText("EN-SITUATION-OK")).toBeInTheDocument();
     // en 的可信缓存应当正常显示，不能被 zh 遗留下来的 degraded 提示挡住
     expect(screen.queryByText(/auto-corrected/)).toBeNull();
   });
@@ -1050,7 +1082,7 @@ describe("EP-fs-17 会员闸门（Task 10）", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
 
     expect(postBodies).toHaveLength(1);
     expect(postBodies[0]).not.toHaveProperty("dwelling");
@@ -1188,7 +1220,9 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Critical 1）：未知 ≠ �
     // Layer 0 完整可用，且免费层叙述不因探测失败而一并消失
     expect(screen.getByText("本命八方")).toBeInTheDocument();
     expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expandNarrative();
+    expect(screen.getByText("甲")).toBeInTheDocument();
   });
 
   it("探测返回 502（冷启动/代理故障）：同样按「资格未知」处理，不当作「确认非会员」", async () => {
@@ -1272,7 +1306,7 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Important 4）：客户端�
     vi.stubGlobal("fetch", recordingFetch(calls));
 
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
 
     const get = calls.find((c) => c.method === "GET");
     const post = calls.find((c) => c.method === "POST");
@@ -1292,7 +1326,7 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Important 4）：客户端�
     vi.stubGlobal("fetch", recordingFetch(calls));
 
     await renderPage();
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
 
     expect(calls.find((c) => c.method === "GET")!.headers.Authorization).toBeUndefined();
     expect(calls.find((c) => c.method === "POST")!.headers.Authorization).toBeUndefined();
@@ -1330,9 +1364,10 @@ describe("EP-fs-17 会员闸门（Task 10 修复单 Minor 3）：叙述 POST 不
     );
 
     await renderPage();
-    // 先等**终态**：宅盘（闸门已放行）与叙述都已落定
+    // 先等**终态**：宅盘（闸门已放行）与叙述都已落定（「展开」按钮只在
+    // sections && !degraded 时出现，同样能当叙述落定的信号）
     await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText("甲")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
     // 再排空剩余的一切，之后计数才有意义
     await drainEffects();
 
@@ -1611,5 +1646,82 @@ describe("2026-08 设计评审后续", () => {
     expect(silhouette.querySelectorAll("rect")).toHaveLength(8);
     // 真宅盘仍未渲染（剪影不是后门）
     expect(screen.queryByLabelText("房屋八方吉凶盘")).toBeNull();
+  });
+});
+
+/**
+ * 对照设计稿（frontend-harness 审查，2026-08-18）：
+ * - #4 有朝向已知的居所时，主视觉从「本命八方」倒向「居所的方位」（居所先出现、
+ *   本命八方降为第二段；没有居所时维持原有顺序）；
+ * - #6 一句话基调（确定性，见 packages/core 的 deriveFengshuiTagline 专属测试）
+ *   默认可见，「展开完整解读」才挂载 situation/youAndSpace 长文。
+ *
+ * 一句话基调的期望值不是在测试里现调 deriveFengshuiTagline 算出来的（那样期望值
+ * 来自被测函数自己，抓不到映射错误）——是拿本文件的 fixture（1990-06-15 14:30
+ * 男）单独跑一次那个函数、把真实输出摘出来固定在这里，跟本文件别处硬编码
+ * "坎1" 这类真实计算结果是同一个纪律。
+ */
+describe("评审后续 #4/#6：主视觉顺序反转 + 一句话基调", () => {
+  const TAGLINE = "金命之人，宜近土——你的生气在东南。";
+
+  it("没有居所时：一句话基调始终可见，且排在「本命八方」标题之前（顶替原先叙述长文的首屏位置）", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText(TAGLINE)).toBeInTheDocument());
+    const personalHeading = screen.getByText("本命八方");
+    const tagline = screen.getByText(TAGLINE);
+    const pos = tagline.compareDocumentPosition(personalHeading);
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING, "「本命八方」应排在一句话基调之后").toBeTruthy();
+  });
+
+  it("有朝向已知的居所时：页头改「居所的方位」+ 坐向宅卦副标题；居所盘 → 一句话基调 → 本命八方，三者按此顺序出现", async () => {
+    dwellingsFixture.current = [dwellingL1()]; // 向南 → 坐北 → 坎宅
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("坎宅")).toBeInTheDocument());
+
+    // 页头（评审后续 #4：claude 判断的可行方案——只在有居所可看时才倒，不是全局倒置）
+    expect(screen.getByText("居所的方位")).toBeInTheDocument();
+    expect(screen.getByText("坐北朝南 · 坎宅")).toBeInTheDocument();
+    expect(screen.queryByText("境")).toBeNull(); // 通用标题被居所标题取代，不是并存
+
+    const dwellingHeading = screen.getByText("房屋八方");
+    const tagline = screen.getByText(TAGLINE);
+    const personalHeading = screen.getByText("本命八方");
+
+    const p1 = dwellingHeading.compareDocumentPosition(tagline);
+    expect(p1 & Node.DOCUMENT_POSITION_FOLLOWING, "一句话基调应排在「房屋八方」之后").toBeTruthy();
+    const p2 = tagline.compareDocumentPosition(personalHeading);
+    expect(p2 & Node.DOCUMENT_POSITION_FOLLOWING, "「本命八方」应排在一句话基调之后（降级为第二段，不是被删）").toBeTruthy();
+
+    // 降级不等于删除：完整的本命盘信息仍然都在（两个盘同屏共存，各自的
+    // accessible label 不同，能分得清是哪一张——不是宅盘顶替了本命盘）。
+    expect(screen.getByLabelText("八方吉凶盘")).toBeInTheDocument();
+    expect(screen.getByLabelText("房屋八方吉凶盘")).toBeInTheDocument();
+  });
+
+  it("展开/收起是真的开关：默认收起（长文不在 DOM 里），点一次展开、再点一次收起，长文随之挂载/卸载", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("展开完整解读 →")).toBeInTheDocument());
+    expect(screen.queryByText("甲")).toBeNull();
+
+    expandNarrative();
+    expect(screen.getByText("甲")).toBeInTheDocument();
+    expect(screen.getByText("收起 ↑")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("收起 ↑"));
+    expect(screen.queryByText("甲")).toBeNull();
+    expect(screen.getByText("展开完整解读 →")).toBeInTheDocument();
+  });
+
+  it("回归防护：degraded 时可信度提示与重新生成入口即使在默认收起状态下也必须可见——\n" +
+     "这是本次实现里唯一真出过的行为回归（第一版把整个 NarrativeStatus 塞进折叠条件里，\n" +
+     "degraded/failed 的提示被连带藏了，20 条既有测试当场发现），补一条测试钉死不许再犯。", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ sections: SECTIONS, degraded: true })));
+    await renderPage();
+    // 不点「展开」——就要在默认（收起）状态下看到 degraded 提示与重试入口。
+    await waitFor(() => expect(screen.getByText(/系统纠正/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "重新生成叙述" })).toBeInTheDocument();
+    // 「展开」按钮本身在 degraded 时不出现（没有可展开的可信内容），
+    // 不能跟「degraded 提示被隐藏」混为一谈。
+    expect(screen.queryByText("展开完整解读 →")).toBeNull();
   });
 });

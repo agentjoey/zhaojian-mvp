@@ -16,6 +16,7 @@ export * from "./remedy";
 export * from "./object-advisor";
 export * from "./dwelling";
 export * from "./cohabitants";
+export * from "./tagline";
 
 /** 改动命卦公式 / 游年表 / 化解生成规则时**必须**递增——它进报告指纹，旧报告靠它失效。 */
 export const FENGSHUI_ENGINE_VERSION = "fs-2";

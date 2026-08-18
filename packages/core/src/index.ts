@@ -32,6 +32,7 @@ export {
   EIGHT_MANSIONS, AUSPICIOUS_STARS, INAUSPICIOUS_STARS,
   ENV_PSYCH_ANCHORS, FENGSHUI_GUARDRAILS,
   OBJECT_CATEGORIES, CATEGORY_LABEL,
+  deriveFengshuiTagline,
 } from "./fengshui/index";
 export type {
   FengshuiInput, FengshuiChart, DwellingView, DwellingInput, DwellingGua,

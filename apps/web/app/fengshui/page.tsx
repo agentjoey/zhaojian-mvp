@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  computeFengshui, FENGSHUI_ENGINE_VERSION, directionsFor, DIRECTION_LABEL, DIRECTIONS,
+  computeFengshui, FENGSHUI_ENGINE_VERSION, directionsFor, DIRECTION_LABEL, DIRECTIONS, deriveFengshuiTagline,
   type FengshuiChart, type DwellingInput, type CohabitantInput, type Direction,
 } from "@eamvp/core";
 import { getActiveProfile, getProfile, type Profile } from "@/lib/profiles";
@@ -212,6 +212,9 @@ export default function FengshuiPage() {
   // 点一次「重新确认」就 +1，出现在下方闸门探测 effect 的依赖数组里——与
   // retryNonce/dwellingsRetryNonce 同一手法，让探测失败可以被用户自己救回来。
   const [entitlementRetryNonce, setEntitlementRetryNonce] = useState(0);
+  // 评审后续：LLM 长文默认收起，只留一句确定性基调——默认 false（收起），
+  // 每次进页面/切档案都重新收起，不持久化「用户上次展开过」这种细节状态。
+  const [narrativeExpanded, setNarrativeExpanded] = useState(false);
 
   // 首揭仪式（2026-08 创意 B / critique P1）：每会话每档案一次——复用 calendar 的
   // CastingOverlay（seal 换「境」），盘扇区随后按吉凶 rank 错峰入场。用户第一次看到
@@ -545,6 +548,9 @@ export default function FengshuiPage() {
   }
 
   const f = fs!;
+  // 一句话基调（评审后续 #6）：确定性生成，只取本命八方，见 packages/core 的
+  // deriveFengshuiTagline 文档注释——两套表不得互推，即使当下以居所为主视觉。
+  const tagline = deriveFengshuiTagline(f.personalDirections, f.elementAffinity, profile.chart.bazi.dayMasterElement);
   // 会员闸门（Task 10）：合看（切视角对照）是会员功能。`f.layer === 1` 现在已经
   // **蕴含**「已确认放行」（fs 由 effectiveDwellingInput 算出，见上方注释），
   // 所以这里不必也不该再判一次 entitled——未放行时 f 根本就是 Layer 0，
@@ -679,7 +685,21 @@ export default function FengshuiPage() {
           hint={t("common.casting")}
         />
       )}
-      <PageHeader kicker={t("fengshui.kicker")} title={t("fengshui.title")} annotation={t("fengshui.subtitle")} />
+      <PageHeader
+        kicker={t("fengshui.kicker")}
+        title={hasDwellingChart ? t("fengshui.dwellingHeroTitle") : t("fengshui.title")}
+        annotation={
+          hasDwellingChart
+            ? f.layer === 1
+              ? t("fengshui.dwellingHeroSubtitle", {
+                  sitting: DIRECTION_LABEL[f.dwelling.sitting],
+                  facing: DIRECTION_LABEL[f.dwelling.facing],
+                  gua: f.dwelling.guaName,
+                })
+              : t("fengshui.dwellingHeroSubtitlePending")
+            : t("fengshui.subtitle")
+        }
+      />
 
       {inTg ? (
         <div className="mt-5">
@@ -712,30 +732,119 @@ export default function FengshuiPage() {
 
       {tab === "chart" && (
         <div {...panelProps("chart")}>
-          <NarrativeStatus
-            t={t}
-            sections={sections}
-            degraded={degraded}
-            failed={failed}
-            onRetry={regenerate}
-            render={(s) => (
-              <>
-                <div>
-                  <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-                    {t(SECTION_HEADING_KEY.situation)}
-                  </h2>
-                  <div className="reading-prose mt-2"><Markdown text={s.situation} /></div>
+          {/* 主视觉顺序（评审后续 #4）：登记了朝向已知的居所时，居所盘先出现、
+              本命盘降为第二段；没有居所时维持原有顺序，本命盘仍是第一屏。
+              两套判语各自的取用规则完全不变——只是改了「谁先出现」，不改
+              「谁能读哪张表」。 */}
+          {hasDwellingChart && (
+            f.layer === 1 ? (
+              <section className="flex flex-col items-center">
+                <h2 className="self-start text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                  {t("fengshui.dwellingTitle")}
+                </h2>
+                <div className="mt-4 flex flex-col items-center">
+                  <BaguaWheel verdicts={f.dwelling.sectors} centerLabel={`${f.dwelling.guaName}宅`} ariaLabel="房屋八方吉凶盘" />
+                  <p className="mt-2 text-[13px] text-ink-2">
+                    {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
+                  </p>
+                  {/* 复审必修3：同屏已并排显示「本命卦（东/西四命）」与「宅卦（东/西四命）」
+                      两个标签，此前从不说这俩合不合——而 core 的 buildDwellingRemedies 早已
+                      在用这个判语生成宅层化解。措辞非决定论：「相冲」≠「这房子不能住」。 */}
+                  <p className="mt-1 text-[13px] text-ink-2">
+                    {t(`fengshui.matchNote.${f.dwelling.matchWithPerson}`)}
+                  </p>
                 </div>
-                <div>
-                  <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-                    {t(SECTION_HEADING_KEY.youAndSpace)}
-                  </h2>
-                  <div className="reading-prose mt-2"><Markdown text={s.youAndSpace} /></div>
+              </section>
+            ) : hasBlockedDwelling ? (
+              // 会员闸门（Task 10，EP-fs-17）：有居所、且服务端**明确**判定未放行——
+              // 住宅实盘（宅八方）与合看都是会员功能，整块换成 Paywall，而不是悄悄
+              // 隐藏（用户能看见「有东西在这里，需要会员才能看」，而不是以为自己压根
+              // 没登记居所——那会误导去 /fengshui/dwellings 重复登记）。
+              // reason="member"：这里没有"上限"、也没有要"保存"的东西（修复单 Important 5）。
+              // 剪影付费墙（2026-08 创意 C）：「看得见形状、看不清内容」。silhouette
+              // 模式不携带任何真实宅卦数据（verdicts=null），付费内容不进非会员浏览器
+              // 的规矩不破——剪影只是八个扇区的结构，不含吉凶。
+              <section>
+                <div className="relative flex justify-center py-2" aria-hidden>
+                  <div style={{ filter: "blur(5px)", opacity: 0.5 }}>
+                    <BaguaWheel silhouette verdicts={null} centerLabel="" size={260} />
+                  </div>
                 </div>
-              </>
-            )}
-          />
+                <Paywall reason="member" />
+              </section>
+            ) : hasUnknownDwelling ? (
+              // 探测失败：资格未知。给出「不代表你没有权限」的说明 + 重新确认入口，
+              // 而不是把付费墙推给一个多半本来就看得到这块内容的用户
+              // （BILLING_ENABLED 未设置时服务端对任何人都放行，那是默认配置）。
+              <section>
+                <p className="text-[13px] text-muted">{t("fengshui.entitlementUnknown")}</p>
+                <button
+                  type="button"
+                  onClick={retryEntitlement}
+                  className="mt-2 text-[13px]"
+                  style={{ color: "var(--color-cinnabar)" }}
+                >
+                  {t("fengshui.retryEntitlement")}
+                </button>
+              </section>
+            ) : (
+              // 探测在途：加载态。姊妹页 dwellings/page.tsx 早就是这个做法。
+              <section>
+                <p className="text-[13px] text-muted">{t("common.loading")}</p>
+              </section>
+            )
+          )}
 
+          {/* 一句话基调（评审后续 #6）：确定性、始终可见，不依赖 LLM 是否已返回。
+              「展开完整解读」只收起**成功路径**的长文（situation/youAndSpace）——
+              `NarrativeStatus` 本身必须无条件挂载：它内部还处理 degraded/failed
+              两条状态各自的可信度提示 + 重新生成入口，那两条是可操作的重要信息，
+              不能因为「长文折叠」被连带藏起来（第一版把整个 NarrativeStatus 塞进
+              narrativeExpanded 条件里，degraded/failed 提示也一起消失了，是本次
+              实现里唯一一次真正的行为回归，被既有测试当场抓到——20 条测试红，
+              全部是这个原因，不是断言过时）。只有 render 回调返回的成功态内容
+              才根据 narrativeExpanded 决定「现在要不要摆在屏幕上」。 */}
+          <section className={hasDwellingChart ? "mt-8" : undefined}>
+            <p className="text-[15px] leading-[1.8]" style={{ color: "var(--color-ink)" }}>{tagline}</p>
+            {sections && !degraded && (
+              <button
+                type="button"
+                onClick={() => setNarrativeExpanded((v) => !v)}
+                className="mt-2 text-[13px]"
+                style={{ color: "var(--color-cinnabar)" }}
+              >
+                {narrativeExpanded ? t("fengshui.collapseNarrative") : t("fengshui.expandNarrative")}
+              </button>
+            )}
+            <NarrativeStatus
+              t={t}
+              sections={sections}
+              degraded={degraded}
+              failed={failed}
+              onRetry={regenerate}
+              render={(s) =>
+                narrativeExpanded ? (
+                  <>
+                    <div>
+                      <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                        {t(SECTION_HEADING_KEY.situation)}
+                      </h2>
+                      <div className="reading-prose mt-2"><Markdown text={s.situation} /></div>
+                    </div>
+                    <div className="mt-6">
+                      <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
+                        {t(SECTION_HEADING_KEY.youAndSpace)}
+                      </h2>
+                      <div className="reading-prose mt-2"><Markdown text={s.youAndSpace} /></div>
+                    </div>
+                  </>
+                ) : null
+              }
+            />
+          </section>
+
+          {/* 本命八方——有居所时是第二段（降级但完整保留，不删任何信息），
+              没有居所时维持原来的首屏位置。 */}
           <section className="mt-8">
             <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.personalTitle")}</h2>
 
@@ -793,68 +902,6 @@ export default function FengshuiPage() {
             )}
           </section>
 
-          {/* 住宅实盘（宅八方）区块。四种状态各自有对应渲染，**不共用**兜底分支——
-              「探测中」「探测失败」与「确认非会员」是三件不同的事，前两者给付费墙
-              等于在向可能已经拥有该内容的用户推销（修复单 Critical 1）。 */}
-          {hasDwellingChart && (
-            f.layer === 1 ? (
-              <section className="mt-8 flex flex-col items-center">
-                <h2 className="self-start text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>
-                  {t("fengshui.dwellingTitle")}
-                </h2>
-                <div className="mt-4 flex flex-col items-center">
-                  <BaguaWheel verdicts={f.dwelling.sectors} centerLabel={`${f.dwelling.guaName}宅`} ariaLabel="房屋八方吉凶盘" />
-                  <p className="mt-2 text-[13px] text-ink-2">
-                    {f.dwelling.name} · {f.dwelling.guaName}宅（{f.dwelling.group}）
-                  </p>
-                  {/* 复审必修3：同屏已并排显示「本命卦（东/西四命）」与「宅卦（东/西四命）」
-                      两个标签，此前从不说这俩合不合——而 core 的 buildDwellingRemedies 早已
-                      在用这个判语生成宅层化解。措辞非决定论：「相冲」≠「这房子不能住」。 */}
-                  <p className="mt-1 text-[13px] text-ink-2">
-                    {t(`fengshui.matchNote.${f.dwelling.matchWithPerson}`)}
-                  </p>
-                </div>
-              </section>
-            ) : hasBlockedDwelling ? (
-              // 会员闸门（Task 10，EP-fs-17）：有居所、且服务端**明确**判定未放行——
-              // 住宅实盘（宅八方）与合看都是会员功能，整块换成 Paywall，而不是悄悄
-              // 隐藏（用户能看见「有东西在这里，需要会员才能看」，而不是以为自己压根
-              // 没登记居所——那会误导去 /fengshui/dwellings 重复登记）。
-              // reason="member"：这里没有"上限"、也没有要"保存"的东西（修复单 Important 5）。
-              // 剪影付费墙（2026-08 创意 C）：「看得见形状、看不清内容」。silhouette
-              // 模式不携带任何真实宅卦数据（verdicts=null），付费内容不进非会员浏览器
-              // 的规矩不破——剪影只是八个扇区的结构，不含吉凶。
-              <section className="mt-8">
-                <div className="relative flex justify-center py-2" aria-hidden>
-                  <div style={{ filter: "blur(5px)", opacity: 0.5 }}>
-                    <BaguaWheel silhouette verdicts={null} centerLabel="" size={260} />
-                  </div>
-                </div>
-                <Paywall reason="member" />
-              </section>
-            ) : hasUnknownDwelling ? (
-              // 探测失败：资格未知。给出「不代表你没有权限」的说明 + 重新确认入口，
-              // 而不是把付费墙推给一个多半本来就看得到这块内容的用户
-              // （BILLING_ENABLED 未设置时服务端对任何人都放行，那是默认配置）。
-              <section className="mt-8">
-                <p className="text-[13px] text-muted">{t("fengshui.entitlementUnknown")}</p>
-                <button
-                  type="button"
-                  onClick={retryEntitlement}
-                  className="mt-2 text-[13px]"
-                  style={{ color: "var(--color-cinnabar)" }}
-                >
-                  {t("fengshui.retryEntitlement")}
-                </button>
-              </section>
-            ) : (
-              // 探测在途：加载态。姊妹页 dwellings/page.tsx 早就是这个做法。
-              <section className="mt-8">
-                <p className="text-[13px] text-muted">{t("common.loading")}</p>
-              </section>
-            )
-          )}
-
           {/* 「还没登记居所 / 朝向未确定 / 读取失败」三条引导语。判据是**有没有登记
               朝向已知的居所**（hasDwellingChart），不是 f.layer——f.layer 现在受
               会员状态影响，用它会让「有宅但被挡」的用户读到「这个居所的朝向未确定」
@@ -887,7 +934,6 @@ export default function FengshuiPage() {
           )}
         </div>
       )}
-
       {tab === "remedy" && (
         <section className="mt-6" {...panelProps("remedy")}>
           <h2 className="text-[18px]" style={{ fontFamily: "var(--font-serif)" }}>{t("fengshui.remedyTitle")}</h2>

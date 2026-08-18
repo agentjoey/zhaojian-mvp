@@ -333,6 +333,14 @@ export const zh = {
     kicker: "境",
     title: "境",
     subtitle: "本命方位 · 人与空间",
+    // 以居所为主视觉时的页头文案（评审后续 #4：登记了朝向已知的居所时，
+    // 页面主标题与主视觉从「本命八方」倒向「居所的方位」——但只在有居所可看
+    // 时才这样倒，没有居所的用户仍看「境」这个通用标题，见 claude 判断记录）。
+    dwellingHeroTitle: "居所的方位",
+    dwellingHeroSubtitle: "坐{sitting}朝{facing} · {gua}宅",
+    dwellingHeroSubtitlePending: "居所信息核对中…",
+    expandNarrative: "展开完整解读 →",
+    collapseNarrative: "收起 ↑",
     notEnabled: "「境」尚未开启。",
     loadingProfile: "读取档案中…",
     noProfile: "还没有命盘档案，先起一个盘。",
