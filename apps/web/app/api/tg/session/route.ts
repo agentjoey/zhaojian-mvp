@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyInitData } from "@eamvp/core";
 import { resolveOrCreateTgUser, getProfileForUser } from "@/lib/tg/identity";
-import { makeSessionToken, readSession, TG_COOKIE } from "@/lib/tg/session";
+import { makeSessionToken, readSession, TG_COOKIE, SESSION_TTL_SECONDS } from "@/lib/tg/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request): Promise<Response> {
@@ -22,7 +22,7 @@ export async function POST(req: Request): Promise<Response> {
   const profile = await getProfileForUser(supabaseUserId);
   const res = NextResponse.json({ ok: true, hasProfile: !!profile });
   res.cookies.set(TG_COOKIE, makeSessionToken(supabaseUserId, v.user.id), {
-    httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 3600,
+    httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: SESSION_TTL_SECONDS,
   });
   return res;
 }

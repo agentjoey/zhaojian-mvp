@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyTelegramLogin } from "@eamvp/core";
 import { resolveOrCreateTgUser } from "@/lib/tg/identity";
-import { makeSessionToken, TG_COOKIE } from "@/lib/tg/session";
+import { makeSessionToken, TG_COOKIE, SESSION_TTL_SECONDS } from "@/lib/tg/session";
 import { mergeAnonProfiles } from "@/lib/tg/merge";
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const res = NextResponse.json({ ok: true, merged });
-  const maxAge = 60 * 60 * 24 * 30;
+  const maxAge = SESSION_TTL_SECONDS;
   res.cookies.set(TG_COOKIE, makeSessionToken(supabaseUserId, v.id), {
     httpOnly: true,
     secure: true,

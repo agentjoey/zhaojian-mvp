@@ -15,7 +15,7 @@ export function signSession(payload: { uid: string; tgId: number; exp: number },
   return `${header}.${sig}`;
 }
 
-export function verifySession(token: string, secret: string): { uid: string; tgId: number } | null {
+export function verifySession(token: string, secret: string): { uid: string; tgId: number; exp: number } | null {
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [header, sig] = parts;
@@ -28,7 +28,7 @@ export function verifySession(token: string, secret: string): { uid: string; tgI
     const payload = JSON.parse(base64urlDecode(header).toString("utf8"));
     if (!payload || typeof payload.uid !== "string" || typeof payload.tgId !== "number" || typeof payload.exp !== "number") return null;
     if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
-    return { uid: payload.uid, tgId: payload.tgId };
+    return { uid: payload.uid, tgId: payload.tgId, exp: payload.exp };
   } catch {
     return null;
   }
