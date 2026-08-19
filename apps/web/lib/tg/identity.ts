@@ -19,6 +19,11 @@ export async function resolveOrCreateTgUser(tg: { id: number; username?: string;
     if (Object.keys(upd).length > 0) await sb.from("tg_users").update(upd).eq("tg_user_id", tg.id);
     return { supabaseUserId: existing.supabase_user_id as string };
   }
+  // 实测确认（EP-account2-08 Step 1，真实 Supabase 项目，2026-08-19）：auth.admin.createUser({}) 不带 email 会失败——
+  // Supabase 要求必须有 email 或 phone 才能建用户（400 "Cannot create a user without either an email or phone"）。
+  // 只能保留合成邮箱这条路，但 resolveAccess 的 hasVerifiedEmail 判定已经显式排除这个域名（Task 1），
+  // 「已验证邮箱」这个信号依然诚实——不依赖「影子邮箱已被消灭」这个假设，
+  // 这正是 spec §3 要求判定函数「两种情况都正确」的意思。
   const { data: created, error } = await sb.auth.admin.createUser({ email: `tg_${tg.id}@${SYNTHETIC_EMAIL_DOMAIN}`, email_confirm: true });
   if (error || !created.user) throw new Error("createUser 失败: " + (error?.message ?? ""));
   const uid = created.user.id;
