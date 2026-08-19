@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveUid } from "@/lib/account/uid";
 import { supabaseAdmin } from "@/lib/tg/admin";
+import { SYNTHETIC_EMAIL_DOMAIN } from "@/lib/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export async function GET(req: Request): Promise<Response> {
   const { data: u } = await supabaseAdmin().auth.admin.getUserById(uid);
   const rawEmail = u.user?.email ?? null;
   const email =
-    rawEmail && !rawEmail.endsWith("@zhaojian.local") ? rawEmail : null;
+    rawEmail && !rawEmail.endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`) ? rawEmail : null;
 
   const { data: tgRow } = await supabaseAdmin()
     .from("tg_users")
