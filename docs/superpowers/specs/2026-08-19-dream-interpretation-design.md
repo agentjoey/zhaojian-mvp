@@ -51,9 +51,10 @@
 prompt 层要求 + 探针抽样**不够**——参照先例 `packages/llm/src/fengshui/guard.ts` 的 `sanitizeFengshui()` 不是纯 prompt 约束，而是确定性后置扫描（「与 sanitizeReading / correctMutagens 同层：确定性兜底，不依赖模型自觉」）。解梦必须同强度：
 
 **新增 `sanitizeDream()`**（llm 包，与 sanitize/correct 同层串联进解读管线）：
-- 预言措辞词表命中（zh：预示着/将会/凶兆/吉兆/必发/主灾…；en："foretells"/"an omen"/"will come true"/"means you will"…）**且**所在段落无诚实标注标记（zh：民间说法/传统上/古人认为…；en："folk saying"/"traditionally"…）→ 机械剥离该句或降级标记
-- **双语从第一天做起**：fengshui 扫描器是中文单语、英文侧机械校验失效是已记账的技术债（见 fengshui-telegram-adaptation spec）——**这笔债不许抄过来**
-- 扫描器本身配单测：词表命中+无标注 → 剥；命中+有标注 → 留；正常心理映照文本 → 不动（一正一反一无关）
+- 预言措辞词表命中（zh：预示着/将会/凶兆/吉兆/必发/主灾/预兆/征兆/注定…；en："foretells"/"an omen"/"bad omen"/"will come true"/"means you will"/"sign of doom"…）**且**所在**句子**无诚实标注标记（zh：民间说法/传统上/古人认为…；en："folk saying"/"folk tradition"/"folklore"/"traditionally"…）→ 机械剥离该句
+- **豁免作用域是句不是段**（验收轮修订）：prompt 要求「一段自然口语走完四拍」，段级豁免会让③拍的合规标注豁免掉全篇——验收实测同内容单段剥 0 句、分行剥 1 句。句级豁免与 prompt 的「行内标注」要求一致，失败方向 fail-safe
+- **双语从第一天做起，且两张词表都扫**（不按 language 二选一，双语混合输出无盲区）：fengshui 扫描器是中文单语、英文侧机械校验失效是已记账的技术债（见 fengshui-telegram-adaptation spec）——这笔债不许抄；en 侧词边界正则匹配（裸 "folk" 会命中 folks/Norfolk——验收实测的放行事故）
+- 扫描器本身配单测：词表命中+无标注 → 剥；命中+同句标注 → 留；正常心理映照文本 → 不动（一正一反一无关，中英各一组）
 
 ## 4. 技术设计
 
