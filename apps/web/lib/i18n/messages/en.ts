@@ -23,6 +23,7 @@ export const en: Messages = {
     reading: "Reading",
     spirit: "Spirit",
     fengshui: "Space",
+    dream: "Dream",
     profiles: "Me",
     account: "Account",
   },
@@ -98,6 +99,7 @@ export const en: Messages = {
       annual: { title: "Yearly cycle", sub: "Annual themes · 大限四化 (Four Transforms)" },
       chart: { title: "My chart", sub: "命理 (Mingli) + psychological reading" },
       reading: { title: "Cast chart", sub: "Birth info instant chart" },
+      dream: { title: "Dreams", sub: "Dream mirror · psychological reflection" },
     },
     cards: {
       east: {
@@ -122,6 +124,7 @@ export const en: Messages = {
         chart: { title: "My chart", subtitle: "命理 (Mingli) + psychological reading" },
         spirit: { title: "Spirit", subtitle: "Guardian spirit & yearly guidance" },
         fengshui: { title: "Home Feng Shui", subtitle: "Your directions · dwelling chart" },
+        dream: { title: "Dreams", subtitle: "Dream mirror · psychological reflection" },
         reading: { title: "Cast chart", subtitle: "Birth info instant chart" },
         profiles: { title: "My profiles", subtitle: "Saved chart profiles" },
       },
@@ -334,6 +337,16 @@ export const en: Messages = {
       "A few subjective questions help your 本命之灵 (Natal Spirit) understand your state and tendencies. There are no right or wrong answers; they are only used to deepen the dialogue and portrait, not to calculate the chart.",
     saving: "Saving…",
     complete: "Complete · Help your 本命之灵 (Natal Spirit) understand you",
+  },
+  dream: {
+    kicker: "Dream Reading",
+    title: "Tell me your dream",
+    subtitle: "Dreams are letters from the unconscious — reflection, not prediction.",
+    placeholder: "e.g. I dreamed I was walking on clear water…",
+    submit: "Interpret",
+    interpreting: "Interpreting…",
+    errorTooLong: "Too long — tell the clearest part (under 2000 chars).",
+    noProfile: "No chart profile yet — cast your chart first.",
   },
   fengshui: {
     kicker: "Feng Shui",

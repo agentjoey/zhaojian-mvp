@@ -99,3 +99,20 @@ describe("TG 首页入口列表：风水「境」", () => {
     expect(screen.queryByText("居家风水")).toBeNull();
   });
 });
+
+describe("TG 首页入口列表：解梦「梦」", () => {
+  it("TG 内 + flag 开：「解梦」入口出现，点击导向 /dream", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+    await renderHome();
+    const cell = await screen.findByText("解梦");
+    fireEvent.click(cell);
+    expect(routerPush).toHaveBeenCalledWith("/dream");
+  });
+
+  it("TG 内 + flag 关：「解梦」入口不出现", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
+    await renderHome();
+    expect(await screen.findByText("今日运势")).toBeInTheDocument();
+    expect(screen.queryByText("解梦")).toBeNull();
+  });
+});

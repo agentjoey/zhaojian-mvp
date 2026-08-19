@@ -12,6 +12,7 @@ const ENTRIES = [
   { href: "/chart", key: "annual" as const },
   { href: "/chart", key: "chart" as const },
   { href: "/reading", key: "reading" as const },
+  ...(process.env.NEXT_PUBLIC_DREAM_ENABLED === "1" ? [{ href: "/dream", key: "dream" as const }] : []),
 ] as const;
 
 const CARDS = [{ id: "east" as const }, { id: "west" as const }, { id: "resonance" as const }] as const;
@@ -37,6 +38,9 @@ const TG_ENTRIES = [
     ? [{ icon: "境", accent: "var(--color-earth)", key: "fengshui" as const, path: "/fengshui" }]
     : []),
   { icon: "起", accent: "var(--color-earth)", key: "reading" as const, path: "/reading" },
+  ...(process.env.NEXT_PUBLIC_DREAM_ENABLED === "1"
+    ? [{ icon: "梦", accent: "var(--color-water)", key: "dream" as const, path: "/dream" }]
+    : []),
   { icon: "档", accent: "var(--color-wood)", key: "profiles" as const, path: "/profiles" },
 ];
 

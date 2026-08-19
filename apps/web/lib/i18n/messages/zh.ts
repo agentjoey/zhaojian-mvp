@@ -21,6 +21,7 @@ export const zh = {
     reading: "解读",
     spirit: "本命",
     fengshui: "境",
+    dream: "解梦",
     profiles: "我的",
     account: "账号",
   },
@@ -97,6 +98,7 @@ export const zh = {
       annual: { title: "本年时序", sub: "流年 · 大限四化" },
       chart: { title: "我的命盘", sub: "命理 + 心理解读" },
       reading: { title: "起盘建档", sub: "出生信息即时排盘" },
+      dream: { title: "解梦", sub: "梦的映照 · 心理解读" },
     },
     cards: {
       east: {
@@ -121,6 +123,7 @@ export const zh = {
         chart: { title: "我的命盘", subtitle: "命理 + 心理解读" },
         spirit: { title: "本命之灵", subtitle: "守护灵与年度指引" },
         fengshui: { title: "居家风水", subtitle: "本命方位 · 居所实盘" },
+        dream: { title: "解梦", subtitle: "梦的映照 · 心理解读" },
         reading: { title: "起盘建档", subtitle: "出生信息即时排盘" },
         profiles: { title: "我的档案", subtitle: "已保存的命盘档案" },
       },
@@ -328,6 +331,16 @@ export const zh = {
       "几道主观自陈题，让本命之灵更懂你的心境与倾向。答案没有对错，只用于深化对话与画像，不参与命盘排算。",
     saving: "保存中…",
     complete: "完成 · 让本命之灵更懂你",
+  },
+  dream: {
+    kicker: "解 梦",
+    title: "说说你的梦",
+    subtitle: "梦是潜意识的信。灵替你读它——观照，不预言。",
+    placeholder: "比如：我梦见自己在一片很清的水面上走……",
+    submit: "解这个梦",
+    interpreting: "解梦中…",
+    errorTooLong: "梦太长了，先讲最清晰的那段（2000 字以内）。",
+    noProfile: "尚无命盘档案——先起盘，灵才认得你。",
   },
   fengshui: {
     kicker: "境",

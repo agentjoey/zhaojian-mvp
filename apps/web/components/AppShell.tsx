@@ -16,6 +16,9 @@ const NAV = [
   ...(process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1"
     ? [{ href: "/fengshui", char: "境", key: "nav.fengshui" }]
     : []),
+  ...(process.env.NEXT_PUBLIC_DREAM_ENABLED === "1"
+    ? [{ href: "/dream", char: "梦", key: "nav.dream" }]
+    : []),
   { href: "/profiles", char: "我", key: "nav.profiles" },
 ];
 
