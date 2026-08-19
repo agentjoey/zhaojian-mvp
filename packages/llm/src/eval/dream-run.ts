@@ -4,7 +4,7 @@
  *   LLM_API_KEY=sk-... pnpm --filter @eamvp/llm probe:dream
  */
 import { computeUnifiedChart, BirthInputSchema } from "@eamvp/core";
-import { interpretDream, sanitizeDream } from "../dream";
+import { generateDreamReply } from "../dream";
 import { resolveLlmConfig, isLlmConfigured } from "../provider";
 import { EVAL_CASES } from "./cases";
 import { checkVoice, type VoiceViolation } from "./voice";
@@ -44,10 +44,9 @@ export async function runDreamProbe(opts?: {
     for (const dream of DREAM_CASES) {
       let result: DreamProbeResult;
       try {
-        let reply = "";
-        for await (const chunk of interpretDream(chart, dream, { language: "zh" })) reply += chunk;
+        const { text: reply, stripped } = await generateDreamReply(chart, dream, { language: "zh" });
         const violations = checkVoice(reply, { language: "zh", dreamMode: true });
-        const predictionStripped = sanitizeDream(reply, "zh").stripped.length; // 后置链已跑过，此处恒 0；非 0 说明链路漏了
+        const predictionStripped = stripped.length; // 真实管线里 sanitizeDream 的剥离数（非对成品重扫）
         result = { caseId: c.id, dream, reply, violations, predictionStripped };
       } catch (e) {
         result = { caseId: c.id, dream, reply: "", violations: [{ rule: "error", detail: String(e) }], predictionStripped: 0, error: String(e) };

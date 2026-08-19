@@ -19,11 +19,26 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
     expect(out.stripped).toHaveLength(1);
   });
 
-  it("zh：同段有诚实标注 → 保留", () => {
+  it("zh：同句有诚实标注 → 保留（行内标注）", () => {
     const t = "民间说法里，梦见水预示着财。这只是文化参照。";
     const out = sanitizeDream(t, "zh");
     expect(out.text).toBe(t);
     expect(out.stripped).toHaveLength(0);
+  });
+
+  it("zh：单段输入，句内标注只豁免本句（prompt 要求一段口语走完，豁免必须在同句成立）", () => {
+    const t = "直观。这个梦在替你处理焦虑。民间说法里，梦见水预示着财。试着今晚早睡。";
+    const out = sanitizeDream(t, "zh");
+    expect(out.text).toBe(t); // 预言句句内带标注 → 保留；其余句本就不违规
+    expect(out.stripped).toHaveLength(0);
+  });
+
+  it("zh：单段输入，无标注预言句被剥，同段其余句保留（段级豁免会漏掉这句）", () => {
+    const out = sanitizeDream("这个梦在替你处理焦虑。梦见水预示着财运要来了。试着今晚早睡。", "zh");
+    expect(out.text).toContain("处理焦虑");
+    expect(out.text).toContain("今晚早睡");
+    expect(out.text).not.toContain("预示着财运");
+    expect(out.stripped).toHaveLength(1);
   });
 
   it("zh：纯心理映照文本 → 原样不动", () => {
@@ -39,19 +54,47 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
     expect(sanitizeDream(good, "en").text).toBe(good);
   });
 
+  it("en：词边界——裸 folk 不再命中 folks；无标注预言句照剥", () => {
+    const out = sanitizeDream("Your folks appear in this dream. It foretells a loss.", "en");
+    expect(out.text).toContain("Your folks appear");
+    expect(out.text).not.toContain("foretells");
+    expect(out.stripped).toHaveLength(1);
+  });
+
+  it("en：句内 folks 不是标注——同句预言仍剥（裸 folk 变异必红）", () => {
+    const out = sanitizeDream("Your folks appear in this dream and it foretells a loss.", "en");
+    expect(out.text).not.toContain("foretells");
+    expect(out.stripped).toHaveLength(1);
+  });
+
+  it("en：folklore 是合规标注，句内预言保留", () => {
+    const t = "In folklore, water foretells wealth.";
+    const out = sanitizeDream(t, "en");
+    expect(out.text).toBe(t);
+    expect(out.stripped).toHaveLength(0);
+  });
+
   it("整篇都是无标注预言 → 剥空（由 interpretDream 的 fallback 接管）", () => {
     const out = sanitizeDream("梦见蛇预示着灾祸。这将会发生。", "zh");
     expect(out.text.length).toBeLessThan(6);
   });
 
-  it("zh：标注只豁免同段——跨段预言句仍剥离", () => {
+  it("zh：标注只豁免同句——跨句/跨段预言句仍剥离", () => {
     const out = sanitizeDream("民间说法仅供参考。\n梦见水预示着财运。", "zh");
     expect(out.text).not.toContain("预示着财运");
     expect(out.text).toContain("民间说法仅供参考");
     expect(out.stripped).toHaveLength(1);
   });
 
-  it("en：句首大写也命中（toLowerCase 是 load-bearing）", () => {
+  it("zh：同段内标注句不豁免其他句的无标注预言（段级豁免变异必红）", () => {
+    const out = sanitizeDream("民间说法仅供参考。梦见水预示着财运要来了。试着今晚早睡。", "zh");
+    expect(out.text).not.toContain("预示着财运");
+    expect(out.text).toContain("民间说法仅供参考");
+    expect(out.text).toContain("今晚早睡");
+    expect(out.stripped).toHaveLength(1);
+  });
+
+  it("en：句首大写也命中（ignoreCase 是 load-bearing）", () => {
     const out = sanitizeDream("Foretells doom ahead.", "en");
     expect(out.text).not.toContain("Foretells");
     expect(out.stripped).toHaveLength(1);
@@ -82,6 +125,10 @@ describe("interpretDream", () => {
 
   it("用户消息含梦原文与四拍提纲；系统提示含解梦硬规则；后置链生效", async () => {
     streamSpy.mockClear();
+    // mock 流里明确包含一句无标注预言——管线的 sanitizeDream 闸门必须把它剥掉
+    streamSpy.mockImplementationOnce(async function* () {
+      yield "这个梦在替你处理最近的紧绷。梦里被追，常常对应清醒时躲着的那件事。梦见水预示着财运要来了。试着今晚把它写下来，写完就睡。";
+    });
     let out = "";
     for await (const c of interpretDream(chart, "我梦见被一个人追，跑不动", { language: "zh", config })) out += c;
     const [messages, callOpts] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[], { maxTokens: number }];
@@ -90,7 +137,8 @@ describe("interpretDream", () => {
     expect(messages[0]!.content).toContain("解梦"); // 硬规则块在系统提示
     expect(callOpts.maxTokens).toBeLessThanOrEqual(700);
     expect(out).toContain("紧绷"); // mock 输出经后置链后保留正文
-    expect(out).not.toContain("预示");
+    expect(out).toContain("写完就睡");
+    expect(out).not.toContain("预示着财运"); // 闸门真的在：无标注预言句被剥（删掉 sanitizeDream 调用本测试必红）
   });
 
   it("整篇 dump/预言时给 fallback（<6 字）", async () => {

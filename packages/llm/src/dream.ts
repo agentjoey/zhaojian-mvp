@@ -10,33 +10,41 @@ import { buildSpiritSystemPrompt, stripSpiritScaffolding, type SpiritOptions } f
 
 /**
  * 解梦后置机械扫描（EP-dream-01）——与 sanitizeFengshui 同层：确定性兜底，不依赖模型自觉。
- * 规则：段落命中预言措辞词表 且 同段无诚实标注标记 → 逐句剥离命中句；有标注 → 保留。
- * 中英双词表从第一天做起（fengshui 英文侧机械校验失效是已记账的债，不抄）。
+ * 规则（句级）：单句命中预言措辞 且 同一句内无诚实标注标记 → 剥离该句；句内标注+预言并存 → 保留。
+ * 为什么是句级而非段级：prompt 要求模型「一段自然口语走完、不分节」，真实输出就是单段——
+ * 段级豁免会让第③拍一个合规标注豁免全篇；句级豁免对应的正是 prompt 的「行内标注」要求
+ * （标注必须与预言措辞出现在同一句里才成立）。
+ * 中英两张词表都扫（不做语言二选一）：双语混合输出时无盲区，标注判定同样两张表都算。
+ * zh 用子串匹配（CJK 无词边界）；en 用词边界正则（\b），避免裸词子串误伤 folks/folklore/Norfolk。
  */
 
 /** 预言措辞：断言未来/吉凶定性。词表扩充时注意——长词在前（「预示着」⊃「预示」靠 some 命中，顺序无害，但剥离以句为单位）。 */
-const PREDICTION_ZH = ["预示着", "预示", "将会", "凶兆", "吉兆", "主灾", "主吉", "血光", "大难临头", "必有"];
-const PREDICTION_EN = ["foretell", "an omen", "omen of", "will come true", "means you will", "a sign that you will", "predicts"];
+const PREDICTION_ZH = ["预示着", "预示", "将会", "凶兆", "吉兆", "主灾", "主吉", "血光", "大难临头", "必有", "预兆", "征兆", "注定"];
+/** en 侧为正则源（套 \b…\b、忽略大小写）；词族用语干+\w*（foretell\w* 覆盖 foretells/foretold）。 */
+const PREDICTION_EN = ["foretell\\w*", "an omen", "omen of", "bad omen", "will come true", "means you will", "a sign that you will", "sign of doom", "predicts\\w*"];
 
-/** 诚实标注标记（段级存在性判定）。 */
+/** 诚实标注标记（句级存在性判定）。en 侧整词/短语，裸 "folk" 会命中 folks/folklore/Norfolk，禁用。 */
 const MARKER_ZH = ["民间说法", "传统上", "传统说法", "古人认为", "周公解梦", "民俗"];
-const MARKER_EN = ["folk", "traditionally", "traditional interpretation", "cultural reference"];
+const MARKER_EN = ["folk saying", "folk tradition", "folklore", "traditionally", "traditional interpretation", "cultural reference"];
 
 const SENTENCE_RE = /[^。！？!?….\n]+[。！？!?….]*/g;
 
-export function sanitizeDream(text: string, language: ReadingLanguage): { text: string; stripped: string[] } {
-  const zh = language === "zh";
-  const predictions = zh ? PREDICTION_ZH : PREDICTION_EN;
-  const markers = zh ? MARKER_ZH : MARKER_EN;
+const hitZh = (list: string[], s: string) => list.some((p) => s.toLowerCase().includes(p.toLowerCase()));
+const hitEn = (list: string[], s: string) => list.some((p) => new RegExp(`\\b${p}\\b`, "i").test(s));
+
+// language 保留在签名里（调用方按语言传入），但扫描始终两张表都做。
+export function sanitizeDream(text: string, _language: ReadingLanguage): { text: string; stripped: string[] } {
   const stripped: string[] = [];
+  const hasPrediction = (s: string) => hitZh(PREDICTION_ZH, s) || hitEn(PREDICTION_EN, s);
+  const hasMarker = (s: string) => hitZh(MARKER_ZH, s) || hitEn(MARKER_EN, s);
 
   const paras = text.split("\n").map((para) => {
-    if (markers.some((m) => para.toLowerCase().includes(m.toLowerCase()))) return para;
     const sentences = para.match(SENTENCE_RE) ?? [para];
     const kept = sentences.filter((s) => {
-      const hit = predictions.some((p) => s.toLowerCase().includes(p.toLowerCase()));
-      if (hit) stripped.push(s.trim());
-      return !hit;
+      if (!hasPrediction(s)) return true;
+      if (hasMarker(s)) return true; // 句内标注 + 预言并存 → 行内标注成立，保留
+      stripped.push(s.trim());
+      return false;
     });
     return kept.join("");
   });
@@ -67,14 +75,14 @@ const DREAM_RULES_EN = `
 - Length: at most 7 sentences / 170 words (a target with margin — trim if over; shorter is better). At most ONE chart fact; do not end with a question by default.`;
 
 /**
- * 解梦（EP-dream-01）：灵的专门技能。buffered 单次 yield。
- * 后置链顺序：脚手架护栏 → sanitizeReading → sanitizeDream → correctMutagens。
+ * 解梦完整管线（EP-dream-01）：LLM 生成 → 脚手架护栏 → sanitizeReading → sanitizeDream → correctMutagens → fallback。
+ * 返回净化后文本与 sanitizeDream 实际剥离的句子（探针据此报告真实剥离数，而非对成品重扫）。
  */
-export async function* interpretDream(
+export async function generateDreamReply(
   chart: UnifiedChart,
   dreamText: string,
   opts: SpiritOptions = {},
-): AsyncGenerator<string> {
+): Promise<{ text: string; stripped: string[] }> {
   const cfg = opts.config ?? resolveLlmConfig();
   if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置：请设置 LLM_API_KEY。");
   const language = opts.language ?? "en";
@@ -102,11 +110,25 @@ export async function* interpretDream(
 
   let out = stripSpiritScaffolding(all);
   out = sanitizeReading(out, language, chart.western !== null);
-  out = sanitizeDream(out, language).text;
+  const scan = sanitizeDream(out, language);
+  out = scan.text;
   out = correctMutagens(out, chart.ziwei.birthMutagens).text;
   if (out.length < 6) {
     out = zh ? "我在。这个梦先放在这里——再说一遍给我听，好吗？" : "I'm here. Let's set this dream down for a moment — tell it to me again?";
   }
-  console.info(`[dream] model=${cfg.model} chars=${out.length}`);
-  yield out;
+  console.info(`[dream] model=${cfg.model} chars=${out.length} stripped=${scan.stripped.length}`);
+  return { text: out, stripped: scan.stripped };
+}
+
+/**
+ * 解梦（EP-dream-01）：灵的专门技能。buffered 单次 yield。
+ * generateDreamReply 的 AsyncGenerator 薄封装，对外签名不变。
+ */
+export async function* interpretDream(
+  chart: UnifiedChart,
+  dreamText: string,
+  opts: SpiritOptions = {},
+): AsyncGenerator<string> {
+  const { text } = await generateDreamReply(chart, dreamText, opts);
+  yield text;
 }
