@@ -42,7 +42,10 @@ vi.mock("@/lib/i18n/server", () => ({ localeFromRequest: () => "zh" }));
 const interpretDreamSpy = vi.fn(async function* () {
   yield "解读";
 });
+const isLlmConfiguredMock = vi.fn(() => true);
 vi.mock("@eamvp/llm", () => ({
+  resolveLlmConfig: vi.fn(() => ({ provider: "minimax", model: "m" })),
+  isLlmConfigured: () => isLlmConfiguredMock(),
   interpretDream: (...a: unknown[]) => interpretDreamSpy(...(a as [])),
   DREAM_MAX_CHARS: 2000,
 }));
@@ -124,6 +127,15 @@ describe("POST /api/tg/dream", () => {
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "0");
     const res = await POST(req({ dream: "我梦见坠落" }));
     expect(res.status).toBe(404);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+  });
+
+  it("LLM 未配置 → 503，且双额度均不被消耗（平台错误不白扣额度）", async () => {
+    isLlmConfiguredMock.mockReturnValueOnce(false);
+    const res = await POST(req({ dream: "我梦见坠落" }));
+    expect(res.status).toBe(503);
+    expect(consumeQuotaMock).not.toHaveBeenCalled();
+    expect(consumeLlmMock).not.toHaveBeenCalled();
     expect(interpretDreamSpy).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { formatQuestionnaire } from "@eamvp/core";
-import { interpretDream, DREAM_MAX_CHARS } from "@eamvp/llm";
+import { resolveLlmConfig, isLlmConfigured, interpretDream, DREAM_MAX_CHARS } from "@eamvp/llm";
 import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { getProfileForUser } from "@/lib/tg/identity";
 import { getMemory, getQuestionnaire } from "@/lib/tg/data";
@@ -19,6 +19,10 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request): Promise<Response> {
   if (process.env.NEXT_PUBLIC_DREAM_ENABLED !== "1") return new Response("未开启", { status: 404 });
+  // 前置 503：LLM 未配置时先挡，避免 interpretDream 抛错被 catch 成 500，
+  // 且 consumeQuota/consumeLlm 双额度不被平台错误白扣。
+  const cfg = resolveLlmConfig();
+  if (!isLlmConfigured(cfg)) return new Response("LLM 未配置", { status: 503 });
   const c = (await cookies()).get(TG_COOKIE)?.value;
   const s = await readSession(c);
   if (!s) return new Response("未登录", { status: 401 });
