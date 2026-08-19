@@ -181,11 +181,11 @@ export default function AccountPage() {
           "content-type": "application/json",
         };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch("/api/account/link-telegram", {
+        const res = await fetch("/api/account/attach", {
           method: "POST",
           credentials: "include",
           headers,
-          body: JSON.stringify(u),
+          body: JSON.stringify({ kind: "telegram", ...u }),
         });
         if (res.status === 409) {
           setLinkError(t("account.tgAlreadyLinked"));
@@ -222,11 +222,11 @@ export default function AccountPage() {
     }
     setLinkEmailStatus("sending");
     try {
-      const res = await fetch("/api/account/link-email", {
+      const res = await fetch("/api/account/attach", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ kind: "email", email }),
       });
       if (res.status === 409) {
         setLinkEmailStatus({ error: t("account.linkEmailInUse") });
