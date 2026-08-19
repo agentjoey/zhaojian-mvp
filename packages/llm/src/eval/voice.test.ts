@@ -131,3 +131,28 @@ describe("anchorKeyTerms", () => {
     expect(terms).toContain("巨门");
   });
 });
+
+describe("长答字数档（EP-dream-01 前置）", () => {
+  const longText = "字".repeat(200); // 200 字：超短答档 120，未超长答档 300
+
+  it("allowLong 同时放宽句数与字数（280 字梦解读不应误判违规）", () => {
+    const v = checkVoice("字".repeat(280), { language: "zh", allowLong: true });
+    expect(v.filter((x) => x.rule === "length")).toEqual([]);
+  });
+
+  it("dreamMode：8 句 300 字内放行，9 句抓", () => {
+    const eight = Array.from({ length: 8 }, (_, i) => `第${i + 1}句。`).join("");
+    expect(checkVoice(eight, { language: "zh", dreamMode: true }).filter((x) => x.rule === "sentence-count")).toEqual([]);
+    const nine = eight + "第九句。";
+    expect(checkVoice(nine, { language: "zh", dreamMode: true }).some((x) => x.rule === "sentence-count")).toBe(true);
+  });
+
+  it("dreamMode 下 280 字放行、301 字抓", () => {
+    expect(checkVoice("字".repeat(280), { language: "zh", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
+    expect(checkVoice("字".repeat(301), { language: "zh", dreamMode: true }).some((x) => x.rule === "length")).toBe(true);
+  });
+
+  it("默认短答档不变（回归）：121 字仍抓", () => {
+    expect(checkVoice("字".repeat(121), { language: "zh" }).some((x) => x.rule === "length")).toBe(true);
+  });
+});

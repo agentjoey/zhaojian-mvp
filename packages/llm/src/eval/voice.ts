@@ -4,8 +4,8 @@ import type { ReadingLanguage } from "../prompt";
  * 风格回归检查器（EP-spirit-voice · C）—— 纯函数、无 LLM 依赖。
  *
  * 机械核对 buildSpiritSystemPrompt「How you speak」里的硬规则：
- *   1) 句数（默认 ≤3；对方明确要求展开时 ≤6）
- *   2) 长度（中文 ≤120 字 / 英文 ≤80 词）
+ *   1) 句数（默认 ≤3；对方明确要求展开时 ≤6；解梦场景 ≤8）
+ *   2) 长度（中文 ≤120 字 / 英文 ≤80 词；allowLong 或 dreamMode 放宽到 ≤300 字 / ≤200 词）
  *   3) 禁用词命中（中英双版清单 + 语气词堆砌）
  *   4) 问句结尾（默认不以问句收尾）
  *   5) 锚点事实复引（同一锚点关键词在上一轮灵回应里已出现过）
@@ -16,8 +16,10 @@ export type VoiceViolation = { rule: string; detail: string };
 
 export type VoiceOptions = {
   language: ReadingLanguage;
-  /** 对方明确要求展开（「详细说」「为什么」/"tell me more" 等）时置 true，句数上限放宽到 6 */
+  /** 对方明确要求展开（「详细说」「为什么」/"tell me more" 等）：6 句 + 长字数档 */
   allowLong?: boolean;
+  /** 解梦场景（显式展开）：8 句 + 长字数档（EP-dream） */
+  dreamMode?: boolean;
   /** 本轮之前灵已说过的回应（用于锚点事实复引检测） */
   previousSpiritReplies?: string[];
   /** 灵的锚点事实标签（deriveSpirit persona.anchorFacts） */
@@ -27,8 +29,11 @@ export type VoiceOptions = {
 export const VOICE_LIMITS = {
   sentencesShort: 3,
   sentencesLong: 6,
+  sentencesDream: 8,
   zhChars: 120,
   enWords: 80,
+  zhCharsLong: 300,
+  enWordsLong: 200,
 } as const;
 
 export const BANNED_ZH = [
@@ -85,26 +90,33 @@ export function checkVoice(text: string, opts: VoiceOptions): VoiceViolation[] {
   const violations: VoiceViolation[] = [];
   const zh = opts.language === "zh";
   const sentences = splitSentences(text);
-  const maxSentences = opts.allowLong ? VOICE_LIMITS.sentencesLong : VOICE_LIMITS.sentencesShort;
+  const maxSentences = opts.dreamMode
+    ? VOICE_LIMITS.sentencesDream
+    : opts.allowLong
+      ? VOICE_LIMITS.sentencesLong
+      : VOICE_LIMITS.sentencesShort;
+  const longChars = !!(opts.allowLong || opts.dreamMode);
 
   // 1) 句数
   if (sentences.length > maxSentences) {
     violations.push({
       rule: "sentence-count",
-      detail: `${sentences.length} 句，超过上限 ${maxSentences} 句${opts.allowLong ? "（已放宽）" : ""}`,
+      detail: `${sentences.length} 句，超过上限 ${maxSentences} 句${opts.allowLong || opts.dreamMode ? "（已放宽）" : ""}`,
     });
   }
 
   // 2) 长度
   if (zh) {
     const n = zhCharCount(text);
-    if (n > VOICE_LIMITS.zhChars) {
-      violations.push({ rule: "length", detail: `${n} 字，超过上限 ${VOICE_LIMITS.zhChars} 字` });
+    const maxChars = longChars ? VOICE_LIMITS.zhCharsLong : VOICE_LIMITS.zhChars;
+    if (n > maxChars) {
+      violations.push({ rule: "length", detail: `${n} 字，超过上限 ${maxChars} 字` });
     }
   } else {
     const n = enWordCount(text);
-    if (n > VOICE_LIMITS.enWords) {
-      violations.push({ rule: "length", detail: `${n} words, over the ${VOICE_LIMITS.enWords}-word cap` });
+    const maxWords = longChars ? VOICE_LIMITS.enWordsLong : VOICE_LIMITS.enWords;
+    if (n > maxWords) {
+      violations.push({ rule: "length", detail: `${n} words, over the ${maxWords}-word cap` });
     }
   }
 
