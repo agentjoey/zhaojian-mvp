@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getActiveProfile, type Profile } from "@/lib/profiles";
+import { formatQuestionnaire } from "@eamvp/core";
+import { getActiveProfile, getSpiritMemory, saveSpiritMemory, getQuestionnaire, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
+import { spiritMemoryAction } from "@/app/actions";
 
 // 与 fengshui/page.tsx、spirit/page.tsx 同一模式：模块加载时求值（测试须
 // resetModules + 动态 import 才能切 flag，见 __tests__/page.test.tsx 顶部注释）。
@@ -23,11 +25,25 @@ export default function DreamPage() {
   const [reading, setReading] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 关系记忆/问卷仅 web 臂客户端取（同 SpiritPanel 模式）——TG 臂由服务端 api/tg/dream
+  // 自己读取 profile 关联的记忆，客户端不需要也拿不到（无浏览器侧 Supabase 会话）。
+  const [memory, setMemory] = useState<string | null>(null);
+  const [questionnaire, setQuestionnaire] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
       try {
-        setProfile(hasTgSession() ? await tgGetProfile() : await getActiveProfile());
+        if (hasTgSession()) {
+          setProfile(await tgGetProfile());
+          return;
+        }
+        const p = await getActiveProfile();
+        setProfile(p);
+        if (p) {
+          const [mem, qa] = await Promise.all([getSpiritMemory(p.id), getQuestionnaire(p.id)]);
+          setMemory(mem);
+          setQuestionnaire(qa ? formatQuestionnaire(qa) : undefined);
+        }
       } catch {
         setProfile(null);
       }
@@ -43,13 +59,35 @@ export default function DreamPage() {
     setError(null);
     setReading(null);
     haptics.light();
+    const inTgSession = hasTgSession();
     try {
-      const res = hasTgSession()
+      const res = inTgSession
         ? await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ dream }) })
-        : await fetch("/api/spirit/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ chart: profile.chart, dream }) });
+        : await fetch("/api/spirit/dream", {
+            method: "POST",
+            headers: { "x-zj-locale": locale },
+            body: JSON.stringify({ chart: profile.chart, dream, memory: memory ?? undefined, questionnaire }),
+          });
       if (!res.ok) throw new Error(await res.text());
-      setReading(await res.text());
+      const text = await res.text();
+      setReading(text);
       haptics.success();
+      // TG 臂的记忆提炼在服务端 api/tg/dream 内 fire-and-forget 完成（无浏览器侧
+      // Supabase 会话，客户端写不了）；web 臂同 SpiritPanel 模式，客户端提炼+写回。
+      if (!inTgSession) {
+        spiritMemoryAction(
+          [
+            { role: "user", content: dream },
+            { role: "spirit", content: text },
+          ],
+          memory ?? undefined,
+        ).then((m) => {
+          if (m) {
+            setMemory(m);
+            void saveSpiritMemory(profile.id, m);
+          }
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

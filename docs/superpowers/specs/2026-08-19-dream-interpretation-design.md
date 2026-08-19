@@ -60,12 +60,12 @@ prompt 层要求 + 探针抽样**不够**——参照先例 `packages/llm/src/fe
 
 | 层 | 新增 | 说明 |
 |---|---|---|
-| `llm` | `interpretDream(chart, dreamText, opts) → AsyncGenerator<string>` | 流式；复用 persona/voice anchors/禁用清单/`sanitizeReading`/`correctMutagens`/脚手架护栏（`stripSpiritScaffolding`）；memory/questionnaire 经 opts 注入（同 streamSpiritChat） |
+| `llm` | `interpretDream(chart, dreamText, opts) → AsyncGenerator<string>` | **buffered，单次 yield（评审轮修订，原定流式）**——`sanitizeDream` 后置扫描需要完整文本才能判定「诚实标注」是否覆盖预言句；逐块吐出会让待剥离的预言句先被用户看到，与 §3.5 的「机械拦截」承诺矛盾。≤300 字上限下等待时间可控。复用 persona/voice anchors/禁用清单/`sanitizeReading`/`correctMutagens`/脚手架护栏（`stripSpiritScaffolding`）；memory/questionnaire 经 opts 注入（同 streamSpiritChat） |
 | `llm` | system prompt 解梦变体 | 在 `buildSpiritSystemPrompt` 基础上加 §3 规则块；冻结部分在前（prompt-cache） |
-| `web` | `POST /api/spirit/dream` | body: `{chart, dream, memory?, questionnaire?}`；Bearer 识别 + `consumeLlm` 闸门；SSE text/plain；dream 文本长度上限（如 2000 字）服务端校验 |
-| `web` | `POST /api/tg/dream` | 照 `api/tg/spirit` 鉴权范式：cookie session → uid → profile 服务端取，**客户端不传 chart**；`consumeQuota` + `consumeLlm` 双闸。**⚠️ 只参照鉴权，不参照持久化：严禁调用 `appendMessage`、严禁写 `spirit_messages`、不提供 GET 历史查询**（参照实现里 appendMessage 与鉴权代码紧挨着，照抄时极易一并抄入——故此处明写排除） |
-| `web` | `/dream` 页面 | PageHeader（kicker 走 i18n）+ 输入区 + 流式解读区；TG 臂复用同树 + MainButton 提交（同 reading 页模式）；梦境文本**不落库** |
-| 记忆 | 复用 `summarizeSpiritMemory` | 解读完成后把「用户做了一个关于 X 的梦 + 灵的解读要点」提炼进滚动记忆（沿用无 PII 约束）；**梦原文不存储** |
+| `web` | `POST /api/spirit/dream` | body: `{chart, dream, memory?, questionnaire?}`；Bearer 识别 + `consumeLlm` 闸门；**text/plain 一次性响应体（非 SSE，同上 buffered 修订）**；dream 文本长度上限（如 2000 字）服务端校验 |
+| `web` | `POST /api/tg/dream` | 照 `api/tg/spirit` 鉴权范式：cookie session → uid → profile 服务端取，**客户端不传 chart**；`consumeQuota` + `consumeLlm` 双闸。**⚠️ 只参照鉴权，不参照持久化：严禁调用 `appendMessage`、严禁写 `spirit_messages`、不提供 GET 历史查询**（参照实现里 appendMessage 与鉴权代码紧挨着，照抄时极易一并抄入——故此处明写排除）。生成完成后**必须**照 `api/tg/spirit` 同款 fire-and-forget 调用记忆提炼（见下「记忆」行）——这不属于「持久化」排除项，排除的只是 `spirit_messages`/梦原文 |
+| `web` | `/dream` 页面 | PageHeader（kicker 走 i18n）+ 输入区 + 解读区（**一次性渲染，非流式**，同上 buffered 修订）；TG 臂复用同树 + MainButton 提交（同 reading 页模式）；梦境文本**不落库**。Web 臂（非 TG session）挂载时须像 `SpiritPanel` 一样客户端取 `getSpiritMemory`/`getQuestionnaire` 并随请求体带上——否则「关系记忆」这条锚定资产（§2）对 web 用户形同虚设 |
+| 记忆 | 复用 `summarizeSpiritMemory` | 解读完成后把「用户做了一个关于 X 的梦 + 灵的解读要点」提炼进滚动记忆（沿用无 PII 约束）；**梦原文不存储**。**两条路径都要接（评审轮修订，原文未分路径、实现曾漏 TG 侧）**：TG 路由内 fire-and-forget（同 `api/tg/spirit` 模式，`summarizeSpiritMemory` → `saveMemory`）；Web 由 `/dream` 页面客户端在收到解读后调用（同 `SpiritPanel` 模式，`spiritMemoryAction` → `saveSpiritMemory`） |
 
 **入口三处同步**（`app/page.tsx` 有醒目注释的教训——TG_ENTRIES 曾零覆盖导致风水静默失踪）：
 1. 首页 web 臂目录列表加一条（「梦」）

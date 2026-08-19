@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { formatQuestionnaire } from "@eamvp/core";
-import { resolveLlmConfig, isLlmConfigured, interpretDream, DREAM_MAX_CHARS } from "@eamvp/llm";
+import { resolveLlmConfig, isLlmConfigured, interpretDream, summarizeSpiritMemory, DREAM_MAX_CHARS } from "@eamvp/llm";
 import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { getProfileForUser } from "@/lib/tg/identity";
-import { getMemory, getQuestionnaire } from "@/lib/tg/data";
+import { getMemory, getQuestionnaire, saveMemory } from "@/lib/tg/data";
 import { consumeQuota } from "@/lib/tg/quota";
 import { consumeLlm } from "@/lib/entitlements";
 import { localeFromRequest } from "@/lib/i18n/server";
@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * POST /api/tg/dream —— TG 会话解梦。
  * ⚠️ 只参照 api/tg/spirit 的鉴权，不参照其持久化：
  * 严禁 appendMessage / 严禁写 spirit_messages / 不提供 GET 历史（spec §4 明写排除项——
- * 梦原文不落库）。记忆提炼走 summarizeSpiritMemory 滚动摘要（无 PII），本路由 v1 不做。
+ * 梦原文不落库）。记忆提炼是例外——照 api/tg/spirit 同款 fire-and-forget（不阻塞响应，
+ * 失败静默吞掉），只存 summarizeSpiritMemory 提炼出的摘要，梦原文本身仍不落库。
  */
 export async function POST(req: Request): Promise<Response> {
   if (process.env.NEXT_PUBLIC_DREAM_ENABLED !== "1") return new Response("未开启", { status: 404 });
@@ -49,6 +50,24 @@ export async function POST(req: Request): Promise<Response> {
       memory: mem ?? undefined,
       questionnaire: qa ? formatQuestionnaire(qa) : undefined,
     })) out += chunk;
+
+    // fire-and-forget：记忆提炼（spec §4「记忆」行）。只存摘要，梦原文不进 spirit_memory。
+    (async () => {
+      try {
+        const summary = await summarizeSpiritMemory(
+          [
+            { role: "user", content: dream },
+            { role: "spirit", content: out },
+          ],
+          mem ?? undefined,
+          { language },
+        );
+        if (summary) await saveMemory(profile.id, summary);
+      } catch {
+        // 与 api/tg/spirit 同一策略：记忆更新失败不影响本次解读已成功返回
+      }
+    })();
+
     return new Response(out, { headers: { "content-type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   } catch (e) {
     return new Response(`⚠️ ${e instanceof Error ? e.message : String(e)}`, { status: 500 });
