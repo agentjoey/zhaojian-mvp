@@ -64,11 +64,19 @@ export default function AccountPage() {
   useEffect(() => {
     async function resolve() {
       if (hasTgSession()) {
-        // Optional: confirm the server-side TG session is still active.
+        // EP-account2-03：真正消费确认结果——hint cookie 只是「曾经登录过」的
+        // 长效标记，不是「现在仍然有效」的证明。失效必须真的落到未登录态，
+        // 不能假装还登录着（否则改名/绑邮箱/注销都会 401，用户却看不出为什么）。
         try {
-          await fetch("/api/tg/session", { credentials: "include" });
+          const res = await fetch("/api/tg/session", { credentials: "include" });
+          const json = (await res.json().catch(() => null)) as { active: boolean } | null;
+          if (!json?.active) {
+            setView({ kind: "anon", user: null });
+            return;
+          }
         } catch {
-          // Ignore confirmation failures; keep TG state based on client hint.
+          // 网络异常：保留原有「先信客户端 hint」的降级行为，避免离线时把
+          // 已登录用户误判成未登录。
         }
         const username = typeof localStorage !== "undefined" ? localStorage.getItem(TG_USERNAME_KEY) : null;
         setView({ kind: "telegram", username });
