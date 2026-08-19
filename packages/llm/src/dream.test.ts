@@ -141,6 +141,21 @@ describe("interpretDream", () => {
     expect(out).not.toContain("预示着财运"); // 闸门真的在：无标注预言句被剥（删掉 sanitizeDream 调用本测试必红）
   });
 
+  it("memory/questionnaire 注入系统提示（spec §6：解梦锚人不锚梦，可变上下文进系统提示）", async () => {
+    streamSpy.mockClear();
+    for await (const _ of interpretDream(chart, "我梦见坠落", {
+      language: "zh",
+      config,
+      memory: "他最近反复提到换工作的纠结。",
+      questionnaire: "自陈：高敏感，容易反刍。",
+    })) { /* drain */ }
+    const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+    // 两段内容都必须出现在系统提示里（buildSpiritSystemPrompt 的 memoryBlock/questionnaireBlock），
+    // interpretDream 不透传 memory 时本条必红
+    expect(messages[0]!.content).toContain("他最近反复提到换工作的纠结。");
+    expect(messages[0]!.content).toContain("自陈：高敏感，容易反刍。");
+  });
+
   it("整篇 dump/预言时给 fallback（<6 字）", async () => {
     streamSpy.mockImplementationOnce(async function* () {
       yield "```json\n{\"dream\": true}\n```";

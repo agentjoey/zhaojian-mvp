@@ -57,7 +57,9 @@ export default function DreamPage() {
     }
   }
 
-  useTgMainButton({ text: pending ? t("dream.interpreting") : t("dream.submit"), onClick: submit, enabled: canSubmit, visible: inTg });
+  // flag 关闭时 TG MainButton 也必须隐藏（visible: inTg && ENABLED）——页面级 notEnabled
+  // 早退只挡渲染，挡不住这个 hook 把「解梦」按钮挂上 TG 原生栏（验收跟进 3）。
+  useTgMainButton({ text: pending ? t("dream.interpreting") : t("dream.submit"), onClick: submit, enabled: canSubmit, visible: inTg && ENABLED });
 
   // 必须排在所有 hook 之后（与 profile 早退同区），不得跳过任何 hook 调用。
   if (!ENABLED)

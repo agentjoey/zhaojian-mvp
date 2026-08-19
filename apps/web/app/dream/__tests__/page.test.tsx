@@ -20,9 +20,10 @@ const birth = BirthInputSchema.parse({ date: "1990-06-15", time: "14:30", gender
 const profile = { id: "p1", nickname: "阿甲", birthInput: birth, chart: computeUnifiedChart(birth), createdAt: "", reading: null };
 
 vi.mock("@/lib/profiles", () => ({ getActiveProfile: vi.fn(async () => profile) }));
+const tgEnv = { inTg: false };
 vi.mock("@/lib/tg/client", () => ({
   hasTgSession: () => false,
-  isTelegram: () => false,
+  isTelegram: () => tgEnv.inTg,
   tgGetProfile: vi.fn(),
 }));
 
@@ -47,12 +48,14 @@ async function renderDreamPage() {
 
 beforeEach(() => {
   vi.resetModules();
+  tgEnv.inTg = false;
   vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllEnvs();
+  delete window.Telegram;
 });
 
 describe("最终评审 I-1：/dream 页面级 flag 门控", () => {
@@ -70,5 +73,31 @@ describe("最终评审 I-1：/dream 页面级 flag 门控", () => {
     expect(screen.getByText("「解梦」尚未开启。")).toBeInTheDocument();
     // 只查文案抓不住「文案与表单同时渲染」这种改法——表单本体必须一并不存在
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+});
+
+describe("验收跟进 3：flag 关 + TG 环境时 MainButton 不可见", () => {
+  it("useTgMainButton 收到 visible=false → MainButton.hide 被调，show/setText 不被调", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
+    tgEnv.inTg = true;
+    // isTelegram 为 true 后 useTgMainButton 会真的去读 window.Telegram.WebApp.MainButton，
+    // jsdom 里没有，连 SDK 面一起桩掉（fengshui/__tests__/page.test.tsx 同一模式）。
+    const mb = {
+      setText: vi.fn(), enable: vi.fn(), disable: vi.fn(),
+      show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn(),
+    };
+    window.Telegram = {
+      WebApp: {
+        initData: "x",
+        MainButton: mb,
+        HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+      },
+    };
+    await renderDreamPage();
+    // 页面本体仍是 notEnabled 早退（对照：按钮不可见不是靠「页面没渲染」碰巧成立）
+    expect(screen.getByText("「解梦」尚未开启。")).toBeInTheDocument();
+    expect(mb.hide).toHaveBeenCalled();
+    expect(mb.show).not.toHaveBeenCalled();
+    expect(mb.setText).not.toHaveBeenCalled();
   });
 });

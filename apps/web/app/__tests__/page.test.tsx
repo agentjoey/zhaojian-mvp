@@ -100,6 +100,29 @@ describe("TG 首页入口列表：风水「境」", () => {
   });
 });
 
+describe("web 首页目录列表：解梦「梦」（inTg=false 臂）", () => {
+  it("web 臂 + flag 开：「解梦」条目出现，且 Link href=\"/dream\"", async () => {
+    tgEnv.inTg = false;
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+    await renderHome();
+    // 先确认 web 目录列表本身渲染出来了，否则后面的断言会因整臂缺席而失真
+    expect(await screen.findByText("今日运势")).toBeInTheDocument();
+    // web 臂的条目是 <Link href>（不是 TG 臂的 onClick Cell），href 必须钉死
+    const link = (await screen.findByText("解梦")).closest("a");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("/dream");
+  });
+
+  it("web 臂 + flag 关：「解梦」条目不出现", async () => {
+    tgEnv.inTg = false;
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
+    await renderHome();
+    // 先确认列表渲染（防恒真），再断言缺席
+    expect(await screen.findByText("今日运势")).toBeInTheDocument();
+    expect(screen.queryByText("解梦")).toBeNull();
+  });
+});
+
 describe("TG 首页入口列表：解梦「梦」", () => {
   it("TG 内 + flag 开：「解梦」入口出现，点击导向 /dream", async () => {
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
