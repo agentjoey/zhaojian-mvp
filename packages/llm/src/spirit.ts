@@ -148,6 +148,52 @@ function toChatHistory(history: SpiritTurn[]): ChatMessage[] {
 }
 
 /**
+ * 脚手架泄漏护栏（EP-spirit-voice 探针实证）：MiniMax-M3 在浅历史时偶发不答话、
+ * 改为续写内部格式——```json 的 RESONANCE_ANCHORS dump、## 标题、列表、
+ * 「【新会话，无历史锚点】」这类元注记。灵的口吻不该含其中任何一种，逐行过滤。
+ */
+function isScaffoldingLine(line: string): boolean {
+  return (
+    /^\s*【[^】]*】\s*$/.test(line) || // 【新会话…】元注记
+    /^\s*#{1,6}\s/.test(line) || // markdown 标题
+    /^\s*[-*•]\s/.test(line) // 列表项
+  );
+}
+
+/** 全量文本版：剥掉围栏块与脚手架行；供 buffered 路径与单测。 */
+export function stripSpiritScaffolding(text: string): string {
+  let inFence = false;
+  const kept: string[] = [];
+  for (const line of text.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence || isScaffoldingLine(line)) continue;
+    kept.push(line);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** 流式逐行版：同一规则的带状态实现（围栏跨行跟踪）。 */
+function makeSpiritLineFilter(): (line: string) => string | null {
+  let inFence = false;
+  return (line) => {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      return null;
+    }
+    if (inFence || isScaffoldingLine(line)) return null;
+    return line;
+  };
+}
+
+/** 整篇垮掉（剥完几乎无内容）时的兜底——留在角色里，不解释机制。 */
+function spiritFallback(zh: boolean): string {
+  return zh ? "我在。刚才我走神了——再说一次，好吗？" : "I'm here. I drifted for a moment — say it again, will you?";
+}
+
+/**
  * 灵的多轮对话流（EP-spirit-04）。逐块产出 markdown 增量供 SSE。
  * western 缺失走「全缓冲 → sanitize」降级（同 streamReading），硬保证不泄露西方杜撰。
  */
@@ -186,28 +232,42 @@ export async function* streamSpiritChat(
   if (chart.western === null) {
     let all = "";
     for await (const chunk of stream) all += chunk;
-    const out = correctMutagens(sanitizeReading(all, language, false), mut).text;
+    const stripped = stripSpiritScaffolding(all);
+    const out = correctMutagens(sanitizeReading(stripped.length >= 6 ? stripped : spiritFallback(zh), language, false), mut).text;
     logSpiritMeta("chat", out, cfg.model, false, true);
     yield out;
     return;
   }
 
+  const filterLine = makeSpiritLineFilter();
   let line = "";
   let full = "";
+  let survived = false;
   for await (const chunk of stream) {
     line += chunk;
     let nl: number;
     while ((nl = line.indexOf("\n")) >= 0) {
-      const out = correctMutagens(line.slice(0, nl + 1), mut).text;
-      full += out;
-      yield out;
+      const kept = filterLine(line.slice(0, nl));
       line = line.slice(nl + 1);
+      if (kept === null) continue;
+      const out = correctMutagens(kept + "\n", mut).text;
+      full += out;
+      survived = true;
+      yield out;
     }
   }
   if (line) {
-    const out = correctMutagens(line, mut).text;
-    full += out;
-    yield out;
+    const kept = filterLine(line);
+    if (kept !== null) {
+      const out = correctMutagens(kept, mut).text;
+      full += out;
+      survived = true;
+      yield out;
+    }
+  }
+  if (!survived) {
+    full = spiritFallback(zh);
+    yield full;
   }
   logSpiritMeta("chat", full, cfg.model, true, true);
 }
