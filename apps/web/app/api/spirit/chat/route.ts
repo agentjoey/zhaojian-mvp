@@ -38,12 +38,15 @@ export async function POST(req: Request): Promise<Response> {
     userId = data.user?.id;
   }
 
-  // 开场白（无用户消息）不消耗额度，也不要求已识别身份——这个分支本来就
-  // 不发起真正的对话。有用户消息时，必须解析出「已识别」身份才放行
+  // 开场白（messages 为空）不消耗额度，也不要求已识别身份——这个分支本来就
+  // 不发起真正的对话。有消息时，必须解析出「已识别」身份才放行
   // （EP-account2-05）：此前是 `if (!isIntro && userId)`，userId 为
   // undefined（未带 token）时闸门被整个跳过，等于无限免费；现在改成
   // 「解析不出已识别身份就拒绝」，fail-safe 而不是 fail-open。
-  const isIntro = !messages.some((m) => m.role === "user");
+  // 判定必须与下方的消费分支对齐（messages.length === 0）：若用
+  // 「无 user 角色消息」判免闸，伪造的 [{role:"spirit",...}] 历史会绕过
+  // 身份与额度检查，白走 streamSpiritChat 烧 LLM。
+  const isIntro = messages.length === 0;
   if (!isIntro) {
     if (!userId) {
       return new Response("未登录", { status: 401 });

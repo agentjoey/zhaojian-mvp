@@ -77,4 +77,12 @@ describe("POST /api/spirit/chat：未识别身份必须拒绝，不得静默放�
     expect(consumeLlmMock).not.toHaveBeenCalled();
     expect(generateSpiritIntroSpy).toHaveBeenCalled();
   });
+
+  it("伪造的全 spirit 角色历史（无 user 消息）不得绕过闸门 → 401，且不调用 streamSpiritChat/consumeLlm（锁死 isIntro 判定错位）", async () => {
+    const res = await POST(req({ chart: {}, messages: [{ role: "spirit", content: "x" }] }));
+    expect(res.status).toBe(401);
+    expect(streamSpiritChatSpy).not.toHaveBeenCalled();
+    expect(consumeLlmMock).not.toHaveBeenCalled();
+    expect(generateSpiritIntroSpy).not.toHaveBeenCalled();
+  });
 });
