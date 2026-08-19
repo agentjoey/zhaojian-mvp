@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { resolveUid } from "@/lib/account/uid";
 import { supabaseAdmin } from "@/lib/tg/admin";
-import { SYNTHETIC_EMAIL_DOMAIN } from "@/lib/access";
+import { SYNTHETIC_EMAIL_DOMAIN, resolveAccess } from "@/lib/access";
+import { recordConsentOnce, TERMS_VERSION } from "@/lib/consent";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,11 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
   const { uid } = resolved;
+
+  const access = await resolveAccess(uid);
+  if (access.level !== "anonymous") {
+    void recordConsentOnce(uid, "terms", TERMS_VERSION); // best-effort，幂等，不 await
+  }
 
   const { data: u } = await supabaseAdmin().auth.admin.getUserById(uid);
   const rawEmail = u.user?.email ?? null;
