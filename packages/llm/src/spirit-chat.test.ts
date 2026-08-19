@@ -41,6 +41,39 @@ describe("streamSpiritChat：maxTokens 物理上限", () => {
   });
 });
 
+describe("streamSpiritChat：消息拼装", () => {
+  function lastMessages(): { role: string; content: string }[] {
+    const [, messages] = streamSpy.mock.calls.at(-1) as unknown as [unknown, { role: string; content: string }[], unknown];
+    return messages;
+  }
+
+  it("种子消息注入今日事实——「今日运势」必须答得了（此前无数据+守护栏压制只能绕）", async () => {
+    for await (const _ of streamSpiritChat(chart, [{ role: "user", content: "今日运势如何" }], { language: "zh", config })) {
+      // 排空流
+    }
+    const seed = lastMessages()[1]!;
+    expect(seed.role).toBe("user");
+    // 今日事实块在场（dayGanZhi 是 computeDailyFortune 的既算字段）且带「据此直接回答」规则
+    expect(seed.content).toContain('"dayGanZhi"');
+    expect(seed.content).toContain("今日");
+    expect(seed.content).toContain("直接回答");
+  });
+
+  it("近因提示：末条用户消息追加 3 句上限；命中展开触发词换 6 句版", async () => {
+    for await (const _ of streamSpiritChat(chart, [{ role: "user", content: "我最近很焦虑" }], { language: "zh", config })) {
+      // 排空流
+    }
+    expect(lastMessages().at(-1)!.content).toContain("3 句以内");
+
+    for await (const _ of streamSpiritChat(chart, [{ role: "user", content: "我为什么总是拖延" }], { language: "zh", config })) {
+      // 排空流
+    }
+    const last = lastMessages().at(-1)!;
+    expect(last.content).toContain("不超过 6 句");
+    expect(last.content).not.toContain("3 句以内");
+  });
+});
+
 describe("stripSpiritScaffolding：脚手架泄漏护栏", () => {
   it("剥掉整段 ```json dump（probe 实证的 RESONANCE_ANCHORS 事故）", () => {
     const dump = '```json\n{\n  "RESONANCE_ANCHORS": [\n    {"topic": "内在世界轴"}\n  ]\n}\n```';

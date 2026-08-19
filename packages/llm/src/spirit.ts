@@ -1,5 +1,5 @@
 import type { UnifiedChart, DailyFortune } from "@eamvp/core";
-import { deriveSpirit, type SpiritPersona, SYNTHESIS_GUARDRAILS } from "@eamvp/core";
+import { deriveSpirit, type SpiritPersona, SYNTHESIS_GUARDRAILS, computeDailyFortune } from "@eamvp/core";
 import { extractFacts } from "./facts";
 import { sanitizeReading, type ReadingLanguage } from "./prompt";
 import { correctMutagens } from "./correct";
@@ -194,6 +194,32 @@ function spiritFallback(zh: boolean): string {
 }
 
 /**
+ * 今日确定性事实（computeDailyFortune 既算，无 LLM）。问今问候与多轮对话共用。
+ * dateStr 用服务器本地日期——时区差异最多错一天界，可接受；日历页的精确自选日期不走这里。
+ */
+function shapeDailyFacts(daily: DailyFortune, dateStr: string) {
+  return {
+    date: dateStr,
+    dayGanZhi: daily.dayGanZhi,
+    dayElement: daily.dayElement,
+    masterElement: daily.masterElement,
+    relationToMaster: daily.relation,
+    favorableToday: daily.favorableToday,
+    fiveDimensionScores: daily.scores,
+    interactions: daily.interactions.map((i) => `${i.kind}·${i.withPillar}(${i.note})`),
+  };
+}
+
+function buildDailyFacts(chart: UnifiedChart, dateStr: string) {
+  return shapeDailyFacts(computeDailyFortune(chart, dateStr), dateStr);
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
  * 灵的多轮对话流（EP-spirit-04）。逐块产出 markdown 增量供 SSE。
  * western 缺失走「全缓冲 → sanitize」降级（同 streamReading），硬保证不泄露西方杜撰。
  */
@@ -211,9 +237,12 @@ export async function* streamSpiritChat(
 
   const zh = language === "zh";
   const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
+  // 今日事实注入（EP-spirit-voice 用户反馈：「今日运势」必须答得了——此前灵拿不到今日数据，
+  // 守护栏又压着不许谈运气，只能绕）。仍只喂确定性既算字段，措辞规则同步给到。
+  const todayBlock = `\`\`\`json\n${JSON.stringify(buildDailyFacts(chart, todayStr()), null, 2)}\n\`\`\``;
   const seedUser = zh
-    ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n请全程以「本命之灵」的身份、用简体中文应答；只依据以上事实，不臆造。`
-    : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nStay in character as 本命之灵 across the whole conversation. Answer the person's messages grounded ONLY in these facts.`;
+    ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n以下是今日确定性算出的事实（对方问「今日运势/今天怎样」时据此直接回答：把气息说成倾向与邀请，可给一条具体可做的提醒；不预测具体事件、吉凶或日期）：\n\n${todayBlock}\n\n请全程以「本命之灵」的身份、用简体中文应答；只依据以上事实，不臆造。`
+    : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nHere are today's deterministically computed daily facts (when they ask about "today / today's fortune", answer DIRECTLY from these — frame the day as tendency and invitation, offer one concrete thing to notice or do; never predict specific events, luck, or dates):\n\n${todayBlock}\n\nStay in character as 本命之灵 across the whole conversation. Answer the person's messages grounded ONLY in these facts.`;
   const seedAssistant = zh
     ? "我在你身边——你的本命之灵。想从哪里说起，都可以。"
     : "I am here with you — your 本命之灵. Ask me what you wish to understand.";
@@ -335,16 +364,7 @@ export async function generateDailySpiritGreeting(
   const persona = deriveSpirit(chart);
 
   // 仅喂确定性既算字段（不喂原始命盘，避免灵在问候里跑题排盘）
-  const todayFacts = {
-    date: dateStr,
-    dayGanZhi: daily.dayGanZhi,
-    dayElement: daily.dayElement,
-    masterElement: daily.masterElement,
-    relationToMaster: daily.relation,
-    favorableToday: daily.favorableToday,
-    fiveDimensionScores: daily.scores,
-    interactions: daily.interactions.map((i) => `${i.kind}·${i.withPillar}(${i.note})`),
-  };
+  const todayFacts = shapeDailyFacts(daily, dateStr);
 
   const zh = language === "zh";
   const factsBlock = `\`\`\`json\n${JSON.stringify(todayFacts, null, 2)}\n\`\`\``;
