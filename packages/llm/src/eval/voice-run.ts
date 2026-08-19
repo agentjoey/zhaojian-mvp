@@ -6,7 +6,7 @@
  *   LLM_API_KEY=sk-... pnpm --filter @eamvp/llm probe:voice
  */
 import { computeUnifiedChart, BirthInputSchema, deriveSpirit, type SpiritElement } from "@eamvp/core";
-import { streamSpiritChat, type SpiritTurn } from "../spirit";
+import { streamSpiritChat } from "../spirit";
 import { resolveLlmConfig, isLlmConfigured } from "../provider";
 import { EVAL_CASES } from "./cases";
 import { checkVoice, type VoiceViolation } from "./voice";
@@ -60,14 +60,15 @@ export async function runVoiceProbe(opts?: {
   for (const c of cases) {
     const chart = computeUnifiedChart(BirthInputSchema.parse(c.input));
     const persona = deriveSpirit(chart);
-    const history: SpiritTurn[] = [];
     const previousReplies: string[] = [];
 
     for (const question of STANDARD_QUESTIONS) {
       let result: ProbeResult;
       try {
         let reply = "";
-        for await (const chunk of streamSpiritChat(chart, history, { language: LANGUAGE })) reply += chunk;
+        // 每题独立开场（空 history）：多轮连发时 MiniMax-M3 会答上一题（首轮探针实证串题），
+        // 污染单题风格测量。锚点复引检查不受影响——previousReplies 仍逐题累积喂给 checkVoice。
+        for await (const chunk of streamSpiritChat(chart, [], { language: LANGUAGE })) reply += chunk;
         const violations = checkVoice(reply, {
           language: LANGUAGE,
           allowLong: EXPAND_TRIGGER.test(question),
@@ -75,7 +76,6 @@ export async function runVoiceProbe(opts?: {
           anchorFacts: persona.anchorFacts,
         });
         result = { element: c.element, caseId: c.id, question, reply, violations };
-        history.push({ role: "user", content: question }, { role: "spirit", content: reply });
         previousReplies.push(reply);
       } catch (e) {
         result = {

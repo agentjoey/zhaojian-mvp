@@ -71,6 +71,9 @@ export function anchorKeyTerms(anchorFacts: string[]): string[] {
     for (const m of f.matchAll(/[A-Za-z]{3,}|[一-鿿]+/g)) {
       const t = m[0];
       if (/^[A-Za-z]/.test(t) && ANCHOR_STOPWORDS.has(t.toLowerCase())) continue;
+      // 单字中文段（宫/星/忌…）是通用构词不是锚点——「官禄宫/兄弟宫」都含「宫」，
+      // 保留它会把每条正常回应都误报成复引（probe:voice 实证假阳性）
+      if (/^[一-鿿]$/.test(t)) continue;
       terms.push(t);
     }
   }

@@ -119,4 +119,15 @@ describe("anchorKeyTerms", () => {
     expect(terms).not.toContain("chart");
     expect(terms).not.toContain("the");
   });
+
+  it("单字中文段不算锚点（宫/星/忌是通用构词，留下会把正常回应误报成复引）", () => {
+    const terms = anchorKeyTerms(["fortune-palace stars 紫微、天府", "the pull of 化忌 (巨门) in your 夫妻宫"]);
+    // 反：单字被滤掉
+    expect(terms).not.toContain("宫");
+    expect(terms).not.toContain("忌");
+    // 正：多字词保留（若过滤过狠整条会失效）
+    expect(terms).toContain("夫妻宫");
+    expect(terms).toContain("化忌");
+    expect(terms).toContain("巨门");
+  });
 });

@@ -179,9 +179,9 @@ export async function* streamSpiritChat(
     ...toChatHistory(history),
   ];
 
-  // 360 ≈ 120 中文字（≈180 token）的两倍余量：既让模型物理上写不长，又不至于截断第 3 句。
-  // 沿用每日问候 maxTokens 220 的成功先例——软约束必须有物理上限兜底（原为 1200，是冗长的直接原因）。
-  const stream = chatStream(cfg, messages, { signal: opts.signal, maxTokens: 360 });
+  // 600 ≈ 展开档 6 句（≈350 中文字 ≈550 token）刚好封顶：CJK 实测 ≈1.58 token/字，
+  // 360 会把不守规则的长答拦腰截成残句（探针实证：metal 原型 228 字即被截）——物理上限是兜底，不是剪刀。
+  const stream = chatStream(cfg, messages, { signal: opts.signal, maxTokens: 600 });
 
   if (chart.western === null) {
     let all = "";
