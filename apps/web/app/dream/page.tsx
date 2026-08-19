@@ -7,10 +7,11 @@ import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui";
-import { useT } from "@/lib/i18n/I18nProvider";
+import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 
 export default function DreamPage() {
   const t = useT();
+  const { locale } = useLocale();
   const inTg = useIsTelegram();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [dream, setDream] = useState("");
@@ -39,8 +40,8 @@ export default function DreamPage() {
     haptics.light();
     try {
       const res = hasTgSession()
-        ? await fetch("/api/tg/dream", { method: "POST", body: JSON.stringify({ dream }) })
-        : await fetch("/api/spirit/dream", { method: "POST", body: JSON.stringify({ chart: profile.chart, dream }) });
+        ? await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ dream }) })
+        : await fetch("/api/spirit/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ chart: profile.chart, dream }) });
       if (!res.ok) throw new Error(await res.text());
       setReading(await res.text());
       haptics.success();

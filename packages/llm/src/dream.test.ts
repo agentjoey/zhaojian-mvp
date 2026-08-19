@@ -84,7 +84,7 @@ describe("interpretDream", () => {
     streamSpy.mockClear();
     let out = "";
     for await (const c of interpretDream(chart, "我梦见被一个人追，跑不动", { language: "zh", config })) out += c;
-    const [messages, callOpts] = streamSpy.mock.calls.at(-1)!.slice(1) as [{ role: string; content: string }[], { maxTokens: number }];
+    const [messages, callOpts] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[], { maxTokens: number }];
     const user = messages.at(-1)!.content;
     expect(user).toContain("我梦见被一个人追");
     expect(messages[0]!.content).toContain("解梦"); // 硬规则块在系统提示

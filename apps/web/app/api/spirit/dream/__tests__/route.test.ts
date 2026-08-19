@@ -14,7 +14,7 @@ const getUserMock = vi.fn(async (_token?: string) => ({
 vi.mock("@/lib/tg/admin", () => ({
   supabaseAdmin: () => ({ auth: { getUser: (t: string) => getUserMock(t) } }),
 }));
-const consumeLlmMock = vi.fn(async () => ({ ok: true }));
+const consumeLlmMock = vi.fn(async (..._a: unknown[]) => ({ ok: true }));
 vi.mock("@/lib/entitlements", () => ({
   consumeLlm: (...a: unknown[]) => consumeLlmMock(...a),
 }));

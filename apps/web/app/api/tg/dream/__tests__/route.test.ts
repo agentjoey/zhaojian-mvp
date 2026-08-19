@@ -11,12 +11,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const appendMessage = vi.fn();
-const readSessionMock = vi.fn(async (v?: string) =>
+const readSessionMock = vi.fn(async (v?: unknown): Promise<{ uid: string; tgId: number } | null> =>
   v === "ok" ? { uid: "u1", tgId: 123 } : null,
 );
-const getProfileMock = vi.fn(async () => ({ id: "p1", chart: { fake: true } }));
-const consumeQuotaMock = vi.fn(async () => true);
-const consumeLlmMock = vi.fn(async () => ({ ok: true }));
+const getProfileMock = vi.fn(
+  async (..._a: unknown[]): Promise<{ id: string; chart: { fake: boolean } } | null> => ({
+    id: "p1",
+    chart: { fake: true },
+  }),
+);
+const consumeQuotaMock = vi.fn(async (..._a: unknown[]) => true);
+const consumeLlmMock = vi.fn(async (..._a: unknown[]) => ({ ok: true }));
 
 vi.mock("@/lib/tg/data", () => ({
   appendMessage,
