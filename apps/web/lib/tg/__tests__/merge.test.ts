@@ -50,4 +50,11 @@ describe("mergeAnonProfiles：改调单事务 RPC（EP-account2-06）", () => {
     const r = await mergeAnonProfiles("token", "target1");
     expect(r).toEqual({ merged: 0 });
   });
+
+  it("RPC 返回 data: null 且 error: null → merged: 0（覆盖 ?? 0 分支）", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "anon1", is_anonymous: true } } });
+    rpcMock.mockResolvedValue({ data: null, error: null });
+    const r = await mergeAnonProfiles("token", "target1");
+    expect(r).toEqual({ merged: 0 });
+  });
 });

@@ -35,3 +35,9 @@ begin
   return v_merged;
 end;
 $$;
+
+-- security definer 函数必须回收公开 EXECUTE：否则持公开 anon key 的任何人
+-- 可经 PostgREST 用任意 (anon_id, target_id) 直接调 RPC，把别人的档案和
+-- 对话记录转到自己名下。service_role 的授权独立于 public/anon/authenticated，
+-- 服务端 supabaseAdmin 调用不受影响——语义上本函数只允许服务端调用。
+revoke execute on function public.merge_anon_profiles(uuid, uuid) from public, anon, authenticated;
