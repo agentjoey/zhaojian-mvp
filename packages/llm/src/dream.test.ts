@@ -34,4 +34,17 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
     const out = sanitizeDream("梦见蛇预示着灾祸。这将会发生。", "zh");
     expect(out.text.length).toBeLessThan(6);
   });
+
+  it("zh：标注只豁免同段——跨段预言句仍剥离", () => {
+    const out = sanitizeDream("民间说法仅供参考。\n梦见水预示着财运。", "zh");
+    expect(out.text).not.toContain("预示着财运");
+    expect(out.text).toContain("民间说法仅供参考");
+    expect(out.stripped).toHaveLength(1);
+  });
+
+  it("en：句首大写也命中（toLowerCase 是 load-bearing）", () => {
+    const out = sanitizeDream("Foretells doom ahead.", "en");
+    expect(out.text).not.toContain("Foretells");
+    expect(out.stripped).toHaveLength(1);
+  });
 });
