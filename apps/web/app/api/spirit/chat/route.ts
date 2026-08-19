@@ -2,6 +2,7 @@ import { resolveLlmConfig, isLlmConfigured, generateSpiritIntro, streamSpiritCha
 import type { UnifiedChart } from "@eamvp/core";
 import { supabaseAdmin } from "@/lib/tg/admin";
 import { consumeLlm } from "@/lib/entitlements";
+import { resolveAccess } from "@/lib/access";
 import { localeFromRequest } from "@/lib/i18n/server";
 
 export const runtime = "nodejs";
@@ -37,9 +38,20 @@ export async function POST(req: Request): Promise<Response> {
     userId = data.user?.id;
   }
 
-  // 开场白（无用户消息）不消耗额度；有用户消息时执行统一 LLM 额度闸门
+  // 开场白（无用户消息）不消耗额度，也不要求已识别身份——这个分支本来就
+  // 不发起真正的对话。有用户消息时，必须解析出「已识别」身份才放行
+  // （EP-account2-05）：此前是 `if (!isIntro && userId)`，userId 为
+  // undefined（未带 token）时闸门被整个跳过，等于无限免费；现在改成
+  // 「解析不出已识别身份就拒绝」，fail-safe 而不是 fail-open。
   const isIntro = !messages.some((m) => m.role === "user");
-  if (!isIntro && userId) {
+  if (!isIntro) {
+    if (!userId) {
+      return new Response("未登录", { status: 401 });
+    }
+    const access = await resolveAccess(userId);
+    if (access.level === "anonymous") {
+      return new Response("未登录", { status: 401 });
+    }
     const gate = await consumeLlm(userId);
     if (!gate.ok) {
       return new Response(JSON.stringify({ error: "paywall" }), { status: 402, headers: { "content-type": "application/json" } });

@@ -4,8 +4,9 @@
 // 拿 Node 原生 Request 调用，不经过 Next 的开发/构建服务器。
 //
 // EP-dream-02：web 无状态解梦端点的 flag 门控（404）、入参校验（400）、LLM 未配置
-// （503）、Bearer 用户额度闸门（402）、生成失败（500）都在本文件覆盖。无 Bearer 的
-// 匿名调用不收额度——consumeLlm 必须零调用。
+// （503）、Bearer 用户额度闸门（402）、生成失败（500）都在本文件覆盖。
+// EP-account2-05：无 Bearer 或身份未识别的调用一律 401——原先 `if (userId)`
+// 在未带 token 时静默跳过闸门，等于匿名无限免费。
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getUserMock = vi.fn(async (_token?: string) => ({
@@ -14,6 +15,8 @@ const getUserMock = vi.fn(async (_token?: string) => ({
 vi.mock("@/lib/tg/admin", () => ({
   supabaseAdmin: () => ({ auth: { getUser: (t: string) => getUserMock(t) } }),
 }));
+const resolveAccessMock = vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ level: "identified", hasVerifiedEmail: false, hasTelegram: true }));
+vi.mock("@/lib/access", () => ({ resolveAccess: (...a: unknown[]) => resolveAccessMock(...a) }));
 const consumeLlmMock = vi.fn(async (..._a: unknown[]) => ({ ok: true }));
 vi.mock("@/lib/entitlements", () => ({
   consumeLlm: (...a: unknown[]) => consumeLlmMock(...a),
@@ -49,14 +52,15 @@ describe("POST /api/spirit/dream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+    resolveAccessMock.mockResolvedValue({ level: "identified", hasVerifiedEmail: false, hasTelegram: true });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("正常解读（匿名，无 Bearer）：200 + 文本；memory/questionnaire 透传；不收额度", async () => {
+  it("正常解读（已识别 Bearer 用户）：200 + 文本；memory/questionnaire 透传；收一次额度", async () => {
     const res = await POST(
-      req({ chart: CHART, dream: "我梦见坠落", memory: "旧记忆", questionnaire: "问卷" }),
+      req({ chart: CHART, dream: "我梦见坠落", memory: "旧记忆", questionnaire: "问卷" }, "tok"),
     );
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("解读");
@@ -65,7 +69,7 @@ describe("POST /api/spirit/dream", () => {
       "我梦见坠落",
       expect.objectContaining({ language: "zh", memory: "旧记忆", questionnaire: "问卷" }),
     );
-    expect(consumeLlmMock).not.toHaveBeenCalled();
+    expect(consumeLlmMock).toHaveBeenCalledWith("u1");
   });
 
   it("缺 chart → 400；缺 dream → 400；超长 → 400；均不调 LLM", async () => {
@@ -108,7 +112,31 @@ describe("POST /api/spirit/dream", () => {
     interpretDreamSpy.mockImplementationOnce(async function* () {
       throw new Error("llm down");
     });
-    const res = await POST(req({ chart: CHART, dream: "我梦见坠落" }));
+    const res = await POST(req({ chart: CHART, dream: "我梦见坠落" }, "tok"));
     expect(res.status).toBe(500);
+  });
+});
+
+describe("EP-account2-05：/api/spirit/dream 同一处闸门漏洞", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+    resolveAccessMock.mockResolvedValue({ level: "identified", hasVerifiedEmail: false, hasTelegram: true });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("无 Authorization → 401，不调用 interpretDream（此前 if(userId) 会静默放行）", async () => {
+    const res = await POST(req({ chart: { fake: true }, dream: "我梦见坠落" }));
+    expect(res.status).toBe(401);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+  });
+
+  it("有 Bearer 但 resolveAccess 判定 anonymous → 401", async () => {
+    resolveAccessMock.mockResolvedValue({ level: "anonymous", hasVerifiedEmail: false, hasTelegram: false });
+    const res = await POST(req({ chart: { fake: true }, dream: "我梦见坠落" }, "tok"));
+    expect(res.status).toBe(401);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
   });
 });
