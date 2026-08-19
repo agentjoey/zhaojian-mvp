@@ -31,3 +31,4 @@ export { EVAL_CASES } from "./eval/cases";
 export { checkVoice, anchorKeyTerms, VOICE_LIMITS, BANNED_ZH, BANNED_EN } from "./eval/voice";
 export type { VoiceViolation, VoiceOptions } from "./eval/voice";
 export { runVoiceProbe } from "./eval/voice-run";
+export { interpretDream, sanitizeDream, DREAM_MAX_CHARS } from "./dream";

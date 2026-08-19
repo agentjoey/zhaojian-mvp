@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
+import { vi } from "vitest";
 import { sanitizeDream } from "./dream";
+
+const streamSpy = vi.fn(async function* () {
+  yield "这个梦在替你处理最近的紧绷。梦里被追，常常对应清醒时躲着的那件事。\n试着今晚把它写下来，写完就睡。";
+});
+vi.mock("./client", () => ({
+  chat: vi.fn(),
+  chatStream: (...a: unknown[]) => streamSpy(...(a as [])),
+}));
 
 describe("sanitizeDream：预言措辞机械扫描", () => {
   it("zh：预言句无标注 → 剥离该句，其余保留", () => {
@@ -46,5 +55,50 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
     const out = sanitizeDream("Foretells doom ahead.", "en");
     expect(out.text).not.toContain("Foretells");
     expect(out.stripped).toHaveLength(1);
+  });
+});
+
+// ─── interpretDream（mock ./client，模式参照 spirit-chat.test.ts）────────────
+// mock 提到文件顶部会影响全文件 import，纯函数测试（上方）不依赖 ./client，不受影响。
+
+const { interpretDream } = await import("./dream");
+const { computeUnifiedChart, BirthInputSchema } = await import("@eamvp/core");
+const dreamChart = computeUnifiedChart(BirthInputSchema.parse({ date: "1991-03-15", time: "14:30", gender: "male", latitude: 31.23, longitude: 121.47 }));
+const dreamConfig = { provider: "minimax", wire: "anthropic", baseUrl: "https://x/anthropic", model: "MiniMax-M3", apiKey: "sk-test", supportsJsonSchema: false } as never;
+
+describe("interpretDream", () => {
+  const chart = dreamChart;
+  const config = dreamConfig;
+
+  it("空梦与超长梦直接抛错（不进 LLM）", async () => {
+    await expect(async () => {
+      for await (const _ of interpretDream(chart, "   ", { language: "zh", config })) { /* drain */ }
+    }).rejects.toThrow();
+    await expect(async () => {
+      for await (const _ of interpretDream(chart, "x".repeat(2001), { language: "zh", config })) { /* drain */ }
+    }).rejects.toThrow();
+    expect(streamSpy).not.toHaveBeenCalled();
+  });
+
+  it("用户消息含梦原文与四拍提纲；系统提示含解梦硬规则；后置链生效", async () => {
+    streamSpy.mockClear();
+    let out = "";
+    for await (const c of interpretDream(chart, "我梦见被一个人追，跑不动", { language: "zh", config })) out += c;
+    const [messages, callOpts] = streamSpy.mock.calls.at(-1)!.slice(1) as [{ role: string; content: string }[], { maxTokens: number }];
+    const user = messages.at(-1)!.content;
+    expect(user).toContain("我梦见被一个人追");
+    expect(messages[0]!.content).toContain("解梦"); // 硬规则块在系统提示
+    expect(callOpts.maxTokens).toBeLessThanOrEqual(700);
+    expect(out).toContain("紧绷"); // mock 输出经后置链后保留正文
+    expect(out).not.toContain("预示");
+  });
+
+  it("整篇 dump/预言时给 fallback（<6 字）", async () => {
+    streamSpy.mockImplementationOnce(async function* () {
+      yield "```json\n{\"dream\": true}\n```";
+    });
+    let out = "";
+    for await (const c of interpretDream(chart, "我梦见坠落", { language: "zh", config })) out += c;
+    expect(out).toContain("再说"); // fallback 文案
   });
 });
