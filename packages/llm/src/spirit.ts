@@ -225,6 +225,21 @@ export async function* streamSpiritChat(
     ...toChatHistory(history),
   ];
 
+  // 近因提示（probe:voice 三轮实证：系统提示里的长度规则 M3 只守一半，
+  // 追加在最后一条用户消息末尾——模型对最近指令遵循最强——句数合规率显著上升）。
+  // 只影响本次请求的拼装，不落进存储历史；命中展开触发词时换 6 句版，不与 A 规则冲突。
+  const expand = /详细|为什么|展开|多说点|tell me more|\bwhy\b|explain/i;
+  const last = messages.at(-1);
+  if (last?.role === "user") {
+    last.content += expand.test(last.content)
+      ? zh
+        ? "\n\n（不超过 6 句。）"
+        : "\n\n(At most 6 sentences.)"
+      : zh
+        ? "\n\n（用 3 句以内、120 字以内回答。）"
+        : "\n\n(At most 3 sentences, under 80 words.)";
+  }
+
   // 600 ≈ 展开档 6 句（≈350 中文字 ≈550 token）刚好封顶：CJK 实测 ≈1.58 token/字，
   // 360 会把不守规则的长答拦腰截成残句（探针实证：metal 原型 228 字即被截）——物理上限是兜底，不是剪刀。
   const stream = chatStream(cfg, messages, { signal: opts.signal, maxTokens: 600 });

@@ -66,9 +66,10 @@ export async function runVoiceProbe(opts?: {
       let result: ProbeResult;
       try {
         let reply = "";
-        // 每题独立开场（空 history）：多轮连发时 MiniMax-M3 会答上一题（首轮探针实证串题），
-        // 污染单题风格测量。锚点复引检查不受影响——previousReplies 仍逐题累积喂给 checkVoice。
-        for await (const chunk of streamSpiritChat(chart, [], { language: LANGUAGE })) reply += chunk;
+        // 每题独立开场：history 只含本题（问题必须真的发给模型——第三轮教训：
+        // 传 [] 时模型只对着种子寒暄语续写开场白，测的不是「回答」）。
+        // 锚点复引检查不受影响——previousReplies 仍逐题累积喂给 checkVoice。
+        for await (const chunk of streamSpiritChat(chart, [{ role: "user", content: question }], { language: LANGUAGE })) reply += chunk;
         const violations = checkVoice(reply, {
           language: LANGUAGE,
           allowLong: EXPAND_TRIGGER.test(question),
