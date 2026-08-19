@@ -1,5 +1,11 @@
 import { supabaseAdmin } from "./admin";
 
+/**
+ * 匿名用户排的盘迁到已识别账号名下（EP-account2-06）。改为单事务 RPC
+ * （见 supabase/migrations/0012_merge_anon_profiles_rpc.sql）——此前是两次
+ * 独立 update，半迁移会让用户永久丢一半数据。RPC 天然幂等：重复调用同一对
+ * (anon_id, target_id) 不会出错，只是第二次影响 0 行。
+ */
 export async function mergeAnonProfiles(
   anonAccessToken: string,
   targetUserId: string,
@@ -11,29 +17,13 @@ export async function mergeAnonProfiles(
     return { merged: 0 };
   }
 
-  const anonId = anon.id;
-
-  // Reassign this anon user's profiles to the target (TG) account.
-  const { data: rows, error } = await admin
-    .from("profiles")
-    .update({ user_id: targetUserId })
-    .eq("user_id", anonId)
-    .select("id");
-
+  const { data, error } = await admin.rpc("merge_anon_profiles", {
+    p_anon_id: anon.id,
+    p_target_id: targetUserId,
+  });
   if (error) {
-    console.error("merge profiles error", error);
+    console.error("merge_anon_profiles rpc error", error);
     return { merged: 0 };
   }
-
-  // spirit_messages also has its own user_id column (see 0002 migration),
-  // so keep it consistent with the re-assigned profiles.
-  await admin
-    .from("spirit_messages")
-    .update({ user_id: targetUserId })
-    .eq("user_id", anonId)
-    .then(({ error }) => {
-      if (error) console.error("merge spirit_messages error", error);
-    });
-
-  return { merged: rows?.length ?? 0 };
+  return { merged: (data as number | null) ?? 0 };
 }
