@@ -140,6 +140,24 @@ describe("长答字数档（EP-dream-01 前置）", () => {
     expect(v.filter((x) => x.rule === "length")).toEqual([]);
   });
 
+  it("allowLong 的 301 字仍抓（放宽不是无上限）", () => {
+    const v = checkVoice("字".repeat(301), { language: "zh", allowLong: true });
+    expect(v.some((x) => x.rule === "length")).toBe(true);
+  });
+
+  it("默认档下 200 字被抓、dreamMode 下 200 字放行", () => {
+    expect(checkVoice(longText, { language: "zh" }).some((x) => x.rule === "length")).toBe(true);
+    expect(checkVoice(longText, { language: "zh", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
+  });
+
+  it(`英文长答档：${VOICE_LIMITS.enWordsLong} 词放行、超一词被抓（allowLong / dreamMode 同档）`, () => {
+    const atCap = Array(VOICE_LIMITS.enWordsLong).fill("word").join(" ") + ".";
+    const overCap = Array(VOICE_LIMITS.enWordsLong + 1).fill("word").join(" ") + ".";
+    expect(checkVoice(atCap, { language: "en", allowLong: true }).filter((x) => x.rule === "length")).toEqual([]);
+    expect(checkVoice(atCap, { language: "en", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
+    expect(checkVoice(overCap, { language: "en", dreamMode: true }).some((x) => x.rule === "length")).toBe(true);
+  });
+
   it("dreamMode：8 句 300 字内放行，9 句抓", () => {
     const eight = Array.from({ length: 8 }, (_, i) => `第${i + 1}句。`).join("");
     expect(checkVoice(eight, { language: "zh", dreamMode: true }).filter((x) => x.rule === "sentence-count")).toEqual([]);

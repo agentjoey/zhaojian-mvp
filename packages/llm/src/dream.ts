@@ -56,7 +56,7 @@ const DREAM_RULES_ZH = `
 - 按四拍走，一段自然口语走完：不用标题、不分节、不列表——① 你的直观（1–2 句）；② 这个梦在说什么：心理映照，锚到你知道的这个人（记忆/自陈/核心张力），不查符号表；③ 传统说法（有才有，且必须带「民间说法里/传统上认为」这类标注，只作文化参照）；④ 一个邀请（一句，具体可执行）。
 - 禁用预言措辞：预示着/将会/凶兆/吉兆/主灾/主吉（第③拍且有标注时除外）。梦中出现死亡、疾病、血光，一律不作预兆解读，只作心理映照。
 - 噩梦或痛苦内容：先接住情绪，再给解读；不做医疗或心理诊断。
-- 长度：不超过 8 句、300 字。命盘事实至多引一处；默认不以问句结尾。`;
+- 长度：不超过 7 句、260 字（这是留余量的目标，写完超了就删，宁短勿长）。命盘事实至多引一处；默认不以问句结尾。`;
 
 const DREAM_RULES_EN = `
 
@@ -64,7 +64,7 @@ const DREAM_RULES_EN = `
 - Four beats in ONE natural spoken paragraph — no headings, no sections, no lists: ① your immediate impression (1–2 sentences); ② what this dream may be processing — psychological reflection anchored in what you know of this person (memory/self-report/core tension), never a symbol dictionary; ③ folk tradition (only if relevant, and ALWAYS marked "folk saying"/"traditionally", as cultural reference only); ④ one invitation (one concrete sentence).
 - No prediction wording: "foretells", "omen", "will come true", "means you will" (except in beat ③ with a marker). Death, illness, blood in a dream: never read as omen — psychological reflection only.
 - Nightmares or painful content: hold the feeling first, then interpret; no medical or psychological diagnosis.
-- Length: at most 8 sentences / 200 words. At most ONE chart fact; do not end with a question by default.`;
+- Length: at most 7 sentences / 170 words (a target with margin — trim if over; shorter is better). At most ONE chart fact; do not end with a question by default.`;
 
 /**
  * 解梦（EP-dream-01）：灵的专门技能。buffered 单次 yield。

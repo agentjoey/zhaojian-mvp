@@ -8,7 +8,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "test": "vitest run",
-    "probe:voice": "tsx scripts/probe-voice.ts"
+    "probe:voice": "tsx scripts/probe-voice.ts",
+    "probe:dream": "tsx scripts/probe-dream.ts"
   },
   "dependencies": {
     "@eamvp/core": "workspace:*"
