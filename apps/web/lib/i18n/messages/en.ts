@@ -347,6 +347,7 @@ export const en: Messages = {
     interpreting: "Interpreting…",
     errorTooLong: "Too long — tell the clearest part (under 2000 chars).",
     noProfile: "No chart profile yet — cast your chart first.",
+    notEnabled: "Dream reading is not enabled yet.",
   },
   fengshui: {
     kicker: "Feng Shui",

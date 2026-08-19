@@ -9,6 +9,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
 
+// 与 fengshui/page.tsx、spirit/page.tsx 同一模式：模块加载时求值（测试须
+// resetModules + 动态 import 才能切 flag，见 __tests__/page.test.tsx 顶部注释）。
+// API 层（/api/spirit/dream、/api/tg/dream）另有 404 闸门，这里是页面级「不可达」。
+const ENABLED = process.env.NEXT_PUBLIC_DREAM_ENABLED === "1";
+
 export default function DreamPage() {
   const t = useT();
   const { locale } = useLocale();
@@ -54,6 +59,13 @@ export default function DreamPage() {
 
   useTgMainButton({ text: pending ? t("dream.interpreting") : t("dream.submit"), onClick: submit, enabled: canSubmit, visible: inTg });
 
+  // 必须排在所有 hook 之后（与 profile 早退同区），不得跳过任何 hook 调用。
+  if (!ENABLED)
+    return (
+      <main className="mx-auto max-w-[720px] px-4 py-10">
+        <p className="text-ink-2">{t("dream.notEnabled")}</p>
+      </main>
+    );
   if (profile === undefined) return null;
   if (profile === null)
     return (

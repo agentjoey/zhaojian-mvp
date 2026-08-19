@@ -341,6 +341,7 @@ export const zh = {
     interpreting: "解梦中…",
     errorTooLong: "梦太长了，先讲最清晰的那段（2000 字以内）。",
     noProfile: "尚无命盘档案——先起盘，灵才认得你。",
+    notEnabled: "「解梦」尚未开启。",
   },
   fengshui: {
     kicker: "境",
