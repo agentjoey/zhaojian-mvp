@@ -152,9 +152,9 @@ describe("interpretDream", () => {
     // beat② 方法论：投射式提问，不是符号查表
     expect(sys).toContain("投射");
     expect(sys).toContain("文化通识");
-    // 文风反例
-    expect(sys).toContain("反衬句");
-    expect(sys).toContain("三词并列罗列");
+    // 文风反例（抽象描述，不展示字面句式——字面反例会 priming 模型照写，人工读样实证）
+    expect(sys).toContain("对照句式");
+    expect(sys).toContain("近义词并排");
     // 新长度数字（旧数字 260/300/170/200/7/8 不应再出现在解梦规则块里）
     expect(sys).toContain("12 句");
     expect(sys).toContain("500 字");
@@ -168,7 +168,7 @@ describe("interpretDream", () => {
     const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
     const sys = messages[0]!.content;
     expect(sys).toContain("projection");
-    expect(sys).toMatch(/contrastive/i);
+    expect(sys).toMatch(/negating/i);
     expect(sys).toContain("12 sentences");
     expect(sys).toContain("320 words");
   });
