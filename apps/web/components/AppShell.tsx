@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { BellLogo, cn } from "@/components/ui";
 import { useIsTelegram } from "@/lib/tg/ui";
+import { isTelegram } from "@/lib/tg/client";
 import { useT } from "@/lib/i18n/I18nProvider";
 
 const NAV = [
@@ -35,6 +37,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const t = useT();
   const tg = useIsTelegram();
+
+  // EP-account2-fix：web widget 登录路径（zj_tg_hint 标记的 TG web 会话）此前唯一的
+  // 续期点是 /account 页——30 天不开 /account 就被静默登出（spec §4 要消灭的故障）。
+  // 这里在全局挂载点对「非 TG 环境 + hint 存在」的会话 fire-and-forget 调一次
+  // GET /api/tg/session（服务端按需滑动续期 / 失效清理）；失败静默、不阻塞首屏。
+  // TG 环境内不需要——Mini App 每次操作都经 ensureTgSession 重签。
+  useEffect(() => {
+    if (isTelegram() || !document.cookie.includes("zj_tg_hint=1")) return;
+    void fetch("/api/tg/session", { credentials: "include" }).catch(() => {});
+  }, []);
 
   return (
     <div className={tg ? "min-h-screen" : "min-h-screen md:pl-[82px]"}>
