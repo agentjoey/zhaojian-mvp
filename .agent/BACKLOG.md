@@ -56,6 +56,10 @@
 - [ ] [EP-spirit-2] 灵深化：每日问今/画像 localStorage 缓存（当前每次现算，flag 关时无影响）；自我画像叠加关系记忆（memoryPresent）；会话结束显式收束。
 - [ ] [EP-002-cal-2] 排盘金标准：调候用神、对照官方计算器校验。
 
+- [ ] **[EP-auth-return] 未登录用户中途去登录，回不来也白输入**（owner 实测发现，2026-08-21）：新用户在 `/dream` 输完梦点提交 → 撞见 `needLogin` 引导条 → 点「去登录」是纯 `<Link href="/account">`（`app/dream/page.tsx:224`，无 `?next=` 之类的回跳参数）→ 邮箱发魔法链接后 `/account` 原地停留、不记「要去哪」（`handleSendLink`/`handleLinkEmail`，`app/account/page.tsx:256,298`）→ 点邮件链接进 `/auth/callback` 后**硬编码**跳 `/account`（`app/auth/callback/page.tsx:29-30`，唯一读的参数是 EP-account2 那个 `bind`）→ 用户就算自己手动导航回 `/dream`，刚才打的梦（`input`，`app/dream/page.tsx:30`，纯 `useState` 无任何 storage 兜底）也已经清空，得重打一遍。全仓检索过 `returnTo`/`next=` 模式——**这个仓库目前完全没有「登录后送回原页」这套机制**，是净新增，不是接现成的。
+  - 两个独立根因，可分开修：①**回跳**——`signInWithEmail`（`lib/supabase.ts:60-63`）现在是字符串拼接假设最多一个参数（`bind`），要跟 `next` 共存得改成正经的多参数拼法（`URLSearchParams`），`upgradeAnonymousToEmail`（`lib/supabase.ts:40`）同款字符串拼接、目前完全不支持参数，如果匿名升级路径也要这条得一并改；`/auth/callback` 要在 `bind` 分支之外新增 `next` 分支。②**草稿保活**——`/dream` 的 `input` 换成 `sessionStorage` 兜底（写入/挂载读回/提交成功后清），跟①互相独立，哪怕不做回跳，至少手动导航回来东西还在。
+  - 影响面不止 `/dream`：任何「先干活、干到一半才要求登录」的页面（比如 `/spirit` 若匿名用户先聊几句撞上闸门）大概率是同一个坑，值得做成能复用的模式而不是只补 `/dream` 一处。
+
 ## 🟢 LOW
 - [ ] [EP-009] 分享卡片 / 海报生成。
 - [ ] [EP-004c2] 四化错配残留：现已确定性后置纠正（删错误「X化X」），可选再评估换 DeepSeek 对照分。
