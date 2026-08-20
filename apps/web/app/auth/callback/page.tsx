@@ -18,6 +18,17 @@ export default function AuthCallbackPage() {
         if (cancelled) return;
         const { data } = await sb.auth.getSession();
         if (data.session) {
+          // EP-account2-fix：若这是一次「绑定邮箱」的点击，趁会话在手完成第二阶段。
+          // 非绑定场景（普通登录）下服务端会因无 pending 意向而 400，无害。
+          fetch("/api/account/attach", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({ kind: "email", phase: "complete" }),
+          }).catch(() => {});
           router.replace("/account");
           return;
         }

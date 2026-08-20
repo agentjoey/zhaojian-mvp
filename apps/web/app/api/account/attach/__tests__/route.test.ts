@@ -3,8 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const resolveUidMock = vi.fn();
 const attachIdentityMock = vi.fn();
+const completeEmailAttachMock = vi.fn();
 vi.mock("@/lib/account/uid", () => ({ resolveUid: (...a: unknown[]) => resolveUidMock(...a) }));
-vi.mock("@/lib/tg/identity-link", () => ({ attachIdentity: (...a: unknown[]) => attachIdentityMock(...a) }));
+vi.mock("@/lib/tg/identity-link", () => ({
+  attachIdentity: (...a: unknown[]) => attachIdentityMock(...a),
+  completeEmailAttach: (...a: unknown[]) => completeEmailAttachMock(...a),
+}));
 type VerifyResult = { ok: true; id: number; username?: string } | { ok: false; error: string };
 const verifyTelegramLoginMock = vi.fn<(p: unknown, token: string) => VerifyResult>(() => ({ ok: true, id: 999, username: "bob" }));
 vi.mock("@eamvp/core", () => ({ verifyTelegramLogin: (p: unknown, token: string) => verifyTelegramLoginMock(p, token) }));
@@ -23,6 +27,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resolveUidMock.mockResolvedValue({ uid: "u1", via: "web", needsRefresh: false });
   attachIdentityMock.mockResolvedValue({ ok: true });
+  completeEmailAttachMock.mockResolvedValue({ ok: true });
   // clearAllMocks 只清调用记录、不清 mockReturnValue 的实现——必须在每个用例前
   // 重设默认实现，否则「verifyTelegramLogin 失败」用例的 mockReturnValue 会泄漏给后续用例。
   verifyTelegramLoginMock.mockReturnValue({ ok: true, id: 999, username: "bob" });
@@ -51,6 +56,58 @@ describe("POST /api/account/attach", () => {
   it("kind=email：attachIdentity 返回 taken → 409", async () => {
     attachIdentityMock.mockResolvedValue({ ok: false, error: "taken" });
     const res = await POST(req({ kind: "email", email: "a@x.com" }));
+    expect(res.status).toBe(409);
+  });
+
+  it("kind=email：attachIdentity 返回 already_attached（本账号已有别的已验证邮箱）→ 409", async () => {
+    attachIdentityMock.mockResolvedValue({ ok: false, error: "already_attached" });
+    const res = await POST(req({ kind: "email", email: "a@x.com" }));
+    expect(res.status).toBe(409);
+  });
+
+  it("kind=email phase=complete：无 Authorization 头 → 400，不调用 completeEmailAttach", async () => {
+    const res = await POST(req({ kind: "email", phase: "complete" }));
+    expect(res.status).toBe(400);
+    expect(completeEmailAttachMock).not.toHaveBeenCalled();
+  });
+
+  it("kind=email phase=complete：未登录（无 cookie）也受理——跨浏览器点击场景，tgUid 传 null", async () => {
+    resolveUidMock.mockResolvedValue(null);
+    const res = await POST(
+      new Request("http://x/api/account/attach", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
+        body: JSON.stringify({ kind: "email", phase: "complete" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(completeEmailAttachMock).toHaveBeenCalledWith({ tgUid: null, bearerToken: "tok123" });
+    expect(attachIdentityMock).not.toHaveBeenCalled();
+  });
+
+  it("kind=email phase=complete：TG 会话 → completeEmailAttach 收到 tgUid；no_pending → 400", async () => {
+    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg", needsRefresh: false });
+    completeEmailAttachMock.mockResolvedValue({ ok: false, error: "no_pending" });
+    const res = await POST(
+      new Request("http://x/api/account/attach", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
+        body: JSON.stringify({ kind: "email", phase: "complete" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(completeEmailAttachMock).toHaveBeenCalledWith({ tgUid: "u1", bearerToken: "tok123" });
+  });
+
+  it("kind=email phase=complete：completeEmailAttach 返回 taken → 409", async () => {
+    completeEmailAttachMock.mockResolvedValue({ ok: false, error: "taken" });
+    const res = await POST(
+      new Request("http://x/api/account/attach", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
+        body: JSON.stringify({ kind: "email", phase: "complete" }),
+      }),
+    );
     expect(res.status).toBe(409);
   });
 

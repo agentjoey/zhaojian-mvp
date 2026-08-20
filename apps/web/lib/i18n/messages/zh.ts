@@ -50,6 +50,7 @@ export const zh = {
     linkEmailLabel: "绑定邮箱",
     linkEmailSent: "确认邮件已发送，请查收后点击链接完成绑定",
     linkEmailInUse: "该邮箱已被占用",
+    linkEmailConflict: "本账号已绑定其他已验证邮箱，如需更换请先联系支持",
     linkFailed: "绑定失败，请重试",
     tgAlreadyLinked: "该 Telegram 已绑定其他账号，请改用登录并合并",
     invalidEmail: "请输入有效的邮箱地址",

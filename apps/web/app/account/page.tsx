@@ -229,7 +229,10 @@ export default function AccountPage() {
         body: JSON.stringify({ kind: "email", email }),
       });
       if (res.status === 409) {
-        setLinkEmailStatus({ error: t("account.linkEmailInUse") });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setLinkEmailStatus({
+          error: json.error === "already_attached" ? t("account.linkEmailConflict") : t("account.linkEmailInUse"),
+        });
         return;
       }
       if (!res.ok) {
@@ -237,7 +240,14 @@ export default function AccountPage() {
         setLinkEmailStatus({ error: json.error || t("account.linkFailed") });
         return;
       }
-      setLinkEmailStatus("sent");
+      // 阶段 1 通过（意向已记录）——发信走既有 signInWithOtp 流程（Supabase SMTP
+      // 真发信）；用户点击链接后由 /auth/callback 完成第二阶段绑定。
+      const sent = await signInWithEmail(email);
+      if (sent.ok) {
+        setLinkEmailStatus("sent");
+      } else {
+        setLinkEmailStatus({ error: sent.error || t("account.linkFailed") });
+      }
     } catch {
       setLinkEmailStatus({ error: t("account.linkFailed") });
     }

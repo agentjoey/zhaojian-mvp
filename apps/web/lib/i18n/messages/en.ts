@@ -53,6 +53,7 @@ export const en: Messages = {
     linkEmailSent:
       "Confirmation email sent. Check your inbox and click the link to finish linking.",
     linkEmailInUse: "This email is already linked to another account",
+    linkEmailConflict: "This account already has a different verified email. Contact support to change it.",
     linkFailed: "Link failed, please try again",
     tgAlreadyLinked:
       "This Telegram is linked to another account. Please log in and merge instead",
