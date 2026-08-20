@@ -27,7 +27,7 @@ const { GET } = await import("../route");
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg", needsRefresh: false });
+  resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg" });
   resolveAccessMock.mockResolvedValue({ level: "identified", hasVerifiedEmail: false, hasTelegram: true });
   getUserByIdMock.mockResolvedValue({ data: { user: { email: null } } });
   tgMaybeSingleMock.mockResolvedValue({ data: { username: "bob" } });

@@ -20,15 +20,17 @@ const MIGRATION = join(
 describe("EP-account2-fix：两个 LLM 额度 RPC 必须 revoke 公开 EXECUTE", () => {
   const sql = readFileSync(MIGRATION, "utf8");
 
+  // 行首锚定（^ + multiline）：revoke 行被 SQL `--` 注释掉时必须变红，
+  // 否则守护只是装饰性断言（评审 M1，claude 实测注释后仍全绿）。
   it("0015 含 consume_llm_credit(bigint) 的 revoke", () => {
     expect(sql).toMatch(
-      /revoke\s+execute\s+on\s+function\s+public\.consume_llm_credit\(bigint\)[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+      /^\s*revoke\s+execute\s+on\s+function\s+public\.consume_llm_credit\(bigint\)[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/im,
     );
   });
 
   it("0015 含 consume_llm_credit_account(uuid, int) 的 revoke", () => {
     expect(sql).toMatch(
-      /revoke\s+execute\s+on\s+function\s+public\.consume_llm_credit_account\(uuid\s*,\s*int\)[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+      /^\s*revoke\s+execute\s+on\s+function\s+public\.consume_llm_credit_account\(uuid\s*,\s*int\)[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/im,
     );
   });
 });

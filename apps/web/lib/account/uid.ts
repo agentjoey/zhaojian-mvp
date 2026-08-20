@@ -1,4 +1,4 @@
-import { readSession, sessionNeedsRefresh, TG_COOKIE } from "@/lib/tg/session";
+import { readSession, TG_COOKIE } from "@/lib/tg/session";
 import { supabaseAdmin } from "@/lib/tg/admin";
 
 /**
@@ -14,7 +14,7 @@ import { supabaseAdmin } from "@/lib/tg/admin";
  */
 export async function resolveUid(
   req: Request,
-): Promise<{ uid: string; via: "tg" | "web"; needsRefresh: boolean } | null> {
+): Promise<{ uid: string; via: "tg" | "web" } | null> {
   // 1) Telegram session cookie (zj_tg)
   const cookieHeader = req.headers.get("cookie") ?? "";
   const tgToken = cookieHeader
@@ -22,14 +22,17 @@ export async function resolveUid(
     .find((c) => c.startsWith(`${TG_COOKIE}=`))
     ?.slice(TG_COOKIE.length + 1);
   const s = readSession(tgToken);
-  if (s) return { uid: s.uid, via: "tg", needsRefresh: sessionNeedsRefresh(s.exp) };
+  // 续期不由这里的调用方负责：AppShell 挂载时已对带 zj_tg_hint 的会话调一次
+  // GET /api/tg/session，由那个路由自己读 session 字段判断滑动续期（评审
+  // needsRefresh 死字段处置——无任何消费方，删除而非接线）。
+  if (s) return { uid: s.uid, via: "tg" };
 
   // 2) Web session via Authorization Bearer token
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) {
     const token = auth.slice(7);
     const { data } = await supabaseAdmin().auth.getUser(token);
-    if (data.user) return { uid: data.user.id, via: "web", needsRefresh: false };
+    if (data.user) return { uid: data.user.id, via: "web" };
   }
 
   return null;

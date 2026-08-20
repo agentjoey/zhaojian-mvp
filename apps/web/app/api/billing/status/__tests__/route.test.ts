@@ -35,7 +35,7 @@ describe("GET /api/billing/status", () => {
   });
 
   it("resolveUid 解析出 uid（不论 via）→ 查 entitlements 与本月用量", async () => {
-    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg", needsRefresh: false });
+    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg" });
     const res = await GET(new Request("http://x"));
     const json = await res.json();
     expect(getEntitlementMock).toHaveBeenCalledWith("u1");
@@ -43,7 +43,7 @@ describe("GET /api/billing/status", () => {
   });
 
   it("会员且未过期 → tier=member", async () => {
-    resolveUidMock.mockResolvedValue({ uid: "u1", via: "web", needsRefresh: false });
+    resolveUidMock.mockResolvedValue({ uid: "u1", via: "web" });
     getEntitlementMock.mockResolvedValue({ tier: "member", memberUntil: "2099-01-01T00:00:00Z" });
     const res = await GET(new Request("http://x"));
     expect((await res.json()).tier).toBe("member");

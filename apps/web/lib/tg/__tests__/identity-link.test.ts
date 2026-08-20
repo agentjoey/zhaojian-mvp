@@ -176,6 +176,23 @@ describe("attachIdentity · email 阶段 1（prepare：只校验 + 发 nonce）"
     // 第一页只有 3 条（远少于请求的 200）——旧的「短页即终止」写法会在这里 fail-open
     expect(listUsersMock).toHaveBeenCalledTimes(2);
   });
+
+  it("per_page 被服务端截断（返回 50 条但 nextPage 非 null）→ 必须继续翻页，不能提前下「无人占用」结论", async () => {
+    // 模拟 GoTrue 对 per_page 有服务端上限：请求 200 只回 50。目标邮箱不在任何一页
+    // （未占用），关键断言是翻页动作发生了——条数判定会在第一页（50 < 200）就退出。
+    listUsersMock.mockImplementation(({ page = 1 }: { page?: number }) =>
+      Promise.resolve({
+        data:
+          page === 1
+            ? { users: Array.from({ length: 50 }, (_, i) => ({ id: `q${i}`, email: `q${i}@x.com` })), nextPage: 2 }
+            : { users: [], nextPage: null },
+      }),
+    );
+    const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
+    expect(r).toMatchObject({ ok: true }); // 未占用 → 正常发 nonce
+    expect(listUsersMock).toHaveBeenCalledTimes(2);
+    expect(listUsersMock).toHaveBeenNthCalledWith(2, { page: 2, perPage: 200 });
+  });
 });
 
 describe("completeEmailAttach · email 阶段 2（nonce 兑换）", () => {
@@ -278,6 +295,15 @@ describe("completeEmailAttach · email 阶段 2（nonce 兑换）", () => {
     const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
     expect(r).toEqual({ ok: false, error: "send_failed" });
     expect(updateUserByIdMock).toHaveBeenNthCalledWith(3, "orphan", { email: "a@x.com" });
+  });
+
+  it("释放地址这步就失败 → send_failed，目标账号绝不被写、持票方原封不动（NEW-2 失败矩阵另一臂）", async () => {
+    updateUserByIdMock.mockResolvedValueOnce({ error: { message: "boom" } }); // 释放失败
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "send_failed" });
+    // 只有那一次失败的释放尝试：目标未被写、不删号、地址也还在持票方身上（改名没生效）
+    expect(updateUserByIdMock).toHaveBeenCalledTimes(1);
+    expect(deleteUserMock).not.toHaveBeenCalled();
   });
 });
 

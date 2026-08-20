@@ -14,7 +14,7 @@ vi.mock("@/lib/tg/admin", () => ({
 }));
 
 const { resolveUid } = await import("../uid");
-const { makeSessionToken, SESSION_REFRESH_THRESHOLD_SECONDS } = await import("@/lib/tg/session");
+const { makeSessionToken } = await import("@/lib/tg/session");
 
 function reqWithCookie(cookie: string): Request {
   return new Request("http://x/api/whatever", { headers: { cookie } });
@@ -23,26 +23,17 @@ function reqWithCookie(cookie: string): Request {
 beforeEach(() => vi.clearAllMocks());
 
 describe("resolveUid：不依赖 next/headers，只读 Request 本身", () => {
-  it("有效 zj_tg cookie → via=tg，needsRefresh=false（新签发的 token 远未到期）", async () => {
+  it("有效 zj_tg cookie → via=tg", async () => {
     const token = makeSessionToken("u1", 42);
     const r = await resolveUid(reqWithCookie(`zj_tg=${token}`));
-    expect(r).toEqual({ uid: "u1", via: "tg", needsRefresh: false });
+    expect(r).toEqual({ uid: "u1", via: "tg" });
   });
 
-  it("zj_tg cookie 快过期（剩余 < 7 天）→ needsRefresh=true", async () => {
-    // 直接构造一个剩余时间在阈值内的 token：复用 signSession 而不是等 30 天。
-    const { signSession } = await import("@eamvp/core");
-    const exp = Math.floor(Date.now() / 1000) + SESSION_REFRESH_THRESHOLD_SECONDS - 10;
-    const token = signSession({ uid: "u1", tgId: 42, exp }, "test-secret");
-    const r = await resolveUid(reqWithCookie(`zj_tg=${token}`));
-    expect(r).toEqual({ uid: "u1", via: "tg", needsRefresh: true });
-  });
-
-  it("无 zj_tg cookie，有 Bearer → via=web，needsRefresh 恒 false（web 会话由 Supabase 自己管刷新）", async () => {
+  it("无 zj_tg cookie，有 Bearer → via=web", async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: "u2" } } });
     const req = new Request("http://x/api/whatever", { headers: { authorization: "Bearer tok" } });
     const r = await resolveUid(req);
-    expect(r).toEqual({ uid: "u2", via: "web", needsRefresh: false });
+    expect(r).toEqual({ uid: "u2", via: "web" });
   });
 
   it("cookie 与 Bearer 都没有 → null", async () => {
@@ -56,6 +47,6 @@ describe("resolveUid：不依赖 next/headers，只读 Request 本身", () => {
       headers: { cookie: "zj_tg=garbage", authorization: "Bearer tok" },
     });
     const r = await resolveUid(req);
-    expect(r).toEqual({ uid: "u3", via: "web", needsRefresh: false });
+    expect(r).toEqual({ uid: "u3", via: "web" });
   });
 });

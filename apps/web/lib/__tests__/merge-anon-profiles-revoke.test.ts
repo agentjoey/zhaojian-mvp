@@ -19,11 +19,13 @@ const MIGRATION = join(
 describe("EP-account2-06：merge_anon_profiles 必须 revoke 公开 EXECUTE", () => {
   it("0012 迁移含 revoke execute ... from public, anon, authenticated", () => {
     const sql = readFileSync(MIGRATION, "utf8");
+    // 行首锚定 + multiline：把 revoke 行注释掉（SQL `--` 注释）必须让测试变红，
+    // 否则这个守护只是装饰性断言（评审 M1，claude 实测注释后仍全绿）。
     expect(sql).toMatch(
-      /revoke\s+execute\s+on\s+function\s+public\.merge_anon_profiles/i,
+      /^\s*revoke\s+execute\s+on\s+function\s+public\.merge_anon_profiles/im,
     );
     expect(sql).toMatch(
-      /revoke\s+execute\s+on\s+function\s+public\.merge_anon_profiles[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+      /^\s*revoke\s+execute\s+on\s+function\s+public\.merge_anon_profiles[^;]*from\s+public\s*,\s*anon\s*,\s*authenticated/im,
     );
   });
 });

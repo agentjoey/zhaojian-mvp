@@ -25,7 +25,7 @@ function req(body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resolveUidMock.mockResolvedValue({ uid: "u1", via: "web", needsRefresh: false });
+  resolveUidMock.mockResolvedValue({ uid: "u1", via: "web" });
   attachIdentityMock.mockResolvedValue({ ok: true, nonce: "n1" });
   completeEmailAttachMock.mockResolvedValue({ ok: true });
   // clearAllMocks 只清调用记录、不清 mockReturnValue 的实现——必须在每个用例前
@@ -147,11 +147,11 @@ describe("POST /api/account/attach", () => {
   });
 
   it("任何 kind 下 via 不再是「必须对应」的前提——TG 会话也能绑邮箱、web 会话也能绑 TG（对称化的核心断言）", async () => {
-    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg", needsRefresh: false });
+    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg" });
     const res1 = await POST(req({ kind: "email", email: "a@x.com" }));
     expect(res1.status).toBe(200);
 
-    resolveUidMock.mockResolvedValue({ uid: "u1", via: "web", needsRefresh: false });
+    resolveUidMock.mockResolvedValue({ uid: "u1", via: "web" });
     const res2 = await POST(req({ kind: "telegram", id: 999, auth_date: 1, hash: "h" }));
     expect(res2.status).toBe(200);
   });

@@ -29,6 +29,8 @@
 - [ ] [EP-concurrency] 并发架构（多用户 & LLM 并发）。设计完成 `docs/specs/concurrency-architecture.md`。触发条件：接近 MiniMax 上限或峰值并发上升。MiniMax-M3 限额（官方查证）：**RPM 200 / TPM 10M**（TPS/并发未公布）→ RPM 200 是硬约束、TPM 不是瓶颈；MVP 不会触顶。落地序：Tier0(Fluid Compute+maxDuration+单飞) → Tier1(全局信号量/AI Gateway) → Tier2(异步队列+Realtime)。
 
 ## 🟡 MED
+- [ ] **[EP-account2-debt] 开场白计量 × SpiritPanel 每次挂载重生成且不持久化**——开 30 次 /chart 可烧光月度额度；BILLING_ENABLED 关闭时休眠，开收费前必修（intro 结果持久化或挂载去重）。
+- [ ] **[EP-account2-debt] chat 路由请求体无校验**——chart/memory/questionnaire 字段无校验/无长度上限；计量封住了成本但没封提示注入面。
 - [ ] **[EP-account2-debt] TG cookie 解析第三份收敛**：EP-account2 已把 `api/fengshui/reading` / `billing/status` 的内联 cookie 解析收敛进 `resolveUid`（3→2 份），最后一份在 `GET /api/tg/session` 路由内联——它要 exp/uid 等 session 字段做续期判断，而 `resolveUid` 只返回 uid。待 `resolveUid` 扩返回 session 字段后顺手收敛。
 - [ ] [EP-profile-q] 建档交互式心理问卷：起盘流程插入若干心理学问题（自我认知/关系/动机倾向），结果并入 LLM 解读上下文以完善分析（与命盘事实互证，标注主观自陈 vs 命盘客观）。降低起盘摩擦：可「先出盘、后渐进追问」。
 - [ ] [EP-ui-v2-rest] UI v2 素白收尾（主体已上线，剩余增项）：① 解读页 Tab 化（命理/心理/共振 sticky Tab + 摘要先行：大宋体结论 + 关键词 chips）② 命之书封面（海水江崖 + 竖排宋体）+ 桌面双栏运势/周历条 web 布局 ③ 进度条 + 命盘 hero 高亮弧随 Tab 旋转。设计参考 `design/zhaojian_ui_v2`。

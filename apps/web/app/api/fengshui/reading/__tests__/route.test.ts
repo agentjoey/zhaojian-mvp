@@ -28,8 +28,6 @@ vi.mock("@eamvp/llm", () => ({
  *     EP-account2-02 后 route.ts 收敛为调用 lib/account/uid.ts 的 resolveUid()
  *     （它内部同样走这两个依赖，且只读 req.headers、不再依赖 next/headers），
  *     所以这里 mock 的仍是 session/admin 这两个底层模块，覆盖链路不变。
- *     `sessionNeedsRefresh` 是 uid.ts 新引入的同模块导出，本路由只用 uid、
- *     不关心续期信号，mock 成恒 false。
  *  2) 用户是不是会员——`getEntitlement`/`isMember`。
  * 全部 mock 掉，逐条控制「谁在请求、是不是会员」，不依赖真实 Supabase。
  */
@@ -37,7 +35,6 @@ const readSessionMock = vi.fn<(...args: unknown[]) => { uid: string; tgId: numbe
 vi.mock("@/lib/tg/session", () => ({
   TG_COOKIE: "zj_tg",
   readSession: (...a: unknown[]) => readSessionMock(...a),
-  sessionNeedsRefresh: () => false,
 }));
 
 const getUserMock = vi.fn<(...args: unknown[]) => Promise<{ data: { user: { id: string } | null } }>>(
