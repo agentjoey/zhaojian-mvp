@@ -53,6 +53,14 @@ export const en: Messages = {
     linkEmailSent:
       "Confirmation email sent. Check your inbox and click the link to finish linking.",
     linkEmailInUse: "This email is already linked to another account",
+    linkEmailConflict: "This account already has a different verified email. Contact support to change it.",
+    bindConfirmTitle: "Confirm email binding",
+    bindConfirmBody:
+      "You're about to bind {email} to this Zhaojian account. If you didn't start this, tap Cancel — once bound, this address becomes the account's sign-in and recovery method.",
+    bindConfirmAction: "Confirm binding",
+    bindCancel: "Cancel",
+    bindExpired: "This binding link has expired or was already used. Start again from the account page.",
+    bindFailed: "Binding failed. Please try again.",
     linkFailed: "Link failed, please try again",
     tgAlreadyLinked:
       "This Telegram is linked to another account. Please log in and merge instead",
@@ -348,6 +356,8 @@ export const en: Messages = {
     errorTooLong: "Too long — tell the clearest part (under 2000 chars).",
     noProfile: "No chart profile yet — cast your chart first.",
     notEnabled: "Dream reading is not enabled yet.",
+    needLogin: "Sign in first to read dreams — head to Account to sign in or bind an email.",
+    needLoginCta: "Sign in",
   },
   fengshui: {
     kicker: "Feng Shui",

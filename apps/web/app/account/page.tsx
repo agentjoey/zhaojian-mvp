@@ -59,16 +59,37 @@ export default function AccountPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  /**
+   * 邮箱绑定确认屏（重设计）：用户点了验证邮件、/auth/callback 把 nonce 转到
+   * 这里。绑定会把一个已验证邮箱移到另一个账号上，属于需要知情同意的动作——
+   * 必须让用户看清「要绑哪个邮箱」并显式确认，而不是点开链接就悄悄完成。
+   */
+  const [bind, setBind] = useState<
+    | { state: "none" }
+    | { state: "loading"; nonce: string }
+    | { state: "confirm"; nonce: string; email: string }
+    | { state: "done" }
+    | { state: "error"; message: string }
+  >({ state: "none" });
+
   const inTg = useIsTelegram();
 
   useEffect(() => {
     async function resolve() {
       if (hasTgSession()) {
-        // Optional: confirm the server-side TG session is still active.
+        // EP-account2-03：真正消费确认结果——hint cookie 只是「曾经登录过」的
+        // 长效标记，不是「现在仍然有效」的证明。失效必须真的落到未登录态，
+        // 不能假装还登录着（否则改名/绑邮箱/注销都会 401，用户却看不出为什么）。
         try {
-          await fetch("/api/tg/session", { credentials: "include" });
+          const res = await fetch("/api/tg/session", { credentials: "include" });
+          const json = (await res.json().catch(() => null)) as { active: boolean } | null;
+          if (!json?.active) {
+            setView({ kind: "anon", user: null });
+            return;
+          }
         } catch {
-          // Ignore confirmation failures; keep TG state based on client hint.
+          // 网络异常：保留原有「先信客户端 hint」的降级行为，避免离线时把
+          // 已登录用户误判成未登录。
         }
         const username = typeof localStorage !== "undefined" ? localStorage.getItem(TG_USERNAME_KEY) : null;
         setView({ kind: "telegram", username });
@@ -83,6 +104,40 @@ export default function AccountPage() {
     }
     resolve();
   }, []);
+
+  // 绑定确认：URL 带 ?bind=<nonce> 时先 peek（只读，不消费），拿到要绑的邮箱
+  // 给用户看，等他确认再 complete。
+  useEffect(() => {
+    const nonce = new URLSearchParams(window.location.search).get("bind");
+    if (!nonce) return;
+    (async () => {
+      // setBind 放进异步体里而不是 effect 同步段：同步 setState 会触发
+      // react-hooks/set-state-in-effect（本仓库把它降为 warn 但不接受新增）。
+      setBind({ state: "loading", nonce });
+      try {
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          setBind({ state: "error", message: t("account.bindExpired") });
+          return;
+        }
+        const res = await fetch("/api/account/attach", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ kind: "email", phase: "peek", nonce }),
+        });
+        if (!res.ok) {
+          setBind({ state: "error", message: t("account.bindExpired") });
+          return;
+        }
+        const json = (await res.json()) as { email: string };
+        setBind({ state: "confirm", nonce, email: json.email });
+      } catch {
+        setBind({ state: "error", message: t("account.bindExpired") });
+      }
+    })();
+  }, [t]);
 
   useEffect(() => {
     const n = sessionStorage.getItem("zj_merged");
@@ -173,11 +228,11 @@ export default function AccountPage() {
           "content-type": "application/json",
         };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch("/api/account/link-telegram", {
+        const res = await fetch("/api/account/attach", {
           method: "POST",
           credentials: "include",
           headers,
-          body: JSON.stringify(u),
+          body: JSON.stringify({ kind: "telegram", ...u }),
         });
         if (res.status === 409) {
           setLinkError(t("account.tgAlreadyLinked"));
@@ -214,14 +269,17 @@ export default function AccountPage() {
     }
     setLinkEmailStatus("sending");
     try {
-      const res = await fetch("/api/account/link-email", {
+      const res = await fetch("/api/account/attach", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ kind: "email", email }),
       });
       if (res.status === 409) {
-        setLinkEmailStatus({ error: t("account.linkEmailInUse") });
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setLinkEmailStatus({
+          error: json.error === "already_attached" ? t("account.linkEmailConflict") : t("account.linkEmailInUse"),
+        });
         return;
       }
       if (!res.ok) {
@@ -229,9 +287,57 @@ export default function AccountPage() {
         setLinkEmailStatus({ error: json.error || t("account.linkFailed") });
         return;
       }
-      setLinkEmailStatus("sent");
+      // 阶段 1 通过——服务端回了一次性 nonce，把它拼进 emailRedirectTo。
+      // nonce 是 complete 阶段唯一的账号选择依据（跨浏览器有效），普通登录的
+      // 链接里没有它，因此走不进绑定流程。
+      const { nonce } = (await res.json().catch(() => ({}))) as { nonce?: string };
+      if (!nonce) {
+        setLinkEmailStatus({ error: t("account.linkFailed") });
+        return;
+      }
+      const sent = await signInWithEmail(email, nonce);
+      if (sent.ok) {
+        setLinkEmailStatus("sent");
+      } else {
+        setLinkEmailStatus({ error: sent.error || t("account.linkFailed") });
+      }
     } catch {
       setLinkEmailStatus({ error: t("account.linkFailed") });
+    }
+  }
+
+  async function handleConfirmBind() {
+    if (bind.state !== "confirm") return;
+    const { nonce } = bind;
+    setBind({ state: "loading", nonce });
+    try {
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setBind({ state: "error", message: t("account.bindExpired") });
+        return;
+      }
+      const res = await fetch("/api/account/attach", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind: "email", phase: "complete", nonce }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setBind({
+          state: "error",
+          message: json.error === "taken" || json.error === "already_attached"
+            ? t("account.linkEmailInUse")
+            : t("account.bindExpired"),
+        });
+        return;
+      }
+      setBind({ state: "done" });
+      // 绑定成功后账号身份变了，重载让 identities/billing 重新取。
+      location.href = "/account";
+    } catch {
+      setBind({ state: "error", message: t("account.bindFailed") });
     }
   }
 
@@ -354,6 +460,44 @@ export default function AccountPage() {
         <span className="text-[13px]" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
         <LocaleSwitch />
       </div>
+
+      {bind.state === "confirm" && (
+        <div
+          className="mt-2 p-4"
+          style={{ border: "1px solid var(--color-cinnabar)", borderRadius: "var(--radius-card)" }}
+        >
+          <h3 className="mb-2 text-[13px] font-medium" style={{ color: "var(--color-cinnabar)" }}>
+            {t("account.bindConfirmTitle")}
+          </h3>
+          <p className="mb-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink)" }}>
+            {t("account.bindConfirmBody", { email: bind.email })}
+          </p>
+          <div className="flex gap-3">
+            <button type="button" onClick={handleConfirmBind} className={primaryBtn} style={primaryStyle}>
+              {t("account.bindConfirmAction")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBind({ state: "none" })}
+              className="w-full px-4 py-3 text-[14px] font-medium transition-colors"
+              style={{
+                border: "1px solid var(--color-line)",
+                color: "var(--color-ink)",
+                background: "transparent",
+                borderRadius: "var(--radius-button)",
+              }}
+            >
+              {t("account.bindCancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bind.state === "error" && (
+        <p className="mt-2 px-4 py-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+          {bind.message}
+        </p>
+      )}
 
       {mergeNotice !== null && (
         <div

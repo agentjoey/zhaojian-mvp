@@ -8,40 +8,19 @@ import {
   isFengshuiEntitledForUid,
   wantsLayer1,
 } from "@/lib/fengshui-reading";
-import { readSession, TG_COOKIE } from "@/lib/tg/session";
-import { supabaseAdmin } from "@/lib/tg/admin";
+import { resolveUid } from "@/lib/account/uid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * 从请求里解析 uid（Task 10，EP-fs-17 会员闸门）。手法与 billing/status/route.ts
- * 完全一致：TG 会话 cookie（zj_tg）优先，Authorization Bearer 兜底（邮箱登录等非
- * TG 场景）。
- *
- * ⚠️ 特意不用 `@/lib/account/uid.ts` 的 `resolveUid()`：那个实现依赖 `next/headers`
- * 的 `cookies()`，读取的是 Next 请求处理内部维护的 AsyncLocalStorage 上下文，只有
- * 真正经由 Next 的路由分发时才会被填充。本路由的测试直接 `import { POST, GET }`
- * 后拿一个手搓的 `Request` 调用（不经过 Next 的开发/构建服务器，见 route.test.ts
- * 顶部注释），没有那层上下文，`cookies()` 在这种调用方式下不可靠。改成直接读
- * `req.headers.get("cookie")`——只依赖 Request 对象本身，两种调用方式下行为一致。
+ * EP-account2-02：resolveUid() 改造后不再依赖 next/headers 的 cookies()，
+ * 两处曾经各自独立重复的手动 cookie 解析（本文件与 billing/status/route.ts）
+ * 现在可以安全收敛成一处。
  */
 async function resolveUserId(req: Request): Promise<string | undefined> {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const tgToken = cookieHeader
-    .split("; ")
-    .find((c) => c.startsWith(`${TG_COOKIE}=`))
-    ?.slice(TG_COOKIE.length + 1);
-  const tgSession = readSession(tgToken);
-  if (tgSession) return tgSession.uid;
-
-  const auth = req.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    const token = auth.slice(7);
-    const { data } = await supabaseAdmin().auth.getUser(token);
-    return data.user?.id;
-  }
-  return undefined;
+  const resolved = await resolveUid(req);
+  return resolved?.uid;
 }
 
 /**

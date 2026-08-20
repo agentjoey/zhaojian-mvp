@@ -40,6 +40,22 @@ vi.mock("@/app/actions", () => ({
 }));
 
 /**
+ * EP-account2 阻断 3：page.tsx web 臂直接 import `@/lib/supabase`（读会话
+ * access_token 附到 /api/spirit/dream 请求头，路由已硬要求 Bearer）。真实实现
+ * 在缺 NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY 时抛错，必须 mock。会话内容做成可按
+ * 测试改写的共享可变量（vi.hoisted）——renderDreamPage() 每次 resetModules +
+ * 动态 import，mock 工厂可能重新执行，直接摆弄 mock 实例会打到旧实例
+ * （fengshui/__tests__/page.test.tsx 记过同一个坑，理由同 supabaseSession）。
+ * 默认带 token 的会话，让「页面发出的请求形态」有真实对象可断言。
+ */
+const { supabaseSession } = vi.hoisted(() => ({
+  supabaseSession: { current: null as { access_token: string } | null },
+}));
+vi.mock("@/lib/supabase", () => ({
+  supabase: () => ({ auth: { getSession: vi.fn(async () => ({ data: { session: supabaseSession.current } })) } }),
+}));
+
+/**
  * `render()` 包一层 `await act(async () => {...})`：page.tsx 挂载时
  * `getActiveProfile().then(setProfile)` 落在真实微任务里，同步 render 返回后
  * setState 可能落在 act 作用域之外（fengshui/__tests__/page.test.tsx 顶部注释
@@ -61,6 +77,7 @@ async function renderDreamPage() {
 beforeEach(() => {
   vi.resetModules();
   tgEnv.inTg = false;
+  supabaseSession.current = { access_token: "test-access-token" };
   vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
   getSpiritMemoryMock.mockClear();
   saveSpiritMemoryMock.mockClear();
@@ -117,6 +134,12 @@ describe("验收补做：web 臂记忆读取/写回 + 提交路径", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/spirit/dream");
+    // EP-account2 阻断 3：路由硬要求 Bearer——页面发出的请求必须带 Authorization
+    // （与本分支已有的 x-zj-locale 头共存）。这正是「路由改了客户端没改」的洞，
+    // 守的是请求形态而不是服务端行为（服务端行为由 route.test.ts 独立覆盖）。
+    const headers = init!.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer test-access-token");
+    expect(headers["x-zj-locale"]).toBe("zh");
     const body = JSON.parse(init!.body as string);
     expect(body.dream).toBe("我梦见自己在坠落，怎么都落不到底。");
     expect(body.chart).toBeTruthy();
@@ -146,6 +169,38 @@ describe("验收补做：web 臂记忆读取/写回 + 提交路径", () => {
     await waitFor(() => expect(screen.getByText("解读文本。")).toBeInTheDocument());
     await waitFor(() => expect(spiritMemoryActionMock).toHaveBeenCalled());
     expect(saveSpiritMemoryMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("EP-account2 阻断 3：web 臂 401 友好态（不扔服务端裸字符串）", () => {
+  it("无会话（拿不到 token）+ 服务端 401 → 渲染引导登录文案与链接，不出现裸「未登录」", async () => {
+    supabaseSession.current = null;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("未登录", { status: 401 })));
+
+    await renderDreamPage();
+    const textarea = await screen.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "梦见自己站在很高的桥上。" } });
+    fireEvent.click(screen.getByText("解这个梦"));
+
+    // 友好引导态出现，且是指向 /account 的链接
+    expect(await screen.findByText("解梦需要先确认身份——去账号页登录，或先绑定邮箱。")).toBeInTheDocument();
+    const cta = screen.getByText("去登录 →");
+    expect(cta.closest("a")).toHaveAttribute("href", "/account");
+    // 服务端裸字符串不得直接上屏
+    expect(screen.queryByText("未登录")).toBeNull();
+    // 失败不进入记忆写回链路
+    expect(spiritMemoryActionMock).not.toHaveBeenCalled();
+  });
+
+  it("有会话但服务端仍 401（token 失效）→ 同样落引导态", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("未登录", { status: 401 })));
+
+    await renderDreamPage();
+    const textarea = await screen.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "梦见考试迟到。" } });
+    fireEvent.click(screen.getByText("解这个梦"));
+
+    expect(await screen.findByText("解梦需要先确认身份——去账号页登录，或先绑定邮箱。")).toBeInTheDocument();
   });
 });
 

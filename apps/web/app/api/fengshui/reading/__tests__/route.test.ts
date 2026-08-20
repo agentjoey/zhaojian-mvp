@@ -24,10 +24,10 @@ vi.mock("@eamvp/llm", () => ({
 
 /**
  * 会员闸门（Task 10，EP-fs-17）依赖两组外部信息：
- *  1) 用户是谁——`readSession`（TG cookie）与 `supabaseAdmin().auth.getUser`（Bearer 兜底），
- *     与 billing/status/route.ts 同一手法（见 route.ts 顶部注释：不用
- *     lib/account/uid.ts 的 resolveUid()，那个实现依赖 next/headers 的 cookies()，
- *     只有真正经 Next 路由分发时才有值，直接 import 路由函数调用的单测方式拿不到）。
+ *  1) 用户是谁——`readSession`（TG cookie）与 `supabaseAdmin().auth.getUser`（Bearer 兜底）。
+ *     EP-account2-02 后 route.ts 收敛为调用 lib/account/uid.ts 的 resolveUid()
+ *     （它内部同样走这两个依赖，且只读 req.headers、不再依赖 next/headers），
+ *     所以这里 mock 的仍是 session/admin 这两个底层模块，覆盖链路不变。
  *  2) 用户是不是会员——`getEntitlement`/`isMember`。
  * 全部 mock 掉，逐条控制「谁在请求、是不是会员」，不依赖真实 Supabase。
  */

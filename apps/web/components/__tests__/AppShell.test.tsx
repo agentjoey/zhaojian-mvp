@@ -158,3 +158,66 @@ describe("EP-fs-07 i18n fengshui 命名空间键结构一致性", () => {
     expect(enPaths).toEqual(zhPaths);
   });
 });
+
+/**
+ * EP-account2-fix：web widget 登录路径的唯一续期点此前只有 /account 页，
+ * 用户 30 天不打开 /account 就被静默登出。AppShell 全局挂载时对
+ * 「非 TG + zj_tg_hint=1」的会话 fire-and-forget 调一次 GET /api/tg/session。
+ * 这三条钉住门控条件：hint 存在才发、非 TG 才发、失败静默（不 reject 到组件树）。
+ */
+describe("EP-account2-fix：AppShell 对 zj_tg_hint 会话续期（fire-and-forget）", () => {
+  async function renderShell(): Promise<ReturnType<typeof vi.fn>> {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    const { AppShell } = await import("../AppShell");
+    const { I18nProvider } = await import("@/lib/i18n/I18nProvider");
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <I18nProvider locale="zh">{children}</I18nProvider>
+    );
+    render(<AppShell><div /></AppShell>, { wrapper: Wrapper });
+    return fetchMock;
+  }
+
+  afterEach(() => {
+    document.cookie = "zj_tg_hint=; max-age=0; path=/";
+    delete (window as { Telegram?: unknown }).Telegram;
+    vi.unstubAllGlobals();
+  });
+
+  it("非 TG + zj_tg_hint=1：挂载时发出一次 GET /api/tg/session", async () => {
+    document.cookie = "zj_tg_hint=1; path=/";
+    const fetchMock = await renderShell();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tg/session",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("无 zj_tg_hint：不发", async () => {
+    const fetchMock = await renderShell();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("TG 环境内即使有 hint 也不发（Mini App 走 ensureTgSession 重签）", async () => {
+    document.cookie = "zj_tg_hint=1; path=/";
+    (window as { Telegram?: unknown }).Telegram = { WebApp: { initData: "x" } };
+    const fetchMock = await renderShell();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetch 失败静默消化，不抛出", async () => {
+    document.cookie = "zj_tg_hint=1; path=/";
+    const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.stubGlobal("fetch", fetchMock);
+    const { AppShell } = await import("../AppShell");
+    const { I18nProvider } = await import("@/lib/i18n/I18nProvider");
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <I18nProvider locale="zh">{children}</I18nProvider>
+    );
+    render(<AppShell><div /></AppShell>, { wrapper: Wrapper });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // 等一拍让 reject 链跑完：若未 catch，测试进程会收到 unhandled rejection
+    await new Promise((r) => setTimeout(r, 10));
+  });
+});

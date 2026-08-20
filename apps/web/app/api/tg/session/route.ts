@@ -1,14 +1,42 @@
 import { NextResponse } from "next/server";
 import { verifyInitData } from "@eamvp/core";
 import { resolveOrCreateTgUser, getProfileForUser } from "@/lib/tg/identity";
-import { makeSessionToken, readSession, TG_COOKIE } from "@/lib/tg/session";
+import {
+  makeSessionToken,
+  readSession,
+  sessionNeedsRefresh,
+  TG_COOKIE,
+  SESSION_TTL_SECONDS,
+} from "@/lib/tg/session";
+
+const TG_HINT_COOKIE = "zj_tg_hint";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 export async function GET(req: Request): Promise<Response> {
   const cookie = req.headers.get("cookie") ?? "";
   const token = cookie.split("; ").find((c) => c.startsWith(`${TG_COOKIE}=`))?.slice(TG_COOKIE.length + 1);
   const session = readSession(token);
-  return NextResponse.json({ active: !!session });
+
+  if (!session) {
+    const res = NextResponse.json({ active: false, refreshed: false });
+    res.cookies.set(TG_COOKIE, "", { maxAge: 0, path: "/" });
+    res.cookies.set(TG_HINT_COOKIE, "", { maxAge: 0, path: "/" });
+    return res;
+  }
+
+  if (sessionNeedsRefresh(session.exp)) {
+    const res = NextResponse.json({ active: true, refreshed: true });
+    const fresh = makeSessionToken(session.uid, session.tgId);
+    res.cookies.set(TG_COOKIE, fresh, {
+      httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: SESSION_TTL_SECONDS,
+    });
+    res.cookies.set(TG_HINT_COOKIE, "1", { secure: true, sameSite: "none", path: "/", maxAge: SESSION_TTL_SECONDS });
+    return res;
+  }
+
+  return NextResponse.json({ active: true, refreshed: false });
 }
 export async function POST(req: Request): Promise<Response> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -22,7 +50,7 @@ export async function POST(req: Request): Promise<Response> {
   const profile = await getProfileForUser(supabaseUserId);
   const res = NextResponse.json({ ok: true, hasProfile: !!profile });
   res.cookies.set(TG_COOKIE, makeSessionToken(supabaseUserId, v.user.id), {
-    httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 3600,
+    httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: SESSION_TTL_SECONDS,
   });
   return res;
 }

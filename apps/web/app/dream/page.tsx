@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatQuestionnaire } from "@eamvp/core";
 import { getActiveProfile, getSpiritMemory, saveSpiritMemory, getQuestionnaire, type Profile } from "@/lib/profiles";
 import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
+import { supabase } from "@/lib/supabase";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui";
@@ -25,6 +26,10 @@ export default function DreamPage() {
   const [reading, setReading] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // EP-account2 阻断 3：web 臂 fetch 补 Authorization Bearer 后，匿名/会话失效
+  // 用户会拿到 401——不能按通用错误把服务端裸字符串（"未登录"）扔给用户，
+  // 给一个引导态（参考 dream.noProfile 的既有处理）。
+  const [needLogin, setNeedLogin] = useState(false);
   // 关系记忆/问卷仅 web 臂客户端取（同 SpiritPanel 模式）——TG 臂由服务端 api/tg/dream
   // 自己读取 profile 关联的记忆，客户端不需要也拿不到（无浏览器侧 Supabase 会话）。
   const [memory, setMemory] = useState<string | null>(null);
@@ -57,18 +62,32 @@ export default function DreamPage() {
     if (!profile || !canSubmit) return;
     setPending(true);
     setError(null);
+    setNeedLogin(false);
     setReading(null);
     haptics.light();
     const inTgSession = hasTgSession();
     try {
-      const res = inTgSession
-        ? await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ dream }) })
-        : await fetch("/api/spirit/dream", {
-            method: "POST",
-            headers: { "x-zj-locale": locale },
-            body: JSON.stringify({ chart: profile.chart, dream, memory: memory ?? undefined, questionnaire }),
-          });
-      if (!res.ok) throw new Error(await res.text());
+      let res: Response;
+      if (inTgSession) {
+        res = await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ dream }) });
+      } else {
+        // EP-account2 阻断 3：/api/spirit/dream 硬要求 Bearer（路由已改，客户端必须跟上），
+        // 取法与 SpiritPanel/fengshui 一致——supabase 会话的 access_token，与 x-zj-locale 共存。
+        const { data: sessionData } = await supabase().auth.getSession();
+        const token = sessionData.session?.access_token;
+        res = await fetch("/api/spirit/dream", {
+          method: "POST",
+          headers: { "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ chart: profile.chart, dream, memory: memory ?? undefined, questionnaire }),
+        });
+      }
+      if (!res.ok) {
+        if (res.status === 401 && !inTgSession) {
+          setNeedLogin(true);
+          return;
+        }
+        throw new Error(await res.text());
+      }
       const text = await res.text();
       setReading(text);
       haptics.success();
@@ -139,6 +158,14 @@ export default function DreamPage() {
             <Button onClick={submit} disabled={!canSubmit}>
               {pending ? t("dream.interpreting") : t("dream.submit")}
             </Button>
+          </div>
+        )}
+        {needLogin && (
+          <div className="mt-4 px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>
+            {t("dream.needLogin")}
+            <Link href="/account" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-cinnabar)" }}>
+              {t("dream.needLoginCta")} →
+            </Link>
           </div>
         )}
         {error && (
