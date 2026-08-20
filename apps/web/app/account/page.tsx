@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useState, type ReactNode } from "react";
-import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase } from "@/lib/supabase";
+import { getWebUser, signInWithEmail, signOutWeb, upgradeAnonymousToEmail, supabase, ANON_MERGE_TOKEN_KEY } from "@/lib/supabase";
 import { hasTgSession, tgLoginWithWidget, tgLogout } from "@/lib/tg/client";
 import { useIsTelegram } from "@/lib/tg/ui";
 import { Paywall } from "@/components/Paywall";
@@ -247,17 +247,50 @@ export default function AccountPage() {
     };
   }, [t]);
 
+  /**
+   * EP-account-login：换设备时这台设备几乎必然已经有匿名会话（起盘/解梦等页面
+   * 挂载时就会 `ensureSession()`），所以之前这里无条件走 `upgradeAnonymousToEmail`
+   * ——把邮箱**绑到当前这个匿名用户**。如果这个邮箱其实已经注册在别的设备上，
+   * 绑定被正确拒绝，用户却只看到一句「邮箱重复」，从没机会真正登录自己的账号。
+   *
+   * 现在：先按「这是一个全新邮箱」尝试 upgrade；失败就退回真正的 `signInWithEmail`
+   * 登录——不去猜测/匹配具体的错误文案（Supabase 的报错措辞不是稳定契约），失败
+   * 就统一当作「这个邮箱可能已经属于别的账号」处理。退回登录前把这台设备当时的
+   * 匿名 access token 存下来，`/auth/callback` 认出新会话后会用它把这台设备的
+   * 匿名数据合并进真正登录的账号（同 TG 登录路径的合并语义）。
+   */
   async function handleSendLink() {
     if (!email.includes("@")) {
       setStatus({ error: t("account.invalidEmail") });
       return;
     }
     setStatus("sending");
-    const result = view.kind === "anon" && view.user?.isAnonymous ? await upgradeAnonymousToEmail(email) : await signInWithEmail(email);
-    if (result.ok) {
+    const isAnon = view.kind === "anon" && !!view.user?.isAnonymous;
+    if (!isAnon) {
+      const result = await signInWithEmail(email);
+      if (result.ok) setStatus("sent");
+      else setStatus({ error: result.error });
+      return;
+    }
+
+    const { data: sessionData } = await supabase().auth.getSession();
+    const anonToken = sessionData.session?.access_token;
+
+    const upgraded = await upgradeAnonymousToEmail(email);
+    if (upgraded.ok) {
+      setStatus("sent");
+      return;
+    }
+
+    // upgrade 失败——大概率是邮箱已属于别的账号。退回真正的登录，让用户能进
+    // 自己的账号；先存好这台设备的匿名 token 供 callback 合并数据。
+    if (anonToken) localStorage.setItem(ANON_MERGE_TOKEN_KEY, anonToken);
+    const signedIn = await signInWithEmail(email);
+    if (signedIn.ok) {
       setStatus("sent");
     } else {
-      setStatus({ error: result.error });
+      localStorage.removeItem(ANON_MERGE_TOKEN_KEY);
+      setStatus({ error: signedIn.error });
     }
   }
 

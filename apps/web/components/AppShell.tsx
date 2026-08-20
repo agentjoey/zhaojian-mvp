@@ -22,6 +22,10 @@ const NAV = [
     ? [{ href: "/dream", char: "梦", key: "nav.dream" }]
     : []),
   { href: "/profiles", char: "我", key: "nav.profiles" },
+  // EP-account-login：全站此前没有直接的登录/账号入口——/account 唯一的路径是先进
+  // /profiles、再点页头里嵌的一条文字链接。不受任何 flag 门控（/account 本身不是
+  // flag 功能），常驻显示。
+  { href: "/account", char: "账", key: "nav.account" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

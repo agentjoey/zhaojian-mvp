@@ -2,6 +2,16 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * EP-account-login：换设备用已注册邮箱登录时，`upgradeAnonymousToEmail` 会失败
+ * （邮箱已属于别的账号），account 页退回真正的 `signInWithEmail` 登录前，把这台
+ * 设备当时的匿名 access token 存这个 key——`/auth/callback` 认出新会话后读它，
+ * 把这台设备的匿名数据合并进真正登录的账号（同 TG 登录路径的 `mergeAnonProfiles`
+ * 语义），而不是让这些数据在这台设备上孤儿化。localStorage（不是 sessionStorage）
+ * 是必须的：邮件链接常在新标签页打开，sessionStorage 不跨标签。
+ */
+export const ANON_MERGE_TOKEN_KEY = "zj_anon_merge_token";
+
 let _client: SupabaseClient | null = null;
 
 export function supabase(): SupabaseClient {

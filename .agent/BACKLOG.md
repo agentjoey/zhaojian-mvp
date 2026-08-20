@@ -2,13 +2,12 @@
 > 线上 https://zhaojian-mvp.vercel.app · 排入 Sprint 后从此处移除。
 
 ## 🔴 HIGH
-### 账号登录（EP-account-login，owner 实测发现，2026-08-21）
-换设备登录不了自己的账号——直接违背 `EP-account` 当初「跨设备同步档案」的初衷，是目前唯一确认的多设备登录阻断项。两个独立根因：
+### 账号登录（EP-account-login，owner 实测发现 2026-08-21，**同日修复**）
+换设备登录不了自己的账号——直接违背 `EP-account` 当初「跨设备同步档案」的初衷。两个独立根因均已修复：
 
-- [ ] **[EP-account-login] 全站没有直接的「登录」入口**：`/account` 不在 `AppShell.NAV`（桌面栏/移动底栏）、不在首页 `ENTRIES`/`TG_ENTRIES`，唯一入口是 `/profiles` 页面里嵌的一条文字链接（`app/profiles/page.tsx:101-105`）——新用户/换设备的老用户如果不先摸到"我的档案"页，根本发现不了在哪登录。
-- [ ] **[EP-account-login] 换设备填已注册邮箱 → 报"邮箱重复"，登不进已有账号**：`handleSendLink`（`app/account/page.tsx:250-262`，具体分支在 256 行）——`view.kind === "anon" && view.user?.isAnonymous ? upgradeAnonymousToEmail(email) : signInWithEmail(email)`。新设备第一次打开本站几乎必然先在别的页面（起盘/解梦/…）经 `ensureSession()` 拿到一个匿名会话，所以等用户到 `/account` 时 `view.user.isAnonymous` 已经是 `true`，输入框走的永远是 `upgradeAnonymousToEmail`（`lib/supabase.ts` 的 `auth.updateUser({email})`——把这个邮箱**绑到当前这个匿名用户身上**）而不是真正的「登录」。如果这个邮箱已经注册在别的账号（用户在别的设备上就是这个情况），`updateUser` 正确地拒绝了"把别人的邮箱抢过来"，于是报出"邮箱重复"——但用户的真实意图是「登录我在别处已经有的账号」，走的却是错误的分支，从没机会真正发出登录用的 `signInWithOtp`。
-  - 对照组：Telegram 登录走的是完全不同、正确的路径——`api/auth/telegram/route.ts` 调 `mergeAnonProfiles`（`lib/tg/merge.ts`），识别到「这个邮箱/身份已存在」时会把当前匿名设备的数据**合并**进已有账号，而不是报错。Web 邮箱登录目前完全没有等价机制——`mergeAnonProfiles` 只在 TG 路径上被调用过。
-  - 修法方向：`handleSendLink` 不能只看「当前会话是不是匿名」，还要能区分「这个邮箱是全新的（走 upgrade）」vs「这个邮箱已经属于别的账号（该走真正的 sign-in + 合并当前匿名设备数据，参照 TG 那条路径）」——`updateUser` 报的 duplicate 错误本身就是一个可靠的信号，可以用来触发正确分支，而不是直接把错误糊给用户。
+- [x] ~~**全站没有直接的「登录」入口**~~ —— `AppShell.NAV` 新增常驻「账」项（`components/AppShell.tsx`，char「账」/key `nav.account`，不受任何 flag 门控，桌面栏+移动底栏都有）。三条既有的 NAV 长度边界测试按新基数（+1）重新核过（原「只开一个 flag」用例现在正好踩中 `≥6` 门槛，从「不收紧」改判「收紧」）。
+- [x] ~~**换设备填已注册邮箱 → 报"邮箱重复"，登不进已有账号**~~ —— `handleSendLink`（`app/account/page.tsx`）不再无条件按「当前会话是不是匿名」二选一：匿名设备先按「全新邮箱」尝试 `upgradeAnonymousToEmail`，失败（不依赖具体报错文案匹配，任何失败都退回）就退回真正的 `signInWithEmail` 登录；退回前把这台设备当时的匿名 access token 存进 `localStorage`（`ANON_MERGE_TOKEN_KEY`，导出自 `lib/supabase.ts`）。新端点 `POST /api/account/merge-anon`（目标账号从 Bearer 解析，不信任请求体）复用既有 `mergeAnonProfiles`（`lib/tg/merge.ts`，与 TG 登录合并同一语义）；`/auth/callback` 拿到新会话后读走这个暂存 token 触发合并，合并数写入 `sessionStorage.zj_merged` 供 `/account` 已有的 `mergeNotice` UI 直接展示，失败不阻断登录本身。localStorage（不是 sessionStorage）是必须的——邮件链接常在新标签页打开。
+  - web434→448 绿，关键分支（Bearer 不信任请求体 uid / 退回前存 token / callback 触发合并）逐条 mutation 复验（改坏必红，已验证）。
 
 ### 付费集成（EP-billing-pay，**账号重建后已解除阻塞，2026-08-21**）
 `entitlements`/`isMember`/月度额度闸门/Paywall UI 早在 2026-07-01 就绪（T1-4），但 T5(Stripe)/T6(TG Stars) 一直卡缺凭据未做——**这是目前唯一真正能收入的缺口**。`EP-account2` 上线后，付费门槛依赖的 `hasVerifiedEmail` 第一次是可信信号（此前 TG 影子邮箱会让门槛形同虚设），`requireVerifiedEmailForPayment()`（`apps/web/lib/billing-gate.ts`）已就绪待接。

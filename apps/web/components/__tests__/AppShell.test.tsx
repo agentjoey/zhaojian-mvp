@@ -97,7 +97,9 @@ function hasClassToken(className: string, token: string): boolean {
 }
 
 describe("最终评审 Blocking 4：导航内边距按 NAV.length ≥ 6 门控（而非无条件生效）", () => {
-  it("三个 flag 都关闭时（NAV.length=4）导航项用 px-2，不收紧", async () => {
+  // EP-account-login 加了一条不受 flag 门控的常驻「账」项，NAV 基数从 4 变成 5——
+  // 下面三条用例的具体 flag 组合据此重新校过，边界语义（<6 用 px-2，≥6 用 px-1.5）不变。
+  it("三个 flag 都关闭时（NAV.length=5：照/运/盘/我/账，仍 <6）导航项用 px-2，不收紧", async () => {
     vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "");
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "");
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
@@ -109,19 +111,19 @@ describe("最终评审 Blocking 4：导航内边距按 NAV.length ≥ 6 门控�
     }
   });
 
-  it("只开一个 flag 时（NAV.length=5，仍 <6）导航项仍用 px-2", async () => {
+  it("只开一个 flag 时（NAV.length=6：+境，触到 ≥6 门槛）导航项收紧为 px-1.5", async () => {
     vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "");
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
     const classNames = await renderShellAndGetNavItemClassNames();
     expect(classNames.length).toBeGreaterThan(0);
     for (const cn of classNames) {
-      expect(hasClassToken(cn, "px-2")).toBe(true);
-      expect(hasClassToken(cn, "px-1.5")).toBe(false);
+      expect(hasClassToken(cn, "px-1.5")).toBe(true);
+      expect(hasClassToken(cn, "px-2")).toBe(false);
     }
   });
 
-  it("风水 + 灵都开启、梦关闭时（NAV.length=6）导航项收紧为 px-1.5", async () => {
+  it("风水 + 灵都开启、梦关闭时（NAV.length=7）导航项仍收紧为 px-1.5", async () => {
     vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
     vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "1");
     vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "");
