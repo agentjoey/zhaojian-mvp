@@ -46,11 +46,24 @@ export async function upgradeAnonymousToEmail(
   }
 }
 
-export async function signInWithEmail(email: string): Promise<{ ok: true } | { ok: false; error: string }> {
+/**
+ * @param bindNonce 绑定邮箱流程的一次性 nonce（来自 /api/account/attach 阶段 1）。
+ *   它随 emailRedirectTo 进入邮件 URL，是 complete 阶段**唯一**的账号选择依据——
+ *   跨浏览器有效（TG Mini App 里发的信通常在系统浏览器打开，那里没有 zj_tg cookie）。
+ *   普通登录不传，链接里就没有 nonce，因此走不进绑定流程。
+ */
+export async function signInWithEmail(
+  email: string,
+  bindNonce?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const redirect =
+      typeof location !== "undefined"
+        ? location.origin + "/auth/callback" + (bindNonce ? `?bind=${encodeURIComponent(bindNonce)}` : "")
+        : undefined;
     const { error } = await supabase().auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: typeof location !== "undefined" ? location.origin + "/auth/callback" : undefined },
+      options: { emailRedirectTo: redirect },
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true };

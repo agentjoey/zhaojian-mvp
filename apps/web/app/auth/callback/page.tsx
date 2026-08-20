@@ -18,18 +18,16 @@ export default function AuthCallbackPage() {
         if (cancelled) return;
         const { data } = await sb.auth.getSession();
         if (data.session) {
-          // EP-account2-fix：若这是一次「绑定邮箱」的点击，趁会话在手完成第二阶段。
-          // 非绑定场景（普通登录）下服务端会因无 pending 意向而 400，无害。
-          fetch("/api/account/attach", {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "content-type": "application/json",
-              Authorization: `Bearer ${data.session.access_token}`,
-            },
-            body: JSON.stringify({ kind: "email", phase: "complete" }),
-          }).catch(() => {});
-          router.replace("/account");
+          // 只有链接里带着绑定 nonce 时，这次点击才属于「绑定邮箱」流程；普通
+          // 登录一律不碰绑定链路。
+          //
+          // ⚠️ 这里刻意**不**直接调 complete：绑定会把一个已验证邮箱移到另一个
+          // 账号上，属于需要知情同意的动作。旧实现对每次成功登录无条件触发
+          // complete，等于让「收到一封看起来像登录链接的信、顺手点开」就能完成
+          // 一次账号变更。改为带 nonce 跳到 /account 的确认屏，由用户看清
+          // 「把哪个邮箱绑到哪个账号」后显式确认。
+          const bind = new URLSearchParams(window.location.search).get("bind");
+          router.replace(bind ? `/account?bind=${encodeURIComponent(bind)}` : "/account");
           return;
         }
         await new Promise((r) => setTimeout(r, 500));

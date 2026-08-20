@@ -10,6 +10,19 @@ const tgByTgIdMock = vi.fn(); // select(...).eq("tg_user_id", ...).maybeSingle()
 const tgByUidMock = vi.fn(); // select(...).eq("supabase_user_id", ...).maybeSingle()
 const tgInsertMock = vi.fn();
 
+/** email_bind_pending 表的可控状态。 */
+const pending = {
+  row: null as null | Record<string, unknown>,
+  insert: vi.fn(),
+  deleted: [] as unknown[],
+  /** update(...).eq(id).is(consumed_at,null).select() 的返回——[] 表示已被别人消费掉。 */
+  claimResult: [{ id: "pend1" }] as unknown[],
+  claimPayloads: [] as unknown[],
+};
+
+/** profiles / spirit_messages 的计数（孤儿是否「有数据」）。 */
+const counts = { profiles: 0, spirit_messages: 0 };
+
 vi.mock("@/lib/tg/admin", () => ({
   supabaseAdmin: () => ({
     auth: {
@@ -21,220 +34,305 @@ vi.mock("@/lib/tg/admin", () => ({
         deleteUser: (...a: unknown[]) => deleteUserMock(...a),
       },
     },
-    from: () => ({
-      select: () => ({
-        eq: (field: string) => ({
-          maybeSingle: () => (field === "tg_user_id" ? tgByTgIdMock() : tgByUidMock()),
+    from: (table: string) => {
+      if (table === "email_bind_pending") {
+        return {
+          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: pending.row, error: null }) }) }),
+          insert: (...a: unknown[]) => {
+            pending.insert(...a);
+            return Promise.resolve({ error: null });
+          },
+          update: (payload: unknown) => {
+            pending.claimPayloads.push(payload);
+            return {
+              eq: () => ({
+                is: () => ({ select: async () => ({ data: pending.claimResult, error: null }) }),
+              }),
+            };
+          },
+          delete: () => ({
+            eq: () => ({
+              is: async () => {
+                pending.deleted.push(true);
+                return { error: null };
+              },
+            }),
+          }),
+        };
+      }
+      if (table === "profiles" || table === "spirit_messages") {
+        return {
+          select: () => ({ eq: async () => ({ count: counts[table], error: null }) }),
+        };
+      }
+      // tg_users
+      return {
+        select: () => ({
+          eq: (field: string) => ({
+            maybeSingle: () => (field === "tg_user_id" ? tgByTgIdMock() : tgByUidMock()),
+          }),
         }),
-      }),
-      insert: (...a: unknown[]) => tgInsertMock(...a),
-    }),
+        insert: (...a: unknown[]) => tgInsertMock(...a),
+      };
+    },
   }),
 }));
 
-const { attachIdentity, completeEmailAttach } = await import("../identity-link");
+const { attachIdentity, completeEmailAttach, peekEmailBind } = await import("../identity-link");
 
 /** 线上影子用户的典型形态：合成邮箱 + email_confirmed_at 已填充（建号时 email_confirm:true）。 */
 const SHADOW = {
   id: "u1",
   email: "tg_999@zhaojian.local",
   email_confirmed_at: "2026-01-01T00:00:00Z",
-  user_metadata: {},
   created_at: "2026-01-01T00:00:00Z",
 };
 
-function orphanProof(overrides: Record<string, unknown> = {}) {
+function proofUser(overrides: Record<string, unknown> = {}) {
   return {
     id: "orphan",
     email: "a@x.com",
     email_confirmed_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
-    user_metadata: {},
+    ...overrides,
+  };
+}
+
+function pendingRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "pend1",
+    user_id: "u1",
+    email: "a@x.com",
+    created_at: new Date().toISOString(),
+    consumed_at: null,
     ...overrides,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  listUsersMock.mockResolvedValue({ data: { users: [] } });
+  listUsersMock.mockResolvedValue({ data: { users: [], nextPage: null } });
   getUserByIdMock.mockResolvedValue({ data: { user: { ...SHADOW } } });
   updateUserByIdMock.mockResolvedValue({ error: null });
   deleteUserMock.mockResolvedValue({ error: null });
-  getUserMock.mockResolvedValue({ data: { user: orphanProof() } });
-  tgByTgIdMock.mockResolvedValue({ data: null });
-  tgByUidMock.mockResolvedValue({ data: null });
+  getUserMock.mockResolvedValue({ data: { user: proofUser() } });
+  tgByTgIdMock.mockResolvedValue({ data: null, error: null });
+  tgByUidMock.mockResolvedValue({ data: null, error: null });
   tgInsertMock.mockResolvedValue({ error: null });
+  pending.row = pendingRow();
+  pending.insert.mockClear();
+  pending.deleted = [];
+  pending.claimResult = [{ id: "pend1" }];
+  pending.claimPayloads = [];
+  counts.profiles = 0;
+  counts.spirit_messages = 0;
 });
 
-describe("attachIdentity · email 分支（阶段 1：prepare，只校验+记意向）", () => {
-  it("影子用户绑新邮箱 → ok；只写 pending 意向，绝不提前写 email 字段（阻断 1 核心断言）", async () => {
-    const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
-    expect(r).toEqual({ ok: true });
-    expect(updateUserByIdMock).toHaveBeenCalledWith("u1", {
-      user_metadata: { pending_email: "a@x.com", pending_email_at: expect.any(String) },
-    });
-    // 实测结论：updateUserById 写 email 不会清 confirmed_at（email_confirm:false 也不清），
-    // 提前写字段 = 未验证却被 resolveAccess 判成已验证。此处锁死「prepare 永不写 email」。
-    for (const [, attrs] of updateUserByIdMock.mock.calls) {
-      expect(attrs).not.toHaveProperty("email");
-    }
+describe("attachIdentity · email 阶段 1（prepare：只校验 + 发 nonce）", () => {
+  it("影子用户绑新邮箱 → 回 nonce；绝不提前写 email 字段（阻断 1 核心断言）", async () => {
+    const r = (await attachIdentity("u1", { kind: "email", email: "a@x.com" })) as { ok: true; nonce: string };
+    expect(r.ok).toBe(true);
+    expect(typeof r.nonce).toBe("string");
+    expect(r.nonce.length).toBeGreaterThanOrEqual(32);
+    expect(pending.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: "u1", email: "a@x.com", nonce: r.nonce }),
+    );
+    // 实测：updateUserById 写 email 不清 confirmed_at（email_confirm:false 也不清），
+    // 提前写字段 = 未验证却被 resolveAccess 判成已验证。锁死「prepare 永不碰 auth 用户」。
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
   });
 
-  it("本账号已有别的真实已验证邮箱 → already_attached（409 语义），零写入（S3）", async () => {
+  it("nonce 每次都不同（可预测的 nonce 等于没有 nonce）", async () => {
+    const a = (await attachIdentity("u1", { kind: "email", email: "a@x.com" })) as { nonce: string };
+    const b = (await attachIdentity("u1", { kind: "email", email: "a@x.com" })) as { nonce: string };
+    expect(a.nonce).not.toBe(b.nonce);
+  });
+
+  it("发新 nonce 前作废本账号旧的未消费意向（避免两个都能用）", async () => {
+    await attachIdentity("u1", { kind: "email", email: "a@x.com" });
+    expect(pending.deleted.length).toBe(1);
+  });
+
+  it("本账号已有别的真实已验证邮箱 → already_attached，零写入（S3）", async () => {
     getUserByIdMock.mockResolvedValue({
       data: { user: { ...SHADOW, email: "old@x.com", email_confirmed_at: "2026-01-01T00:00:00Z" } },
     });
     const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
     expect(r).toEqual({ ok: false, error: "already_attached" });
-    expect(updateUserByIdMock).not.toHaveBeenCalled();
+    expect(pending.insert).not.toHaveBeenCalled();
   });
 
-  it("同邮箱重绑（幂等）→ 放行 ok，可重新触发发信", async () => {
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, email: "a@x.com", email_confirmed_at: "2026-01-01T00:00:00Z" } },
-    });
-    const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
-    expect(r).toEqual({ ok: true });
-    expect(updateUserByIdMock).toHaveBeenCalled();
-  });
-
-  it("邮箱已被别的账号占用 → taken；占用检查必须翻页（线上用户早已超过单页 50 条）", async () => {
+  it("邮箱被别的账号占用 → taken；占用检查必须翻页（用 nextPage 终止，不用「本页条数<请求量」）", async () => {
     listUsersMock.mockImplementation(({ page = 1 }: { page?: number }) =>
       Promise.resolve({
-        data: {
-          users:
-            page === 1
-              ? Array.from({ length: 200 }, (_, i) => ({ id: `p${i}`, email: `p${i}@x.com` }))
-              : [{ id: "u2", email: "a@x.com" }],
-        },
+        data:
+          page === 1
+            ? { users: Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, email: `p${i}@x.com` })), nextPage: 2 }
+            : { users: [{ id: "u2", email: "a@x.com" }], nextPage: null },
       }),
     );
     const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
     expect(r).toEqual({ ok: false, error: "taken" });
-    expect(updateUserByIdMock).not.toHaveBeenCalled();
-  });
-
-  it("占用者就是本账号自己（数据残留）→ 不算 taken，放行", async () => {
-    listUsersMock.mockResolvedValue({ data: { users: [{ id: "u1", email: "a@x.com" }] } });
-    const r = await attachIdentity("u1", { kind: "email", email: "a@x.com" });
-    expect(r).toEqual({ ok: true });
+    // 第一页只有 3 条（远少于请求的 200）——旧的「短页即终止」写法会在这里 fail-open
+    expect(listUsersMock).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("completeEmailAttach · email 分支（阶段 2：点击验证链接后）", () => {
-  it("意向匹配 + 新鲜孤儿 → 删孤儿、邮箱写入目标并显式 email_confirm:true（所有权刚被 OTP 证明）", async () => {
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, user_metadata: { pending_email: "a@x.com", keep: 1 } } },
-    });
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
+describe("completeEmailAttach · email 阶段 2（nonce 兑换）", () => {
+  it("nonce 有效 + 持票邮箱匹配 + 孤儿无数据 → 释放地址（改名，不删号）后写入目标", async () => {
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
     expect(r).toEqual({ ok: true });
-    expect(getUserMock).toHaveBeenCalledWith("tok");
-    expect(deleteUserMock).toHaveBeenCalledWith("orphan");
-    expect(updateUserByIdMock).toHaveBeenCalledWith("u1", {
-      email: "a@x.com",
-      email_confirm: true,
-      user_metadata: { keep: 1 }, // pending 键已清除，其余 metadata 保留
-    });
-  });
-
-  it("持票人就是目标账号本人（邮箱已在账号上）→ 幂等 ok：不 deleteUser，只清意向", async () => {
-    getUserMock.mockResolvedValue({ data: { user: orphanProof({ id: "u1" }) } });
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, email: "a@x.com", user_metadata: { pending_email: "a@x.com" } } },
-    });
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
-    expect(r).toEqual({ ok: true });
+    // 破坏性操作必须是「改名」而不是「删号」——删号不可逆，第二步失败即数据丢失
     expect(deleteUserMock).not.toHaveBeenCalled();
-    expect(updateUserByIdMock).toHaveBeenCalledWith("u1", { user_metadata: {} });
+    expect(updateUserByIdMock).toHaveBeenNthCalledWith(1, "orphan", {
+      email: "released_orphan@zhaojian.local",
+    });
+    expect(updateUserByIdMock).toHaveBeenNthCalledWith(2, "u1", { email: "a@x.com", email_confirm: true });
   });
 
-  it("无匹配 pending 意向 → no_pending，零写入（普通登录路过 callback 的常态路径）", async () => {
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
+  it("🔴 攻击回归：别人预埋的意向不能被一次普通注册兑换——nonce 不匹配即拒绝，零写入", async () => {
+    // 攻击者为「尚未注册的 victim@x.com」预埋了意向（pending.row 指向攻击者账号）。
+    // 受害者日后正常注册该邮箱、点自己的登录链接——那条链接里**没有 bind nonce**，
+    // 于是根本走不到 complete；即便被诱导传入一个不存在的 nonce，也必须拒绝。
+    pending.row = null; // 该 nonce 查无此意向
+    getUserMock.mockResolvedValue({ data: { user: proofUser({ id: "victim", email: "victim@x.com" }) } });
+    const r = await completeEmailAttach({ nonce: "不存在的nonce", bearerToken: "victim-tok" });
     expect(r).toEqual({ ok: false, error: "no_pending" });
     expect(updateUserByIdMock).not.toHaveBeenCalled();
     expect(deleteUserMock).not.toHaveBeenCalled();
   });
 
-  it("持票邮箱未验证（无 email_confirmed_at）→ unverified，不构成所有权证明", async () => {
-    getUserMock.mockResolvedValue({ data: { user: orphanProof({ email_confirmed_at: null }) } });
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
+  it("🔴 攻击回归：持票邮箱与 nonce 声明的邮箱不一致 → email_mismatch，零写入", async () => {
+    // 拿自己的已验证邮箱 + 偷来的别人的 nonce，不能兑换成绑定。
+    pending.row = pendingRow({ email: "victim@x.com" });
+    getUserMock.mockResolvedValue({ data: { user: proofUser({ id: "att", email: "attacker@x.com" }) } });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "email_mismatch" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("意向已消费 → no_pending（单次消费），零写入", async () => {
+    pending.row = pendingRow({ consumed_at: new Date().toISOString() });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "no_pending" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("意向已过期（>15 分钟）→ no_pending，零写入（旧设计的意向永不过期）", async () => {
+    pending.row = pendingRow({ created_at: new Date(Date.now() - 16 * 60 * 1000).toISOString() });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "no_pending" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("并发第二次点击：占坑更新影响 0 行 → no_pending，不重复执行", async () => {
+    pending.claimResult = [];
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "no_pending" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("持票邮箱未验证 → unverified，零写入（所有权证明不成立）", async () => {
+    getUserMock.mockResolvedValue({ data: { user: proofUser({ email_confirmed_at: null }) } });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
     expect(r).toEqual({ ok: false, error: "unverified" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("🔴 持票账号名下有档案 → orphan_has_data，绝不动它（防误伤真实账号）", async () => {
+    counts.profiles = 2;
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "orphan_has_data" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
     expect(deleteUserMock).not.toHaveBeenCalled();
   });
 
-  it("持票方是老账号而非 OTP 新建孤儿 → taken，绝不 deleteUser（删账号守卫）", async () => {
-    getUserMock.mockResolvedValue({
-      data: { user: orphanProof({ created_at: "2020-01-01T00:00:00Z" }) },
-    });
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, user_metadata: { pending_email: "a@x.com" } } },
-    });
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
-    expect(r).toEqual({ ok: false, error: "taken" });
-    expect(deleteUserMock).not.toHaveBeenCalled();
+  it("持票账号有对话记录 → 同样拒绝（profiles 为空不等于空壳）", async () => {
+    counts.spirit_messages = 1;
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "orphan_has_data" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
   });
 
-  it("占用复查：邮箱被第三个账号持有 → taken，不动孤儿", async () => {
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, user_metadata: { pending_email: "a@x.com" } } },
-    });
-    listUsersMock.mockResolvedValue({ data: { users: [{ id: "u3", email: "a@x.com" }] } });
-    const r = await completeEmailAttach({ tgUid: "u1", bearerToken: "tok" });
-    expect(r).toEqual({ ok: false, error: "taken" });
-    expect(deleteUserMock).not.toHaveBeenCalled();
-  });
-
-  it("跨浏览器点击（无 TG cookie）→ 按 pending_email 意向反查定位目标账号", async () => {
-    listUsersMock.mockResolvedValue({
-      data: { users: [{ id: "u9", email: "tg_555@zhaojian.local", user_metadata: { pending_email: "a@x.com" } }] },
-    });
-    getUserByIdMock.mockResolvedValue({
-      data: { user: { ...SHADOW, id: "u9", user_metadata: { pending_email: "a@x.com" } } },
-    });
-    const r = await completeEmailAttach({ tgUid: null, bearerToken: "tok" });
+  it("持票方就是目标账号本人（邮箱已在目标上）→ 幂等 ok，不做任何转移", async () => {
+    getUserMock.mockResolvedValue({ data: { user: proofUser({ id: "u1" }) } });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
     expect(r).toEqual({ ok: true });
-    expect(updateUserByIdMock).toHaveBeenCalledWith("u9", {
-      email: "a@x.com",
-      email_confirm: true,
-      user_metadata: {},
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("目标账号期间已绑上别的真实已验证邮箱 → already_attached，不动持票方", async () => {
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { ...SHADOW, email: "other@x.com", email_confirmed_at: "2026-01-01T00:00:00Z" } },
     });
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "already_attached" });
+    expect(updateUserByIdMock).not.toHaveBeenCalled();
+  });
+
+  it("写入目标失败 → 补偿把地址还回持票方（可逆性是选改名而非删号的理由）", async () => {
+    updateUserByIdMock
+      .mockResolvedValueOnce({ error: null }) // 释放地址成功
+      .mockResolvedValueOnce({ error: { message: "boom" } }) // 写入目标失败
+      .mockResolvedValueOnce({ error: null }); // 补偿
+    const r = await completeEmailAttach({ nonce: "n1", bearerToken: "tok" });
+    expect(r).toEqual({ ok: false, error: "send_failed" });
+    expect(updateUserByIdMock).toHaveBeenNthCalledWith(3, "orphan", { email: "a@x.com" });
+  });
+});
+
+describe("peekEmailBind（确认屏只读预览，不消费）", () => {
+  it("有效意向 → 回邮箱，且不消费（consumed_at 不被写）", async () => {
+    const r = await peekEmailBind("n1", "orphan");
+    expect(r).toEqual({ ok: true, preview: { email: "a@x.com", targetIsCurrentUser: false } });
+    expect(pending.claimPayloads).toHaveLength(0);
+  });
+
+  it("过期意向 → no_pending", async () => {
+    pending.row = pendingRow({ created_at: new Date(Date.now() - 16 * 60 * 1000).toISOString() });
+    expect(await peekEmailBind("n1", "orphan")).toEqual({ ok: false, error: "no_pending" });
   });
 });
 
 describe("attachIdentity · telegram 分支", () => {
-  it("该 tg id 未被任何账号绑定 → 建映射", async () => {
+  it("未被占用 → 建映射", async () => {
     const r = await attachIdentity("u1", { kind: "telegram", tgId: 999, username: "bob" });
     expect(r).toEqual({ ok: true });
     expect(tgInsertMock).toHaveBeenCalledWith({ tg_user_id: 999, supabase_user_id: "u1", username: "bob" });
   });
 
-  it("本账号已绑过别的 TG → already_attached（S3 前置反查，不再撞唯一索引返 500）", async () => {
-    tgByUidMock.mockResolvedValue({ data: { tg_user_id: 555 } });
+  it("本账号已绑别的 TG → already_attached（409），不撞唯一索引（S3）", async () => {
+    tgByUidMock.mockResolvedValue({ data: { tg_user_id: 111 }, error: null });
     const r = await attachIdentity("u1", { kind: "telegram", tgId: 999 });
     expect(r).toEqual({ ok: false, error: "already_attached" });
     expect(tgInsertMock).not.toHaveBeenCalled();
   });
 
-  it("该 tg id 已绑定给别的账号 → already_attached（409 语义，不覆盖）", async () => {
-    tgByTgIdMock.mockResolvedValue({ data: { supabase_user_id: "other-uid" } });
-    const r = await attachIdentity("u1", { kind: "telegram", tgId: 999 });
-    expect(r).toEqual({ ok: false, error: "already_attached" });
-    expect(tgInsertMock).not.toHaveBeenCalled();
-  });
-
-  it("该 tg id 已绑定给自己 → 视为成功（幂等，不重复插入）", async () => {
-    tgByUidMock.mockResolvedValue({ data: { tg_user_id: 999 } });
-    tgByTgIdMock.mockResolvedValue({ data: { supabase_user_id: "u1" } });
+  it("同一个 TG 重绑自己 → 幂等 ok", async () => {
+    tgByUidMock.mockResolvedValue({ data: { tg_user_id: 999 }, error: null });
+    tgByTgIdMock.mockResolvedValue({ data: { supabase_user_id: "u1" }, error: null });
     const r = await attachIdentity("u1", { kind: "telegram", tgId: 999 });
     expect(r).toEqual({ ok: true });
     expect(tgInsertMock).not.toHaveBeenCalled();
   });
+
+  it("该 TG 已绑给别人 → already_attached", async () => {
+    tgByTgIdMock.mockResolvedValue({ data: { supabase_user_id: "other" }, error: null });
+    const r = await attachIdentity("u1", { kind: "telegram", tgId: 999 });
+    expect(r).toEqual({ ok: false, error: "already_attached" });
+    expect(tgInsertMock).not.toHaveBeenCalled();
+  });
+
+  it("前置反查报错 → send_failed，不当作「没绑过」放行（NEW-6：静默吞错等于绕过校验）", async () => {
+    tgByUidMock.mockResolvedValue({ data: null, error: { message: "db down" } });
+    const r = await attachIdentity("u1", { kind: "telegram", tgId: 999 });
+    expect(r).toEqual({ ok: false, error: "send_failed" });
+    expect(tgInsertMock).not.toHaveBeenCalled();
+  });
 });
 
-describe("attachIdentity · 尚未实装的 provider", () => {
-  it("google/apple 明确抛「未实装」而不是静默失败——本轮只留接缝（spec §8）", async () => {
-    await expect(
-      attachIdentity("u1", { kind: "google" } as never),
-    ).rejects.toThrow(/未实装|not implemented/i);
+describe("attachIdentity · 未实装的 provider", () => {
+  it("google/apple 明确抛错，不静默失败", async () => {
+    await expect(attachIdentity("u1", { kind: "google" })).rejects.toThrow(/未实装/);
   });
 });

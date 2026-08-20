@@ -59,6 +59,19 @@ export default function AccountPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  /**
+   * 邮箱绑定确认屏（重设计）：用户点了验证邮件、/auth/callback 把 nonce 转到
+   * 这里。绑定会把一个已验证邮箱移到另一个账号上，属于需要知情同意的动作——
+   * 必须让用户看清「要绑哪个邮箱」并显式确认，而不是点开链接就悄悄完成。
+   */
+  const [bind, setBind] = useState<
+    | { state: "none" }
+    | { state: "loading"; nonce: string }
+    | { state: "confirm"; nonce: string; email: string }
+    | { state: "done" }
+    | { state: "error"; message: string }
+  >({ state: "none" });
+
   const inTg = useIsTelegram();
 
   useEffect(() => {
@@ -91,6 +104,40 @@ export default function AccountPage() {
     }
     resolve();
   }, []);
+
+  // 绑定确认：URL 带 ?bind=<nonce> 时先 peek（只读，不消费），拿到要绑的邮箱
+  // 给用户看，等他确认再 complete。
+  useEffect(() => {
+    const nonce = new URLSearchParams(window.location.search).get("bind");
+    if (!nonce) return;
+    (async () => {
+      // setBind 放进异步体里而不是 effect 同步段：同步 setState 会触发
+      // react-hooks/set-state-in-effect（本仓库把它降为 warn 但不接受新增）。
+      setBind({ state: "loading", nonce });
+      try {
+        const { data } = await supabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          setBind({ state: "error", message: t("account.bindExpired") });
+          return;
+        }
+        const res = await fetch("/api/account/attach", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ kind: "email", phase: "peek", nonce }),
+        });
+        if (!res.ok) {
+          setBind({ state: "error", message: t("account.bindExpired") });
+          return;
+        }
+        const json = (await res.json()) as { email: string };
+        setBind({ state: "confirm", nonce, email: json.email });
+      } catch {
+        setBind({ state: "error", message: t("account.bindExpired") });
+      }
+    })();
+  }, [t]);
 
   useEffect(() => {
     const n = sessionStorage.getItem("zj_merged");
@@ -240,9 +287,15 @@ export default function AccountPage() {
         setLinkEmailStatus({ error: json.error || t("account.linkFailed") });
         return;
       }
-      // 阶段 1 通过（意向已记录）——发信走既有 signInWithOtp 流程（Supabase SMTP
-      // 真发信）；用户点击链接后由 /auth/callback 完成第二阶段绑定。
-      const sent = await signInWithEmail(email);
+      // 阶段 1 通过——服务端回了一次性 nonce，把它拼进 emailRedirectTo。
+      // nonce 是 complete 阶段唯一的账号选择依据（跨浏览器有效），普通登录的
+      // 链接里没有它，因此走不进绑定流程。
+      const { nonce } = (await res.json().catch(() => ({}))) as { nonce?: string };
+      if (!nonce) {
+        setLinkEmailStatus({ error: t("account.linkFailed") });
+        return;
+      }
+      const sent = await signInWithEmail(email, nonce);
       if (sent.ok) {
         setLinkEmailStatus("sent");
       } else {
@@ -250,6 +303,41 @@ export default function AccountPage() {
       }
     } catch {
       setLinkEmailStatus({ error: t("account.linkFailed") });
+    }
+  }
+
+  async function handleConfirmBind() {
+    if (bind.state !== "confirm") return;
+    const { nonce } = bind;
+    setBind({ state: "loading", nonce });
+    try {
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setBind({ state: "error", message: t("account.bindExpired") });
+        return;
+      }
+      const res = await fetch("/api/account/attach", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind: "email", phase: "complete", nonce }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setBind({
+          state: "error",
+          message: json.error === "taken" || json.error === "already_attached"
+            ? t("account.linkEmailInUse")
+            : t("account.bindExpired"),
+        });
+        return;
+      }
+      setBind({ state: "done" });
+      // 绑定成功后账号身份变了，重载让 identities/billing 重新取。
+      location.href = "/account";
+    } catch {
+      setBind({ state: "error", message: t("account.bindFailed") });
     }
   }
 
@@ -372,6 +460,44 @@ export default function AccountPage() {
         <span className="text-[13px]" style={{ color: "var(--color-ink)" }}>{t("account.language")}</span>
         <LocaleSwitch />
       </div>
+
+      {bind.state === "confirm" && (
+        <div
+          className="mt-2 p-4"
+          style={{ border: "1px solid var(--color-cinnabar)", borderRadius: "var(--radius-card)" }}
+        >
+          <h3 className="mb-2 text-[13px] font-medium" style={{ color: "var(--color-cinnabar)" }}>
+            {t("account.bindConfirmTitle")}
+          </h3>
+          <p className="mb-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink)" }}>
+            {t("account.bindConfirmBody", { email: bind.email })}
+          </p>
+          <div className="flex gap-3">
+            <button type="button" onClick={handleConfirmBind} className={primaryBtn} style={primaryStyle}>
+              {t("account.bindConfirmAction")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBind({ state: "none" })}
+              className="w-full px-4 py-3 text-[14px] font-medium transition-colors"
+              style={{
+                border: "1px solid var(--color-line)",
+                color: "var(--color-ink)",
+                background: "transparent",
+                borderRadius: "var(--radius-button)",
+              }}
+            >
+              {t("account.bindCancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bind.state === "error" && (
+        <p className="mt-2 px-4 py-3 text-[13px]" style={{ color: "var(--color-cinnabar)" }}>
+          {bind.message}
+        </p>
+      )}
 
       {mergeNotice !== null && (
         <div

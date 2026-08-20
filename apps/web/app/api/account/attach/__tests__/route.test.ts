@@ -26,7 +26,7 @@ function req(body: unknown): Request {
 beforeEach(() => {
   vi.clearAllMocks();
   resolveUidMock.mockResolvedValue({ uid: "u1", via: "web", needsRefresh: false });
-  attachIdentityMock.mockResolvedValue({ ok: true });
+  attachIdentityMock.mockResolvedValue({ ok: true, nonce: "n1" });
   completeEmailAttachMock.mockResolvedValue({ ok: true });
   // clearAllMocks 只清调用记录、不清 mockReturnValue 的实现——必须在每个用例前
   // 重设默认实现，否则「verifyTelegramLogin 失败」用例的 mockReturnValue 会泄漏给后续用例。
@@ -71,23 +71,7 @@ describe("POST /api/account/attach", () => {
     expect(completeEmailAttachMock).not.toHaveBeenCalled();
   });
 
-  it("kind=email phase=complete：未登录（无 cookie）也受理——跨浏览器点击场景，tgUid 传 null", async () => {
-    resolveUidMock.mockResolvedValue(null);
-    const res = await POST(
-      new Request("http://x/api/account/attach", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
-        body: JSON.stringify({ kind: "email", phase: "complete" }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(completeEmailAttachMock).toHaveBeenCalledWith({ tgUid: null, bearerToken: "tok123" });
-    expect(attachIdentityMock).not.toHaveBeenCalled();
-  });
-
-  it("kind=email phase=complete：TG 会话 → completeEmailAttach 收到 tgUid；no_pending → 400", async () => {
-    resolveUidMock.mockResolvedValue({ uid: "u1", via: "tg", needsRefresh: false });
-    completeEmailAttachMock.mockResolvedValue({ ok: false, error: "no_pending" });
+  it("kind=email phase=complete：缺 nonce → 400 no_pending，不调用 completeEmailAttach（账号选择只认 nonce）", async () => {
     const res = await POST(
       new Request("http://x/api/account/attach", {
         method: "POST",
@@ -96,7 +80,33 @@ describe("POST /api/account/attach", () => {
       }),
     );
     expect(res.status).toBe(400);
-    expect(completeEmailAttachMock).toHaveBeenCalledWith({ tgUid: "u1", bearerToken: "tok123" });
+    expect(completeEmailAttachMock).not.toHaveBeenCalled();
+  });
+
+  it("kind=email phase=complete：未登录（无 cookie）也受理——跨浏览器点击场景，只凭 nonce+Bearer", async () => {
+    resolveUidMock.mockResolvedValue(null);
+    const res = await POST(
+      new Request("http://x/api/account/attach", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
+        body: JSON.stringify({ kind: "email", phase: "complete", nonce: "n1" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(completeEmailAttachMock).toHaveBeenCalledWith({ nonce: "n1", bearerToken: "tok123" });
+    expect(attachIdentityMock).not.toHaveBeenCalled();
+  });
+
+  it("kind=email phase=complete：no_pending → 400（nonce 无效/已用/过期）", async () => {
+    completeEmailAttachMock.mockResolvedValue({ ok: false, error: "no_pending" });
+    const res = await POST(
+      new Request("http://x/api/account/attach", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer tok123" },
+        body: JSON.stringify({ kind: "email", phase: "complete", nonce: "n1" }),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 
   it("kind=email phase=complete：completeEmailAttach 返回 taken → 409", async () => {
@@ -105,7 +115,7 @@ describe("POST /api/account/attach", () => {
       new Request("http://x/api/account/attach", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer tok123" },
-        body: JSON.stringify({ kind: "email", phase: "complete" }),
+        body: JSON.stringify({ kind: "email", phase: "complete", nonce: "n1" }),
       }),
     );
     expect(res.status).toBe(409);
