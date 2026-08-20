@@ -28,6 +28,20 @@
 ## ⏸️ 已设计·MVP 后实施
 - [ ] [EP-concurrency] 并发架构（多用户 & LLM 并发）。设计完成 `docs/specs/concurrency-architecture.md`。触发条件：接近 MiniMax 上限或峰值并发上升。MiniMax-M3 限额（官方查证）：**RPM 200 / TPM 10M**（TPS/并发未公布）→ RPM 200 是硬约束、TPM 不是瓶颈；MVP 不会触顶。落地序：Tier0(Fluid Compute+maxDuration+单飞) → Tier1(全局信号量/AI Gateway) → Tier2(异步队列+Realtime)。
 
+## 🟡 MED（品牌 & 动效 · 2026-08-20 owner 提出）
+- [ ] **[EP-brand-favicon] favicon 换成风铃图标**——现在是 `apps/web/app/favicon.ico`（Next 默认残留），与全站视觉无关。改用 `BellLogo`（`components/ui.tsx:18`）同源的风铃造型，导出多尺寸（含 apple-touch-icon）。⚠️ 该 svg 目前是内联组件而非独立资源文件，需要先抽出一份可导出的源。
+
+- [ ] **[EP-dream-history] 解梦保存最近 10 条 + 可追问**——当前解梦是一次性的：`/dream` 页出完解读就没了，且**梦原文按 spec §5 明确不落库**。做这条等于修改那条隐私红线，必须先重开 spec 决定「存什么」：
+  - 选项 A：只存灵的解读 + `summarizeSpiritMemory` 式的梦摘要（不存原文，与现有红线一致）
+  - 选项 B：存原文但显式告知 + 提供删除（红线变更，要改 spec §5 与 §7「明确不做：梦境日记」那条）
+  「可追问」需要把解梦从一次性 buffered 调用改成带上下文的多轮——与 `streamSpiritChat` 的形态趋同，可考虑复用而非新建。
+
+- [ ] **[EP-nav-label] 导航「境」小字改「风水」**——`lib/i18n/messages/zh.ts` `nav.fengshui: "境"` → `"风水"`（大字 char「境」不变，见 `AppShell.tsx:19`）。⚠️ 同步看 `en.ts` 的 `nav.fengshui: "Space"` 是否也要跟着调整语义；另 `app/page.tsx` 的 `TG_ENTRIES` 是另一处硬编码入口（CLAUDE.md 记过「加功能必须改两处」的教训），改文案时一并核对。
+
+- [ ] **[EP-motion] 强化过场动效**——owner 认可现有「正在推算当日流日…」那类排盘过场（`CastingOverlay`）的质感，希望扩大使用面。需要先盘一遍哪些等待场景值得加（解读生成/解梦/风水报告都是秒级 LLM 等待），避免变成到处转圈。
+
+- [ ] **[EP-motion-bell] 首页与主菜单风铃图标增强动态**——`BellLogo` 已有 `idle` 参数（`components/ui.tsx:18`），但动效很弱。首页卷首与底部导航两处都要，注意底部导航是高频可见元素，动效要克制、不能变成持续晃动干扰阅读；建议只在首次进入/点击时触发一次摆动。
+
 ## 🟡 MED
 - [ ] **[EP-account2-debt] 开场白计量 × SpiritPanel 每次挂载重生成且不持久化**——开 30 次 /chart 可烧光月度额度；BILLING_ENABLED 关闭时休眠，开收费前必修（intro 结果持久化或挂载去重）。
 - [ ] **[EP-account2-debt] chat 路由请求体无校验**——chart/memory/questionnaire 字段无校验/无长度上限；计量封住了成本但没封提示注入面。
