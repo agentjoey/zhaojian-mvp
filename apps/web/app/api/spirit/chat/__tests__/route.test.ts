@@ -71,11 +71,37 @@ describe("POST /api/spirit/chat：未识别身份必须拒绝，不得静默放�
     expect(streamSpiritChatSpy).toHaveBeenCalled();
   });
 
-  it("开场白（无用户消息）不受此闸门约束——不识别身份也能拿开场白，不消耗额度（既有行为不变）", async () => {
+  it("开场白无 Bearer → 401，不调用 LLM/计量（EP-account2 阻断 2：开场白分支不再免鉴权）", async () => {
     const res = await POST(req({ chart: {}, messages: [] }));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(generateSpiritIntroSpy).not.toHaveBeenCalled();
     expect(consumeLlmMock).not.toHaveBeenCalled();
+  });
+
+  it("匿名级 Bearer + 开场白 → 放行且照常 consumeLlm 计量（烧自己的免费额度，循环刷等于烧自己）", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-anon" } } });
+    resolveAccessMock.mockResolvedValue({ level: "anonymous", hasVerifiedEmail: false, hasTelegram: false });
+    const res = await POST(req({ chart: {}, messages: [] }, "Bearer anon-tok"));
+    expect(res.status).toBe(200);
+    expect(consumeLlmMock).toHaveBeenCalledWith("u-anon");
     expect(generateSpiritIntroSpy).toHaveBeenCalled();
+  });
+
+  it("identified Bearer + 开场白 → 放行且计量（同有消息分支的现规则）", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "u1" } } });
+    const res = await POST(req({ chart: {}, messages: [] }, "Bearer tok"));
+    expect(res.status).toBe(200);
+    expect(consumeLlmMock).toHaveBeenCalledWith("u1");
+    expect(generateSpiritIntroSpy).toHaveBeenCalled();
+  });
+
+  it("Bearer 开场白但免费额度烧完 → 402 paywall，不调用 generateSpiritIntro", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-anon" } } });
+    resolveAccessMock.mockResolvedValue({ level: "anonymous", hasVerifiedEmail: false, hasTelegram: false });
+    consumeLlmMock.mockResolvedValue({ ok: false });
+    const res = await POST(req({ chart: {}, messages: [] }, "Bearer anon-tok"));
+    expect(res.status).toBe(402);
+    expect(generateSpiritIntroSpy).not.toHaveBeenCalled();
   });
 
   it("伪造的全 spirit 角色历史（无 user 消息）不得绕过闸门 → 401，且不调用 streamSpiritChat/consumeLlm（锁死 isIntro 判定错位）", async () => {

@@ -38,11 +38,19 @@ export function SpiritPanel({ profile, autoSend }: { profile: Profile; autoSend?
 
   const sendToSpirit = useCallback(
     async (historyForApi: { role: "user" | "spirit"; content: string }[]): Promise<string> => {
+      // 开场白分支（messages 为空）现在同样要求 Bearer 身份并计量（EP-account2 阻断 2），
+      // 匿名 web 会话的 access_token 也要带上——取法与下方 submitText 的对话路径一致。
+      const { data: sessionData } = await supabase().auth.getSession();
+      const token = sessionData.session?.access_token;
       const res = await fetch("/api/spirit/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-zj-locale": locale },
+        headers: { "Content-Type": "application/json", "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ chart: profile.chart, messages: historyForApi, memory, questionnaire }),
       });
+      // 匿名级免费额度烧完 → 402：按付费墙渲染，别把裸 JSON 错误体扔给用户
+      if (res.status === 402) {
+        throw new Error("__paywall__");
+      }
       if (!res.ok || !res.body) {
         throw new Error(await res.text() || t("spirit.unavailable"));
       }

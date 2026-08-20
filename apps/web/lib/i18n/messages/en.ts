@@ -349,6 +349,8 @@ export const en: Messages = {
     errorTooLong: "Too long — tell the clearest part (under 2000 chars).",
     noProfile: "No chart profile yet — cast your chart first.",
     notEnabled: "Dream reading is not enabled yet.",
+    needLogin: "Sign in first to read dreams — head to Account to sign in or bind an email.",
+    needLoginCta: "Sign in",
   },
   fengshui: {
     kicker: "Feng Shui",

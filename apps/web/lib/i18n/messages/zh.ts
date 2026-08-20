@@ -343,6 +343,8 @@ export const zh = {
     errorTooLong: "梦太长了，先讲最清晰的那段（2000 字以内）。",
     noProfile: "尚无命盘档案——先起盘，灵才认得你。",
     notEnabled: "「解梦」尚未开启。",
+    needLogin: "解梦需要先确认身份——去账号页登录，或先绑定邮箱。",
+    needLoginCta: "去登录",
   },
   fengshui: {
     kicker: "境",

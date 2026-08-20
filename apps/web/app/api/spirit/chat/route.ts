@@ -38,27 +38,27 @@ export async function POST(req: Request): Promise<Response> {
     userId = data.user?.id;
   }
 
-  // 开场白（messages 为空）不消耗额度，也不要求已识别身份——这个分支本来就
-  // 不发起真正的对话。有消息时，必须解析出「已识别」身份才放行
-  // （EP-account2-05）：此前是 `if (!isIntro && userId)`，userId 为
-  // undefined（未带 token）时闸门被整个跳过，等于无限免费；现在改成
-  // 「解析不出已识别身份就拒绝」，fail-safe 而不是 fail-open。
+  // 两个分支都必须有 Bearer 身份（EP-account2 阻断 2）：开场白此前跳过全部
+  // 身份与额度检查直接 generateSpiritIntro——不鉴权、不计量、可循环，等于
+  // 一个白烧 LLM 的开放端点。产品语义保留「开场白对匿名级开放」，但必须
+  // 有身份且照常走 consumeLlm 计量（烧它自己的免费额度，循环刷等于烧自己）。
+  // 有消息时门槛不变：必须解析出「已识别」身份才放行（EP-account2-05）——
+  // 此前是 `if (!isIntro && userId)`，userId 为 undefined（未带 token）时
+  // 闸门被整个跳过，fail-open 等于无限免费；现在是「解析不出身份就拒绝」。
   // 判定必须与下方的消费分支对齐（messages.length === 0）：若用
   // 「无 user 角色消息」判免闸，伪造的 [{role:"spirit",...}] 历史会绕过
   // 身份与额度检查，白走 streamSpiritChat 烧 LLM。
   const isIntro = messages.length === 0;
-  if (!isIntro) {
-    if (!userId) {
-      return new Response("未登录", { status: 401 });
-    }
-    const access = await resolveAccess(userId);
-    if (access.level === "anonymous") {
-      return new Response("未登录", { status: 401 });
-    }
-    const gate = await consumeLlm(userId);
-    if (!gate.ok) {
-      return new Response(JSON.stringify({ error: "paywall" }), { status: 402, headers: { "content-type": "application/json" } });
-    }
+  if (!userId) {
+    return new Response("未登录", { status: 401 });
+  }
+  const access = await resolveAccess(userId);
+  if (access.level === "anonymous" && !isIntro) {
+    return new Response("未登录", { status: 401 });
+  }
+  const gate = await consumeLlm(userId);
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ error: "paywall" }), { status: 402, headers: { "content-type": "application/json" } });
   }
 
   const language = localeFromRequest(req);
