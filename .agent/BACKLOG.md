@@ -2,6 +2,13 @@
 > 线上 https://zhaojian-mvp.vercel.app · 排入 Sprint 后从此处移除。
 
 ## 🔴 HIGH
+### 付费集成（EP-billing-pay，**账号重建后已解除阻塞，2026-08-21**）
+`entitlements`/`isMember`/月度额度闸门/Paywall UI 早在 2026-07-01 就绪（T1-4），但 T5(Stripe)/T6(TG Stars) 一直卡缺凭据未做——**这是目前唯一真正能收入的缺口**。`EP-account2` 上线后，付费门槛依赖的 `hasVerifiedEmail` 第一次是可信信号（此前 TG 影子邮箱会让门槛形同虚设），`requireVerifiedEmailForPayment()`（`apps/web/lib/billing-gate.ts`）已就绪待接。
+
+- [ ] **[EP-billing-pay] Web 支付（Stripe Checkout）**：`/api/billing/checkout`（发起前调 `requireVerifiedEmailForPayment`，不满足则引导去 `/account` 绑邮箱而非直接拒绝）+ `/api/billing/webhook`（`checkout.session.completed`/订阅续费/取消 → upsert `entitlements`）。需要用户提供 `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/价格 ID。
+- [ ] **[EP-billing-pay] TG 支付（Telegram Stars/XTR）**：bot 内 `sendInvoice`（发送前同一道 `requireVerifiedEmailForPayment` 校验）+ `pre_checkout_query`/`successful_payment` 处理器。不需要额外凭据（Stars 走 Telegram 自身结算）。
+- [ ] **[EP-billing-pay] 生产开关**：两条支付链路都完成后，`BILLING_ENABLED`（服务端）目前在 Vercel 上**未设置**（等同 pre-prod 放行模式，所有额度检查失效）——上线收费前必须显式设为 `1` 并核实 `FREE_LLM_MONTHLY`/`FREE_PROFILE_LIMIT` 的生产取值。
+
 ### 风水「境」（EP-fs-*，**flag 2026-08-16 起线上已开**）
 波1 Layer 0 / 波2 Layer 1 / TG 适配均已交付并合并 main。详见 `.agent/CURRENT.md` 风水三节与 `docs/architecture.md` §7b。
 
@@ -45,12 +52,12 @@
 ## 🟡 MED
 - [ ] **[EP-account2-debt] 开场白计量 × SpiritPanel 每次挂载重生成且不持久化**——开 30 次 /chart 可烧光月度额度；BILLING_ENABLED 关闭时休眠，开收费前必修（intro 结果持久化或挂载去重）。
 - [ ] **[EP-account2-debt] chat 路由请求体无校验**——chart/memory/questionnaire 字段无校验/无长度上限；计量封住了成本但没封提示注入面。
-- [ ] **[EP-account2-debt] TG cookie 解析第三份收敛**：EP-account2 已把 `api/fengshui/reading` / `billing/status` 的内联 cookie 解析收敛进 `resolveUid`（3→2 份），最后一份在 `GET /api/tg/session` 路由内联——它要 exp/uid 等 session 字段做续期判断，而 `resolveUid` 只返回 uid。待 `resolveUid` 扩返回 session 字段后顺手收敛。
 - [ ] [EP-profile-q] 建档交互式心理问卷：起盘流程插入若干心理学问题（自我认知/关系/动机倾向），结果并入 LLM 解读上下文以完善分析（与命盘事实互证，标注主观自陈 vs 命盘客观）。降低起盘摩擦：可「先出盘、后渐进追问」。
 - [ ] [EP-ui-v2-rest] UI v2 素白收尾（主体已上线，剩余增项）：① 解读页 Tab 化（命理/心理/共振 sticky Tab + 摘要先行：大宋体结论 + 关键词 chips）② 命之书封面（海水江崖 + 竖排宋体）+ 桌面双栏运势/周历条 web 布局 ③ 进度条 + 命盘 hero 高亮弧随 Tab 旋转。设计参考 `design/zhaojian_ui_v2`。
 - [ ] [EP-cal-img-2] 运势配图扩库：用 `curate-fortune-images` skill 扩充图库（每情绪 ≥4 张增变化、加季节维度）；样本足够后把筛图从人工转 agent reviewer 自动化。
 - [ ] [EP-theme] 三套基调皮肤切换（data-theme：素白/国潮/青绿，仅换 accent）。
-- [ ] [EP-auth] 账号升级：匿名登录 → 邮箱/手机正式登录（跨设备同步档案；当前匿名按设备隔离）。
+- [ ] [EP-spirit-2] 灵深化：每日问今/画像 localStorage 缓存（当前每次现算，flag 关时无影响）；自我画像叠加关系记忆（memoryPresent）；会话结束显式收束。
+- [ ] [EP-002-cal-2] 排盘金标准：调候用神、对照官方计算器校验。
 
 ## 🟢 LOW
 - [ ] [EP-009] 分享卡片 / 海报生成。

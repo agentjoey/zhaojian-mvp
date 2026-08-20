@@ -100,16 +100,13 @@ spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md` · pact
 🌙 EP-spirit 已交付但 flag 默认关——待反馈期决定开启；每日问今/画像未做 localStorage 缓存（每次现算，flag 关时无影响）。
 
 ## Next Sprint Candidates
-- [ ] [EP-fs-en] [**P1，flag 已开**] **风水英文侧反幻觉**：两道机械校验（`verifyDirectionConsistency` / `sanitizeFengshui`）仅中文匹配，en 输出完全不被校验；`buildFengshuiSystemPrompt("en")` 仍是中文指令 + 末尾一句 English；英文页面确定性内容基本还是中文。**`detectLocale()` 对任何非中文浏览器返回 `en`，所以这是绝大多数访客的默认路径，而非边缘情况。风水 flag 已于 2026-08-16 线上开启，此项已从「flag 阻塞项」变为线上待修。**
-- [ ] [EP-i18n] [HIGH] **英文版**：全站 UI 文案 i18n（中/英），LLM 输出按 locale（`ReadingLanguage` 已支持 en）；Telegram 海外市场用户按 `language_code` 自动选语言。当前全中文。
-- [ ] [EP-tg-ui] [HIGH] **更适配 Telegram Mini App 的 UI**：用 Telegram WebApp 主题参数/MainButton/BackButton/viewport/haptics，做原生感而非「网页塞进 webview」；隐藏 web 底部导航、贴合 TG 交互。
-- [ ] [EP-spirit-open] [HIGH] 收集反馈后开启本命之灵 flag + 真人小流量灰度（对话/问卷/画像/每日问今）。
-- [ ] [EP-spirit-2] [MED] 灵深化：每日问今/画像 localStorage 缓存；自我画像叠加关系记忆(memoryPresent)；会话结束显式收束。
-- [ ] [EP-cal-img-2] [MED] 配图扩库 + 筛图从人工转 agent reviewer（skill `curate-fortune-images` 已就绪）。
-- [ ] [EP-cal-img-2] [MED] 配图扩库 + 筛图从人工转 agent reviewer（skill `curate-fortune-images` 已就绪）。
-- [ ] [EP-timeline-2] [MED] 时间线深化：大限/流年四化叠西方行运、时序声部更厚。
-- [ ] [EP-theme] [MED] 三套基调皮肤切换；[EP-auth] 账号升级跨设备同步。
-- [ ] [EP-002-cal-2] [MED] 排盘金标准：调候用神、对照官方计算器。
+> 2026-08-21 清理：本节此前长期未同步，`EP-i18n`/`EP-tg-ui`/`EP-spirit-open` 早已交付
+> （i18n 2026-07-01、TG UI 三轮均见下方 Version History；`NEXT_PUBLIC_SPIRIT_ENABLED`
+> 实测 Vercel 上 Preview+Production 均已开），`EP-auth` 由 `EP-account`(2026-07-01)+
+> `EP-account2`(2026-08-20) 完整覆盖——全部移出。待办唯一列表是 `.agent/BACKLOG.md`，
+> 本节不再重复维护，收进 BACKLOG 后清空。
+
+- [ ] [EP-fs-en] [**P1，flag 已开**] **风水英文侧反幻觉**：两道机械校验（`verifyDirectionConsistency` / `sanitizeFengshui`）仅中文匹配，en 输出完全不被校验；`buildFengshuiSystemPrompt("en")` 仍是中文指令 + 末尾一句 English；英文页面确定性内容基本还是中文。**`detectLocale()` 对任何非中文浏览器返回 `en`，所以这是绝大多数访客的默认路径，而非边缘情况。风水 flag 已于 2026-08-16 线上开启，此项已从「flag 阻塞项」变为线上待修。**（同条见 `BACKLOG.md` 🔴 HIGH）
 
 ## Version History（里程碑）
 | 标记 | Date | Summary |
@@ -141,4 +138,4 @@ spec `docs/superpowers/specs/2026-08-15-fengshui-telegram-adaptation.md` · pact
 | 🏮 当代东方 R2 对齐设计稿 | 2026-08-18 | EP-east-ui-r2(feat/east-ui-r2)：BaguaWheel 细环卦字版(填充扇区/pill 全废,四吉墨色/生气朱砂/四凶 muted,选中短划线,API 零变化)；BaziPillars 文字四柱+朱砂白文「主」章(圆徽/日柱深块废)；ZiweiBoard 12 小卡→共享细线格(身宫朱砂「身」字);GanzhiBadge 墨底圆章(五行色撤出)；TG 原生臂对齐(hub 眉标/native 细边圆角令牌化/Segmented 去影)。web267 绿(含 11 条图表新测试)/typecheck/lint 0 err/build 过;变异 6 条实跑还原 |
 | 🗣️ 灵口吻优化 | 2026-08-19 | EP-spirit-voice(feat/spirit-voice)：治冗长/重复/AI味——聊天长度硬规则(≤3句120字,展开才6句,单事实引用,默认不问句结尾,锚点不复引)+maxTokens 1200→360；persona 加 voiceSamples 五原型台词(中英)+中英禁用清单；eval/voice 风格探针(checkVoice 纯函数单测+probe:voice 实跑脚本)。反幻觉四道零改动。llm215/core159/web279 绿 |
 | 🌙 解梦 | 2026-08-20 | EP-dream(feat/dream)：灵解梦技能+独立入口 /dream（web+TG 双臂）——锚人不锚梦/四拍口语/sanitizeDream 双语机械扫描/梦原文不落库/DREAM_ENABLED 默认关。**验收修复轮**（claude 评审打回 3 阻断，逐条变异实证复验通过）：①`sanitizeDream` 豁免作用域段级→句级（prompt「一段口语」形态下原实现是空转的，实测单段剥 0/分行剥 1）②补管线闸门测试+探针改报真实剥离数（原 `predictionStripped 恒 0` 是对成品重扫的循环论证）③en 侧裸 `"folk"` 子串误伤 folks/folklore 改词边界正则。另补两处验收后续：spec §4 流式→buffered 同步（`sanitizeDream` 需完整文本，流式会先漏出待剥句）；TG+web 双臂记忆提炼补齐（TG route fire-and-forget `summarizeSpiritMemory`→`saveMemory`，web `/dream` 页挂载取 memory/questionnaire 随请求体带上+成功后 `spiritMemoryAction`→`saveSpiritMemory` 写回，同 SpiritPanel 模式）。llm246/web308 绿，typecheck 0，lint 0 errors，全部关键改动变异实证 |
-| 🔐 账号体系重建 | 2026-08-20 | EP-account2(spec `2026-08-20-account-system-redesign-design.md`)：诚实化「已验证邮箱」信号（`resolveAccess` 三层访问语义 + 排除合成域名）；会话 TTL 单一常量(30天+滑动续期)收敛 exp/cookie maxAge 三处硬编码；`resolveUid` 去 `next/headers` 依赖，收敛 3→2 份重复 cookie 解析（第三份留在 `GET /api/tg/session`，见上方「其他已知限制」）；`/account` 真正消费会话确认结果；`attachIdentity` 对称化取代 link-email/link-telegram；堵住 `spirit/chat`+`spirit/dream` 的 LLM 闸门静默放行漏洞（`if(userId)`→无限免费）；匿名档案迁移改单事务 RPC；`profiles` 级联迁移可验证 + `user_consents` 条款记录；TG 建号 仍需合成邮箱，域名单一事实源。鉴权面此前**零测试**，本轮补齐。web405/core159 绿（验收时记录的 383 为笔误，以 runner 实际输出 405 为准），typecheck 0，lint 0 errors，全部关键改动变异实证。**验收修复轮**（claude 复验 1 橙 2 黄）：①`consume_llm_credit`/`consume_llm_credit_account` 两个 security definer RPC 回收 PUBLIC/anon EXECUTE（迁移 0015，与 0012 同类洞，知道 uuid 即可烧干别人月度免费额度）②web widget 会话续期断链——`AppShell` 挂载时对「非 TG + zj_tg_hint」会话 fire-and-forget 调 GET /api/tg/session，不再只有 /account 一个续期点 ③本表计数与 cookie 份数修正。web411/core159 绿。⚠️ `0012_merge_anon_profiles_rpc.sql`/`0013_profiles_cascade.sql`/`0014_user_consents.sql`/`0015_revoke_llm_credit_rpc.sql` 待 apply 生产。 |
+| 🔐 账号体系重建 | 2026-08-20 | EP-account2(spec `2026-08-20-account-system-redesign-design.md`)：诚实化「已验证邮箱」信号（`resolveAccess` 三层访问语义 + 排除合成域名）；会话 TTL 单一常量(30天+滑动续期)收敛 exp/cookie maxAge 三处硬编码；`resolveUid` 去 `next/headers` 依赖，收敛 3→2 份重复 cookie 解析（第三份留在 `GET /api/tg/session`，见上方「其他已知限制」）；`/account` 真正消费会话确认结果；`attachIdentity` 对称化取代 link-email/link-telegram；堵住 `spirit/chat`+`spirit/dream` 的 LLM 闸门静默放行漏洞（`if(userId)`→无限免费）；匿名档案迁移改单事务 RPC；`profiles` 级联迁移可验证 + `user_consents` 条款记录；TG 建号 仍需合成邮箱，域名单一事实源。鉴权面此前**零测试**，本轮补齐。web405/core159 绿（验收时记录的 383 为笔误，以 runner 实际输出 405 为准），typecheck 0，lint 0 errors，全部关键改动变异实证。**验收修复轮**（claude 复验 1 橙 2 黄）：①`consume_llm_credit`/`consume_llm_credit_account` 两个 security definer RPC 回收 PUBLIC/anon EXECUTE（迁移 0015，与 0012 同类洞，知道 uuid 即可烧干别人月度免费额度）②web widget 会话续期断链——`AppShell` 挂载时对「非 TG + zj_tg_hint」会话 fire-and-forget 调 GET /api/tg/session，不再只有 /account 一个续期点 ③本表计数与 cookie 份数修正。**阻断修复轮**（claude 接手重设计，评审两轮独立发现同一个洞）：邮箱绑定原设计按「邮箱字符串」全库反查目标账号——任何登录用户可为尚未注册的邮箱预埋意向，真正所有者首次注册时被 `deleteUser` 删号、邮箱归攻击者。改为一次性 nonce 定账号（随 `emailRedirectTo` 走 URL，普通注册链接不含 nonce）+ 释放地址从删号改可逆改名 + `/account` 新增知情同意确认屏；意向存储迁至服务端表 `email_bind_pending`（迁移 0016，RLS 开启不建策略=仅 service_role）。**收尾轮**：revoke 守护测试补 `^` 行首锚定（原为无锚定正则，注释掉 revoke 语句测试仍全绿）；`resolveUid.needsRefresh` 全仓零消费方，删除而非接线（续期已由 AppShell 挂载→`GET /api/tg/session` 完成）。web421/llm246/core159 绿，lint 18 warnings（基线），typecheck 0，build 通过。⚠️ `0012`~`0016` 五条迁移**已 apply 生产**（逐条查库验证：ACL/级联类型/RLS/外键条数），已合并 main（`5672a4e`）。 |
