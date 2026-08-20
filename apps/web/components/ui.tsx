@@ -15,10 +15,25 @@ export function elementOf(ganzhi: string): Element | null {
 }
 
 // —— 铜铃 logo（品牌 · 风过则动）——
-export function BellLogo({ size = 26, idle = true }: { size?: number; idle?: boolean }) {
+export function BellLogo({
+  size = 26,
+  motion = "idle",
+  ringKey,
+}: {
+  size?: number;
+  /**
+   * "idle"（默认）＝常驻循环微摆，供 CastingOverlay 等「进行中」语境用；
+   * "ring"＝敲响式摆动，播完即停，供导航/卷首这类高频常驻位置用——持续
+   * 晃动在那些位置是干扰而非提示。"none"＝静止。
+   */
+  motion?: "idle" | "ring" | "none";
+  /** motion="ring" 时变化则重放一次摆动（用于点击触发，如再次点 Logo）。 */
+  ringKey?: number;
+}) {
+  const className = motion === "idle" ? "zj-bell-idle" : motion === "ring" ? "zj-bell-ring" : undefined;
   return (
     <svg viewBox="0 0 80 84" style={{ width: size, height: "auto" }} aria-hidden>
-      <g className={idle ? "zj-bell-idle" : undefined} style={{ transformOrigin: "40px 16px" }}>
+      <g key={motion === "ring" ? ringKey : undefined} className={className} style={{ transformOrigin: "40px 16px" }}>
         <path d="M40,12 L43,16 L40,20 L37,16 Z" fill="var(--color-ink)" />
         <path d="M6,20 C18,24 28,26 40,26 C52,26 62,24 74,20" fill="none" stroke="var(--color-ink)" strokeWidth="5" strokeLinecap="round" />
         <line x1="40" y1="26" x2="40" y2="40" stroke="var(--color-ink)" strokeWidth="1.4" />

@@ -26,10 +26,12 @@ const isLlmConfiguredMock = vi.fn(() => true);
 const interpretDreamSpy = vi.fn(async function* () {
   yield "解读";
 });
+const continueDreamReplySpy = vi.fn(async (..._a: unknown[]) => ({ text: "追问的解读", stripped: [] }));
 vi.mock("@eamvp/llm", () => ({
   resolveLlmConfig: vi.fn(() => ({ provider: "minimax", model: "m" })),
   isLlmConfigured: () => isLlmConfiguredMock(),
   interpretDream: (...a: unknown[]) => interpretDreamSpy(...(a as [])),
+  continueDreamReply: (...a: unknown[]) => continueDreamReplySpy(...(a as [])),
   DREAM_MAX_CHARS: 2000,
 }));
 
@@ -114,6 +116,41 @@ describe("POST /api/spirit/dream", () => {
     });
     const res = await POST(req({ chart: CHART, dream: "我梦见坠落" }, "tok"));
     expect(res.status).toBe(500);
+  });
+});
+
+describe("EP-dream-history 追问：followUp/priorTurns", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+    resolveAccessMock.mockResolvedValue({ level: "identified", hasVerifiedEmail: false, hasTelegram: true });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("带 followUp → 走 continueDreamReply（不走 interpretDream），priorTurns 原样透传且裁到最近 12 条", async () => {
+    const priorTurns = Array.from({ length: 15 }, (_, i) => ({ role: i % 2 === 0 ? "spirit" : "user", content: `t${i}` }));
+    const res = await POST(
+      req({ chart: CHART, dream: "我梦见坠落", followUp: "还有别的解读吗？", priorTurns }, "tok"),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("追问的解读");
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).toHaveBeenCalledWith(
+      CHART,
+      "我梦见坠落",
+      priorTurns.slice(-12),
+      "还有别的解读吗？",
+      expect.objectContaining({ language: "zh" }),
+    );
+  });
+
+  it("followUp 超长 → 400，不调用任何生成函数", async () => {
+    const res = await POST(req({ chart: CHART, dream: "我梦见坠落", followUp: "x".repeat(2001) }, "tok"));
+    expect(res.status).toBe(400);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).not.toHaveBeenCalled();
   });
 });
 

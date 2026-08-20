@@ -10,7 +10,7 @@ import {
   type DailyFortune,
   type ZiweiHoroscope,
 } from "@eamvp/core";
-import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, summarizeSpiritMemory, generateDailySpiritGreeting, resolveLlmConfig, isLlmConfigured } from "@eamvp/llm";
+import { polishDailyFortune, dailyBehaviorAdvice, generateTimeline, summarizeSpiritMemory, summarizeDreamEntry, generateDailySpiritGreeting, resolveLlmConfig, isLlmConfigured, type ReadingLanguage } from "@eamvp/llm";
 
 /** 建档排盘：一次性算出完整命盘（EP-007 冻结存档用）。 */
 export async function computeChartAction(
@@ -80,6 +80,18 @@ export async function timelineAction(birthInput: BirthInput, chart: UnifiedChart
 export async function spiritMemoryAction(history: { role: "user" | "spirit"; content: string }[], prior?: string): Promise<string | null> {
   if (!isLlmConfigured(resolveLlmConfig())) return null;
   try { return await summarizeSpiritMemory(history, prior); } catch { return null; }
+}
+
+/** 解梦历史摘要（EP-dream-history）：把一次解梦对话提炼成一句第三人称主题标签，只为
+ * 「最近 10 条」列表用，绝不逐字复述梦原文（system 指令强制，见 summarizeDreamEntry）。
+ * 无 key/失败返回 null——与 spiritMemoryAction 同一容错约定，历史条目丢一条不阻断主流程。 */
+export async function dreamSummaryAction(
+  dreamText: string,
+  replyText: string,
+  language: ReadingLanguage,
+): Promise<string | null> {
+  if (!isLlmConfigured(resolveLlmConfig())) return null;
+  try { return await summarizeDreamEntry(dreamText, replyText, { language }); } catch { return null; }
 }
 
 /** 每日问今（EP-spirit-06）：灵据确定性五维+干支+记忆的第一人称问候。无 key/失败返回 null。 */

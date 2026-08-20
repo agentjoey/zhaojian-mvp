@@ -4,26 +4,31 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatQuestionnaire } from "@eamvp/core";
 import { getActiveProfile, getSpiritMemory, saveSpiritMemory, getQuestionnaire, type Profile } from "@/lib/profiles";
-import { hasTgSession, tgGetProfile } from "@/lib/tg/client";
+import { listDreamHistory, appendDreamHistory, type DreamHistoryEntry } from "@/lib/dream-history";
+import { hasTgSession, tgGetProfile, tgListDreamHistory } from "@/lib/tg/client";
 import { supabase } from "@/lib/supabase";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui";
+import { CastingOverlay } from "@/components/CastingOverlay";
 import { useT, useLocale } from "@/lib/i18n/I18nProvider";
-import { spiritMemoryAction } from "@/app/actions";
+import { spiritMemoryAction, dreamSummaryAction } from "@/app/actions";
 
 // 与 fengshui/page.tsx、spirit/page.tsx 同一模式：模块加载时求值（测试须
 // resetModules + 动态 import 才能切 flag，见 __tests__/page.test.tsx 顶部注释）。
 // API 层（/api/spirit/dream、/api/tg/dream）另有 404 闸门，这里是页面级「不可达」。
 const ENABLED = process.env.NEXT_PUBLIC_DREAM_ENABLED === "1";
 
+type Turn = { role: "user" | "spirit"; content: string };
+
 export default function DreamPage() {
   const t = useT();
   const { locale } = useLocale();
   const inTg = useIsTelegram();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
-  const [dream, setDream] = useState("");
-  const [reading, setReading] = useState<string | null>(null);
+  // input 是共用输入框：turns 为空时它是「梦原文」，turns 非空时它是「追问」。
+  const [input, setInput] = useState("");
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // EP-account2 阻断 3：web 臂 fetch 补 Authorization Bearer 后，匿名/会话失效
@@ -34,6 +39,8 @@ export default function DreamPage() {
   // 自己读取 profile 关联的记忆，客户端不需要也拿不到（无浏览器侧 Supabase 会话）。
   const [memory, setMemory] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<string | undefined>(undefined);
+  // EP-dream-history：最近 10 条摘要（不含梦原文，见 summarizeDreamEntry）。
+  const [history, setHistory] = useState<DreamHistoryEntry[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -55,21 +62,42 @@ export default function DreamPage() {
     })();
   }, []);
 
-  const tooLong = dream.trim().length > 2000;
-  const canSubmit = !!profile && dream.trim().length >= 4 && !tooLong && !pending;
+  // 历史列表独立一个 effect、独立 try/catch：加载失败只留空列表，不影响上面主流程
+  // （档案/记忆/问卷）——历史是锦上添花，不是解梦本身的前置条件。
+  useEffect(() => {
+    if (!profile) return;
+    (async () => {
+      try {
+        const h = hasTgSession() ? await tgListDreamHistory() : await listDreamHistory(profile.id);
+        setHistory(h);
+      } catch {
+        // 保持空列表
+      }
+    })();
+  }, [profile]);
+
+  const isFollowUp = turns.length > 0;
+  const tooLong = input.trim().length > 2000;
+  const canSubmit = !!profile && input.trim().length >= 4 && !tooLong && !pending;
 
   async function submit() {
     if (!profile || !canSubmit) return;
+    const text = input.trim();
+    const dreamText = isFollowUp ? turns[0]!.content : text;
     setPending(true);
     setError(null);
     setNeedLogin(false);
-    setReading(null);
     haptics.light();
     const inTgSession = hasTgSession();
     try {
       let res: Response;
+      const payload: Record<string, unknown> = { dream: dreamText };
+      if (isFollowUp) {
+        payload.followUp = text;
+        payload.priorTurns = turns.slice(1); // 不含首轮梦原文——首轮由 dream 单独重建
+      }
       if (inTgSession) {
-        res = await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify({ dream }) });
+        res = await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify(payload) });
       } else {
         // EP-account2 阻断 3：/api/spirit/dream 硬要求 Bearer（路由已改，客户端必须跟上），
         // 取法与 SpiritPanel/fengshui 一致——supabase 会话的 access_token，与 x-zj-locale 共存。
@@ -78,7 +106,7 @@ export default function DreamPage() {
         res = await fetch("/api/spirit/dream", {
           method: "POST",
           headers: { "x-zj-locale": locale, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ chart: profile.chart, dream, memory: memory ?? undefined, questionnaire }),
+          body: JSON.stringify({ ...payload, chart: profile.chart, memory: memory ?? undefined, questionnaire }),
         });
       }
       if (!res.ok) {
@@ -88,24 +116,29 @@ export default function DreamPage() {
         }
         throw new Error(await res.text());
       }
-      const text = await res.text();
-      setReading(text);
+      const replyText = await res.text();
+      const newTurns: Turn[] = isFollowUp
+        ? [...turns, { role: "user", content: text }, { role: "spirit", content: replyText }]
+        : [{ role: "user", content: text }, { role: "spirit", content: replyText }];
+      setTurns(newTurns);
+      setInput("");
       haptics.success();
-      // TG 臂的记忆提炼在服务端 api/tg/dream 内 fire-and-forget 完成（无浏览器侧
+      // TG 臂的记忆提炼/历史摘要在服务端 api/tg/dream 内 fire-and-forget 完成（无浏览器侧
       // Supabase 会话，客户端写不了）；web 臂同 SpiritPanel 模式，客户端提炼+写回。
       if (!inTgSession) {
-        spiritMemoryAction(
-          [
-            { role: "user", content: dream },
-            { role: "spirit", content: text },
-          ],
-          memory ?? undefined,
-        ).then((m) => {
+        spiritMemoryAction(newTurns, memory ?? undefined).then((m) => {
           if (m) {
             setMemory(m);
             void saveSpiritMemory(profile.id, m);
           }
         });
+        // 历史摘要只在首次解读后写一条——追问是同一次解梦会话的延续，不产生新的列表条目。
+        if (!isFollowUp) {
+          dreamSummaryAction(dreamText, replyText, locale).then((summary) => {
+            if (!summary) return;
+            void appendDreamHistory(profile.id, summary).then(() => listDreamHistory(profile.id).then(setHistory));
+          });
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -116,7 +149,12 @@ export default function DreamPage() {
 
   // flag 关闭时 TG MainButton 也必须隐藏（visible: inTg && ENABLED）——页面级 notEnabled
   // 早退只挡渲染，挡不住这个 hook 把「解梦」按钮挂上 TG 原生栏（验收跟进 3）。
-  useTgMainButton({ text: pending ? t("dream.interpreting") : t("dream.submit"), onClick: submit, enabled: canSubmit, visible: inTg && ENABLED });
+  useTgMainButton({
+    text: pending ? t("dream.interpreting") : isFollowUp ? t("dream.followUpSubmit") : t("dream.submit"),
+    onClick: submit,
+    enabled: canSubmit,
+    visible: inTg && ENABLED,
+  });
 
   // 必须排在所有 hook 之后（与 profile 早退同区），不得跳过任何 hook 调用。
   if (!ENABLED)
@@ -139,27 +177,47 @@ export default function DreamPage() {
 
   return (
     <main className="mx-auto max-w-[720px] px-4 pb-8 pt-6">
+      {/* EP-motion：解梦是 buffered 调用（sanitizeDream 需要完整文本，见 spec §4），
+          等待期间此前是零反馈——不像 chart 的解读有渐进流式文字打底。用 CastingOverlay
+          兜底这段秒级空等，gan/zhi 复用命主日柱（与 fengshui 同一「锚人」思路，不是
+          真的在起一份新盘）。 */}
+      {pending && (
+        <CastingOverlay
+          gan={profile.chart.bazi.pillars.day.stem}
+          zhi={profile.chart.bazi.pillars.day.branch}
+          seal="梦"
+          title={t("dream.castingTitle")}
+        />
+      )}
       <PageHeader kicker={t("dream.kicker")} title={t("dream.title")} annotation={t("dream.subtitle")} />
       <div className="mt-6">
-        <textarea
-          value={dream}
-          onChange={(e) => setDream(e.target.value)}
-          placeholder={t("dream.placeholder")}
-          rows={5}
-          className="w-full resize-none bg-transparent p-4 text-[15px] leading-[1.9] outline-none focus:border-[var(--color-line-strong)]"
-          style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius-card)", color: "var(--color-ink)" }}
-        />
-        <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted">
-          <span>{tooLong ? t("dream.errorTooLong") : ""}</span>
-          <span className="font-latin">{dream.trim().length}/2000</span>
-        </div>
+        {turns.length === 0 && (
+          <>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={t("dream.placeholder")}
+              rows={5}
+              className="w-full resize-none bg-transparent p-4 text-[15px] leading-[1.9] outline-none focus:border-[var(--color-line-strong)]"
+              style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius-card)", color: "var(--color-ink)" }}
+            />
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted">
+              <span>{tooLong ? t("dream.errorTooLong") : ""}</span>
+              <span className="font-latin">{input.trim().length}/2000</span>
+            </div>
+          </>
+        )}
+
         {!inTg && (
           <div className="mt-4">
-            <Button onClick={submit} disabled={!canSubmit}>
-              {pending ? t("dream.interpreting") : t("dream.submit")}
-            </Button>
+            {turns.length === 0 ? (
+              <Button onClick={submit} disabled={!canSubmit}>
+                {pending ? t("dream.interpreting") : t("dream.submit")}
+              </Button>
+            ) : null}
           </div>
         )}
+
         {needLogin && (
           <div className="mt-4 px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>
             {t("dream.needLogin")}
@@ -173,10 +231,48 @@ export default function DreamPage() {
             {error}
           </div>
         )}
-        {reading && (
-          <div className="zj-rise mt-8 pt-6" style={{ borderTop: "1px solid var(--color-line)" }}>
-            <div className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>{t("dream.kicker")}</div>
-            <p className="reading-prose mt-3 whitespace-pre-wrap">{reading}</p>
+
+        {turns.length > 0 && (
+          <div className="zj-rise mt-8 space-y-5 pt-6" style={{ borderTop: "1px solid var(--color-line)" }}>
+            {turns.map((turn, i) => (
+              <div key={i}>
+                <div className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>
+                  {turn.role === "user" ? t("dream.youSaid") : t("dream.kicker")}
+                </div>
+                <p className="reading-prose mt-2 whitespace-pre-wrap">{turn.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {turns.length > 0 && (
+          <div className="mt-6">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={t("dream.followUpPlaceholder")}
+              rows={3}
+              className="w-full resize-none bg-transparent p-4 text-[15px] leading-[1.9] outline-none focus:border-[var(--color-line-strong)]"
+              style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius-card)", color: "var(--color-ink)" }}
+            />
+            {!inTg && (
+              <div className="mt-3">
+                <Button onClick={submit} disabled={!canSubmit}>
+                  {pending ? t("dream.interpreting") : t("dream.followUpSubmit")}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {turns.length === 0 && history.length > 0 && (
+          <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--color-line)" }}>
+            <div className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>{t("dream.historyTitle")}</div>
+            <ul className="mt-3 space-y-2.5">
+              {history.map((h) => (
+                <li key={h.id} className="text-[13px] leading-relaxed text-ink-2">{h.summary}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { BellLogo, cn } from "@/components/ui";
 import { useIsTelegram } from "@/lib/tg/ui";
@@ -37,6 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const t = useT();
   const tg = useIsTelegram();
+  // EP-motion-bell：桌面栏 Logo 是高频常驻元素，不用持续晃动（zj-bell-idle）打扰阅读；
+  // 只在挂载时敲响一次，点击（哪怕停在首页原地不跳转）再敲一次作反馈。
+  const [bellRing, setBellRing] = useState(0);
 
   // EP-account2-fix：web widget 登录路径（zj_tg_hint 标记的 TG web 会话）此前唯一的
   // 续期点是 /account 页——30 天不开 /account 就被静默登出（spec §4 要消灭的故障）。
@@ -57,8 +60,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-y-0 left-0 z-30 hidden w-[82px] flex-col items-center gap-2 py-6 md:flex"
             style={{ background: "var(--color-rail)", borderRight: "1px solid var(--color-line)" }}
           >
-            <Link href="/" className="mb-5" aria-label={t("nav.home")}>
-              <BellLogo size={30} />
+            <Link href="/" className="mb-5" aria-label={t("nav.home")} onClick={() => setBellRing((n) => n + 1)}>
+              <BellLogo size={30} motion="ring" ringKey={bellRing} />
             </Link>
             {NAV.slice(1).map((item) => (
               <NavItem key={item.href} href={item.href} char={item.char} label={t(item.key)} active={isActive(pathname, item.href)} compact={NAV_COMPACT} />

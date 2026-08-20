@@ -52,7 +52,7 @@ describe("EP-fs-07 导航「境」flag 门控", () => {
       <I18nProvider locale="zh">{children}</I18nProvider>
     );
     render(<AppShell><div /></AppShell>, { wrapper: Wrapper });
-    expect(screen.queryByLabelText("境")).toBeNull();
+    expect(screen.queryByLabelText("风水")).toBeNull();
   });
 
   it("flag 开启时导航含「境」且指向 /fengshui", async () => {
@@ -64,7 +64,7 @@ describe("EP-fs-07 导航「境」flag 门控", () => {
       <I18nProvider locale="zh">{children}</I18nProvider>
     );
     render(<AppShell><div /></AppShell>, { wrapper: Wrapper });
-    const links = screen.getAllByLabelText("境");
+    const links = screen.getAllByLabelText("风水");
     expect(links.length).toBeGreaterThan(0);
     expect(links[0]!.getAttribute("href")).toBe("/fengshui");
   });

@@ -1,7 +1,7 @@
 # 解梦 · 灵的专门技能 + 独立入口 — Design Spec
 
 - **Date:** 2026-08-19
-- **Status:** v1 已上线（feat/dream 已并入 main，flag 已开）。**§3.6（2026-08-20）为上线后修订，待 writing-plans 拆 `EP-dream-05` 实施计划**
+- **Status:** v1 已上线（feat/dream 已并入 main，flag 已开）。**§3.6（2026-08-20）为上线后修订，待 writing-plans 拆 `EP-dream-05` 实施计划**（该修订在 `feat/dream-revision` 分支上进行中，未合并，不受本次改动影响）。**§7.1（2026-08-21）为 v2 历史+追问（`EP-dream-history`），已实施于 `main`，迁移 `0017` 待 apply 生产**
 - **代号前缀:** `EP-dream-*`
 - **上游讨论:** 2026-08-19「解梦能不能做」研究结论（方案 A 纯语域 / **B 独立入口+专门技能** / C 符号词典引擎被否）
 
@@ -125,10 +125,20 @@ prompt 层要求 + 探针抽样**不够**——参照先例 `packages/llm/src/fe
 
 ## 7. 明确不做（v1）
 
-- 梦境日记/历史列表（隐私优先，v2 再议）
+- ~~梦境日记/历史列表（隐私优先，v2 再议）~~ —— **v2 已实施，见 §7.1（2026-08-21，`EP-dream-history`）**
 - 符号词典/确定性解梦引擎（方案 C，已否）
 - bot 私聊的 `/dream` 命令
 - 解梦分享卡片
+
+### 7.1 v2：最近 10 条历史 + 追问（`EP-dream-history`，2026-08-21）
+
+owner 决策：存**摘要**，不存梦原文（backlog 里给的两个选项 A/B 选了 A）——这条决策**不**改动 §5.1 的红线（「梦原文不落库、不进日志」），而是恰好落在这条红线本来就留的口子里：§4「记忆」行早就描述了同一机制（「把用户做了一个关于 X 的梦 + 灵的解读要点提炼进滚动记忆…梦原文不存储」），`EP-dream-history` 只是把这个已经存在的摘要机制从「一份滚动记忆」变成「一张最近 10 条的列表」，没有新增一条会存原文的路径。
+
+- **新表 `dream_history`**（迁移 `0017_dream_history.sql`）：`id/user_id/profile_id/summary/created_at`，RLS 形状照抄 `spirit_messages`（own_select/own_insert/own_delete，不可变、无 update 策略）。裁剪到最近 10 条在应用层做（写入后删掉超出的旧行），不另开 security-definer RPC——本仓库已经因为 RPC 忘记收权限出过两次生产漏洞（0012/0015），非特权操作没必要再开一个面。
+- **摘要生成**：新函数 `summarizeDreamEntry(dreamText, replyText, opts)`（`packages/llm/src/dream.ts`），system 指令明确要求「第三人称转述主题，绝不逐字复述梦境原文」（如「一个关于坠落的梦」），无 PII，≤160 字。只在**首次解读**后调用一次——追问不产生新的历史条目（一次解梦会话在列表里只对应一条记录）。
+- **追问**：`continueDreamReply(chart, dreamText, priorTurns, followUp, opts)`——system prompt 与首次解读完全一致（解梦规则、四拍结构、`sanitizeDream` 后置扫描全部继续生效，追问不会跳出「不占卜」的护栏），只是把已发生的对话接着喂回去。`priorTurns` 只活在浏览器会话内、随请求体传来即用即弃——**服务端不落库**，与 §5.1 的红线完全一致（落库的只有 `dream_history` 的摘要）。
+- **两臂路由**：`/api/spirit/dream`、`/api/tg/dream` 的请求体新增可选 `followUp`/`priorTurns` 字段（不传则是原有的一次性解读路径，向后兼容）；TG 臂另加 `GET /api/tg/dream` 返回最近 10 条摘要（读的是摘要，不是原文，不违反 §4 route 头部注释里「不提供 GET 历史查询」那条——那条针对的是 `spirit_messages`/原文，`dream_history` 是后来才有的、专门只存摘要的表）。
+- **待做**：迁移 `0017_dream_history.sql` 尚未 apply 生产（需要 owner 过一遍再 apply，同本仓库一贯的迁移流程）。
 
 ## 8. 建议任务拆分（供 writing-plans）
 

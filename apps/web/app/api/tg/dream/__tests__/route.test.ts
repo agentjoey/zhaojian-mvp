@@ -15,6 +15,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const appendMessage = vi.fn();
 const saveMemory = vi.fn();
+const appendDreamHistoryMock = vi.fn();
+const listDreamHistoryMock = vi.fn(async (..._a: unknown[]) => [{ id: "h1", summary: "一个关于坠落的梦", createdAt: "2026-08-20T00:00:00Z" }]);
 const readSessionMock = vi.fn(async (v?: unknown): Promise<{ uid: string; tgId: number } | null> =>
   v === "ok" ? { uid: "u1", tgId: 123 } : null,
 );
@@ -33,6 +35,8 @@ vi.mock("@/lib/tg/data", () => ({
   getQuestionnaire: vi.fn(async () => null),
   saveMemory: (...a: unknown[]) => saveMemory(...a),
   listMessages: vi.fn(async () => []),
+  appendDreamHistory: (...a: unknown[]) => appendDreamHistoryMock(...a),
+  listDreamHistory: (...a: unknown[]) => listDreamHistoryMock(...a),
 }));
 vi.mock("@/lib/tg/session", () => ({
   TG_COOKIE: "zj_tg",
@@ -53,11 +57,15 @@ const interpretDreamSpy = vi.fn(async function* () {
 });
 const isLlmConfiguredMock = vi.fn(() => true);
 const summarizeSpiritMemorySpy = vi.fn(async () => "摘要：最近常梦见坠落，反映对失控的焦虑。");
+const continueDreamReplySpy = vi.fn(async (..._a: unknown[]) => ({ text: "追问的解读", stripped: [] }));
+const summarizeDreamEntrySpy = vi.fn(async (..._a: unknown[]) => "一个关于坠落的梦");
 vi.mock("@eamvp/llm", () => ({
   resolveLlmConfig: vi.fn(() => ({ provider: "minimax", model: "m" })),
   isLlmConfigured: () => isLlmConfiguredMock(),
   interpretDream: (...a: unknown[]) => interpretDreamSpy(...(a as [])),
+  continueDreamReply: (...a: unknown[]) => continueDreamReplySpy(...(a as [])),
   summarizeSpiritMemory: (...a: unknown[]) => summarizeSpiritMemorySpy(...(a as [])),
+  summarizeDreamEntry: (...a: unknown[]) => summarizeDreamEntrySpy(...(a as [])),
   DREAM_MAX_CHARS: 2000,
 }));
 
@@ -71,7 +79,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => ({ value: "ok" }) }),
 }));
 
-const { POST } = await import("../route");
+const { POST, GET } = await import("../route");
 
 function req(body: unknown) {
   return new Request("http://x/api/tg/dream", {
@@ -194,5 +202,92 @@ describe("POST /api/tg/dream", () => {
     });
     const res = await POST(req({ dream: "我梦见坠落" }));
     expect(res.status).toBe(500);
+  });
+});
+
+describe("EP-dream-history：TG 臂追问 + 历史摘要", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("首次解读成功后 fire-and-forget 写一条历史摘要（summarizeDreamEntry → appendDreamHistory）", async () => {
+    const res = await POST(req({ dream: "我梦见坠落" }));
+    expect(res.status).toBe(200);
+    await flushMicrotasks();
+    expect(summarizeDreamEntrySpy).toHaveBeenCalledWith("我梦见坠落", "解读", expect.objectContaining({ language: "zh" }));
+    expect(appendDreamHistoryMock).toHaveBeenCalledWith("p1", "一个关于坠落的梦");
+  });
+
+  it("摘要为空/抛错都不影响已返回的响应，也不调用 appendDreamHistory", async () => {
+    summarizeDreamEntrySpy.mockResolvedValueOnce("");
+    let res = await POST(req({ dream: "我梦见坠落" }));
+    expect(res.status).toBe(200);
+    await flushMicrotasks();
+    expect(appendDreamHistoryMock).not.toHaveBeenCalled();
+
+    summarizeDreamEntrySpy.mockRejectedValueOnce(new Error("LLM 挂了"));
+    res = await POST(req({ dream: "我梦见坠落" }));
+    expect(res.status).toBe(200);
+    await flushMicrotasks();
+    expect(appendDreamHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it("带 followUp → 走 continueDreamReply（不走 interpretDream），且不重复写历史摘要", async () => {
+    const priorTurns = [{ role: "spirit", content: "这个梦在处理坠落感。" }];
+    const res = await POST(req({ dream: "我梦见坠落", followUp: "还有别的解读吗？", priorTurns }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("追问的解读");
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).toHaveBeenCalledWith(
+      { fake: true },
+      "我梦见坠落",
+      priorTurns,
+      "还有别的解读吗？",
+      expect.objectContaining({ language: "zh" }),
+    );
+    await flushMicrotasks();
+    expect(summarizeDreamEntrySpy).not.toHaveBeenCalled();
+    expect(appendDreamHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it("followUp 超长 → 400，不调用任何生成函数", async () => {
+    const res = await POST(req({ dream: "我梦见坠落", followUp: "x".repeat(2001) }));
+    expect(res.status).toBe(400);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/tg/dream", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "1");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("已登录 + 有档案 → 200 + 最近历史摘要列表", async () => {
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.history).toEqual([{ id: "h1", summary: "一个关于坠落的梦", createdAt: "2026-08-20T00:00:00Z" }]);
+    expect(listDreamHistoryMock).toHaveBeenCalledWith("p1");
+  });
+
+  it("未登录 → 401", async () => {
+    readSessionMock.mockResolvedValueOnce(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("flag 关闭 → 404", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DREAM_ENABLED", "0");
+    const res = await GET();
+    expect(res.status).toBe(404);
   });
 });

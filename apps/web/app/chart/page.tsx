@@ -6,7 +6,7 @@ import { getActiveProfile, saveReading, type Profile } from "@/lib/profiles";
 import { hasTgSession, isTelegram, tgGetProfile } from "@/lib/tg/client";
 import { useIsTelegram, useTgMainButton, haptics } from "@/lib/tg/ui";
 import { timelineAction } from "@/app/actions";
-import { Card } from "@/components/ui";
+import { Card, BellLogo } from "@/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
 import { Markdown } from "@/components/Markdown";
@@ -227,8 +227,17 @@ export default function ChartPage() {
             <span className="text-[22px] transition-transform duration-200 group-hover:translate-x-1">✦</span>
           </button>
         )}
+        {/* EP-motion：首字前的空等此前只有一条纯文字+闪烁光标；换成品牌风铃常驻摆动
+            （复用 CastingOverlay 同款 idle 语义），首字一到就被 ReadingTabs 的流式打字机
+            接管——这段不用全屏 CastingOverlay，因为上方八字/紫微/西方盘已经渲染在页面里，
+            全屏遮罩会让用户失去已经看到的内容。 */}
         {streaming && !reading && (
-          <Card><p className="text-[14px] text-muted">{t("chart.generating")} <span className="animate-pulse text-cinnabar">▋</span></p></Card>
+          <Card>
+            <p className="flex items-center gap-2 text-[14px] text-muted">
+              <BellLogo size={18} />
+              {t("chart.generating")}
+            </p>
+          </Card>
         )}
         {err && (
           <div className="px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>{err}</div>

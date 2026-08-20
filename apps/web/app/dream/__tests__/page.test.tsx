@@ -29,14 +29,24 @@ vi.mock("@/lib/profiles", () => ({
   getQuestionnaire: (...a: unknown[]) => getQuestionnaireMock(...a),
 }));
 const tgEnv = { inTg: false };
+const tgListDreamHistoryMock = vi.fn(async (): Promise<{ id: string; summary: string; createdAt: string }[]> => []);
 vi.mock("@/lib/tg/client", () => ({
   hasTgSession: () => false,
   isTelegram: () => tgEnv.inTg,
   tgGetProfile: vi.fn(),
+  tgListDreamHistory: (...a: unknown[]) => tgListDreamHistoryMock(...a),
 }));
 const spiritMemoryActionMock = vi.fn(async (..._a: unknown[]): Promise<string | null> => null);
+const dreamSummaryActionMock = vi.fn(async (..._a: unknown[]): Promise<string | null> => null);
 vi.mock("@/app/actions", () => ({
   spiritMemoryAction: (...a: unknown[]) => spiritMemoryActionMock(...a),
+  dreamSummaryAction: (...a: unknown[]) => dreamSummaryActionMock(...a),
+}));
+const listDreamHistoryMock = vi.fn(async (..._a: unknown[]): Promise<{ id: string; summary: string; createdAt: string }[]> => []);
+const appendDreamHistoryMock = vi.fn(async (..._a: unknown[]): Promise<void> => {});
+vi.mock("@/lib/dream-history", () => ({
+  listDreamHistory: (...a: unknown[]) => listDreamHistoryMock(...a),
+  appendDreamHistory: (...a: unknown[]) => appendDreamHistoryMock(...a),
 }));
 
 /**
@@ -83,6 +93,11 @@ beforeEach(() => {
   saveSpiritMemoryMock.mockClear();
   getQuestionnaireMock.mockClear();
   spiritMemoryActionMock.mockClear();
+  dreamSummaryActionMock.mockClear();
+  listDreamHistoryMock.mockClear();
+  listDreamHistoryMock.mockResolvedValue([]);
+  appendDreamHistoryMock.mockClear();
+  tgListDreamHistoryMock.mockClear();
   vi.unstubAllGlobals();
 });
 
@@ -227,5 +242,89 @@ describe("验收跟进 3：flag 关 + TG 环境时 MainButton 不可见", () => 
     expect(mb.hide).toHaveBeenCalled();
     expect(mb.show).not.toHaveBeenCalled();
     expect(mb.setText).not.toHaveBeenCalled();
+  });
+});
+
+describe("EP-dream-history：历史列表 + 追问", () => {
+  it("挂载时取最近历史（web 臂）并渲染摘要；只存摘要不含梦原文的形态由 route 测试守，这里只守渲染", async () => {
+    listDreamHistoryMock.mockResolvedValueOnce([
+      { id: "h1", summary: "一个关于坠落的梦", createdAt: "2026-08-19T00:00:00Z" },
+      { id: "h2", summary: "一个关于被追赶的梦", createdAt: "2026-08-18T00:00:00Z" },
+    ]);
+    await renderDreamPage();
+    await screen.findByRole("textbox");
+    expect(listDreamHistoryMock).toHaveBeenCalledWith("p1");
+    expect(await screen.findByText("一个关于坠落的梦")).toBeInTheDocument();
+    expect(screen.getByText("一个关于被追赶的梦")).toBeInTheDocument();
+    expect(screen.getByText("最近的梦")).toBeInTheDocument();
+  });
+
+  it("历史加载失败不影响表单渲染（独立 try/catch，不污染 profile 早退路径）", async () => {
+    listDreamHistoryMock.mockRejectedValueOnce(new Error("db down"));
+    await renderDreamPage();
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByText("最近的梦")).toBeNull();
+  });
+
+  it("首次解读成功后：显示追问输入框，只提炼一次历史摘要写回 appendDreamHistory 并刷新列表", async () => {
+    const fetchMock = vi.fn(async () => new Response("这个梦在处理坠落感。", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    dreamSummaryActionMock.mockResolvedValueOnce("一个关于坠落的梦");
+    listDreamHistoryMock.mockResolvedValue([]); // 初始为空；追加后刷新时仍返回空（只验证调用形态）
+
+    await renderDreamPage();
+    const textarea = await screen.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "我梦见自己在坠落，怎么都落不到底。" } });
+    fireEvent.click(screen.getByText("解这个梦"));
+
+    await waitFor(() => expect(screen.getByText("这个梦在处理坠落感。")).toBeInTheDocument());
+    // 首轮对话渲染：用户与灵各一条，标签分别是「你说」与「解 梦」kicker
+    expect(screen.getByText("我梦见自己在坠落，怎么都落不到底。")).toBeInTheDocument();
+    expect(screen.getByText("你说")).toBeInTheDocument();
+
+    await waitFor(() => expect(dreamSummaryActionMock).toHaveBeenCalledWith(
+      "我梦见自己在坠落，怎么都落不到底。",
+      "这个梦在处理坠落感。",
+      "zh",
+    ));
+    await waitFor(() => expect(appendDreamHistoryMock).toHaveBeenCalledWith("p1", "一个关于坠落的梦"));
+    await waitFor(() => expect(listDreamHistoryMock).toHaveBeenCalledTimes(2)); // 挂载一次 + 追加后刷新一次
+
+    // 追问输入框取代了原来的「梦」输入框（placeholder 变化），且历史列表在有对话时收起
+    expect(screen.getByPlaceholderText("还想问点什么？")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("比如：我梦见自己在一片很清的水面上走……")).toBeNull();
+  });
+
+  it("追问：请求体带 dream(原文)+followUp+priorTurns，成功后追加渲染新一轮对话，且不重复写历史摘要", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("这个梦在处理坠落感。", { status: 200 }))
+      .mockResolvedValueOnce(new Response("坠落常和失控感有关。", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    dreamSummaryActionMock.mockResolvedValueOnce("一个关于坠落的梦");
+
+    await renderDreamPage();
+    const textarea = await screen.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "我梦见自己在坠落，怎么都落不到底。" } });
+    fireEvent.click(screen.getByText("解这个梦"));
+    await waitFor(() => expect(screen.getByText("这个梦在处理坠落感。")).toBeInTheDocument());
+    dreamSummaryActionMock.mockClear();
+    appendDreamHistoryMock.mockClear();
+
+    const followUpBox = screen.getByPlaceholderText("还想问点什么？");
+    fireEvent.change(followUpBox, { target: { value: "会不会跟换工作有关？" } });
+    fireEvent.click(screen.getByText("追问"));
+
+    await waitFor(() => expect(screen.getByText("坠落常和失控感有关。")).toBeInTheDocument());
+    const [, init] = fetchMock.mock.calls[1]!;
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.dream).toBe("我梦见自己在坠落，怎么都落不到底。"); // 首轮梦原文，用于服务端重建首轮 prompt
+    expect(body.followUp).toBe("会不会跟换工作有关？");
+    expect(body.priorTurns).toEqual([{ role: "spirit", content: "这个梦在处理坠落感。" }]);
+    expect(screen.getByText("会不会跟换工作有关？")).toBeInTheDocument();
+
+    // 追问不产生新的历史条目——只有首次解读那一次会写
+    await new Promise((r) => setTimeout(r, 0));
+    expect(dreamSummaryActionMock).not.toHaveBeenCalled();
+    expect(appendDreamHistoryMock).not.toHaveBeenCalled();
   });
 });

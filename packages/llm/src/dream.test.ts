@@ -5,8 +5,9 @@ import { sanitizeDream } from "./dream";
 const streamSpy = vi.fn(async function* () {
   yield "这个梦在替你处理最近的紧绷。梦里被追，常常对应清醒时躲着的那件事。\n试着今晚把它写下来，写完就睡。";
 });
+const chatSpy = vi.fn(async () => "一个关于被追赶的梦");
 vi.mock("./client", () => ({
-  chat: vi.fn(),
+  chat: (...a: unknown[]) => chatSpy(...(a as [])),
   chatStream: (...a: unknown[]) => streamSpy(...(a as [])),
 }));
 
@@ -104,7 +105,7 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
 // ─── interpretDream（mock ./client，模式参照 spirit-chat.test.ts）────────────
 // mock 提到文件顶部会影响全文件 import，纯函数测试（上方）不依赖 ./client，不受影响。
 
-const { interpretDream } = await import("./dream");
+const { interpretDream, continueDreamReply, summarizeDreamEntry } = await import("./dream");
 const { computeUnifiedChart, BirthInputSchema } = await import("@eamvp/core");
 const dreamChart = computeUnifiedChart(BirthInputSchema.parse({ date: "1991-03-15", time: "14:30", gender: "male", latitude: 31.23, longitude: 121.47 }));
 const dreamConfig = { provider: "minimax", wire: "anthropic", baseUrl: "https://x/anthropic", model: "MiniMax-M3", apiKey: "sk-test", supportsJsonSchema: false } as never;
@@ -163,5 +164,106 @@ describe("interpretDream", () => {
     let out = "";
     for await (const c of interpretDream(chart, "我梦见坠落", { language: "zh", config })) out += c;
     expect(out).toContain("再说"); // fallback 文案
+  });
+});
+
+// ─── continueDreamReply（EP-dream-history 追问）────────────────────────────
+
+describe("continueDreamReply", () => {
+  const chart = dreamChart;
+  const config = dreamConfig;
+
+  it("空追问与超长追问直接抛错（不进 LLM）", async () => {
+    streamSpy.mockClear();
+    await expect(
+      continueDreamReply(chart, "我梦见坠落", [{ role: "spirit", content: "这个梦在处理坠落感。" }], "   ", { language: "zh", config }),
+    ).rejects.toThrow();
+    await expect(
+      continueDreamReply(chart, "我梦见坠落", [{ role: "spirit", content: "这个梦在处理坠落感。" }], "x".repeat(2001), { language: "zh", config }),
+    ).rejects.toThrow();
+    expect(streamSpy).not.toHaveBeenCalled();
+  });
+
+  it("重建首轮 prompt（梦原文+四拍规则）+ 接上 priorTurns + 追加本次追问，spirit/user 正确映射为 assistant/user", async () => {
+    streamSpy.mockClear();
+    streamSpy.mockImplementationOnce(async function* () {
+      yield "坠落常常和失控感有关，这和你说的换工作纠结可能相关。";
+    });
+    let out = "";
+    const priorTurns = [
+      { role: "spirit" as const, content: "这个梦在处理坠落感，可能对应最近的失控体验。" },
+      { role: "user" as const, content: "失控是指什么？" },
+      { role: "spirit" as const, content: "可能是节奏被打乱的那种感觉。" },
+    ];
+    const result = await continueDreamReply(chart, "我梦见坠落", priorTurns, "会不会跟换工作有关？", { language: "zh", config });
+    out = result.text;
+    const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+    expect(messages[0]!.content).toContain("解梦"); // system 仍含解梦硬规则
+    expect(messages[1]!.content).toContain("我梦见坠落"); // 首轮 prompt 重建了梦原文
+    expect(messages[2]).toEqual({ role: "assistant", content: priorTurns[0]!.content });
+    expect(messages[3]).toEqual({ role: "user", content: priorTurns[1]!.content });
+    expect(messages[4]).toEqual({ role: "assistant", content: priorTurns[2]!.content });
+    expect(messages[5]).toEqual({ role: "user", content: "会不会跟换工作有关？" });
+    expect(out).toContain("换工作纠结");
+  });
+
+  it("追问输出仍经过 sanitizeDream 后置链（无标注预言句被剥）", async () => {
+    streamSpy.mockClear();
+    streamSpy.mockImplementationOnce(async function* () {
+      yield "这和你提到的坠落感有关。梦见水预示着财运要来了。试着记下今晚的感受。";
+    });
+    const { text } = await continueDreamReply(
+      chart,
+      "我梦见坠落",
+      [{ role: "spirit", content: "这个梦在处理坠落感。" }],
+      "还有别的解读吗？",
+      { language: "zh", config },
+    );
+    expect(text).toContain("坠落感有关");
+    expect(text).toContain("记下今晚的感受");
+    expect(text).not.toContain("预示着财运");
+  });
+
+  it("整篇被剥空时给追问专属 fallback（<6 字触发，与初读 fallback 文案不同）", async () => {
+    streamSpy.mockClear();
+    streamSpy.mockImplementationOnce(async function* () {
+      yield "梦见蛇预示着灾祸。这将会发生。";
+    });
+    const { text } = await continueDreamReply(
+      chart,
+      "我梦见蛇",
+      [{ role: "spirit", content: "这个梦在处理某种警觉。" }],
+      "还有别的解读吗？",
+      { language: "zh", config },
+    );
+    expect(text).toContain("能再说说");
+  });
+});
+
+// ─── summarizeDreamEntry（EP-dream-history 列表摘要）───────────────────────
+
+describe("summarizeDreamEntry", () => {
+  const config = dreamConfig;
+
+  it("system 指令明确禁止逐字复述梦境原文（只能转述主题）", async () => {
+    chatSpy.mockClear();
+    await summarizeDreamEntry("我梦见被一只黑狗追，跑不动", "这个梦在处理坠落感。", { language: "zh", config });
+    const [, messages] = chatSpy.mock.calls.at(-1) as unknown as [unknown, { role: string; content: string }[]];
+    expect(messages[0]!.content).toContain("不逐字复述");
+    // 梦原文只出现在喂给模型的 user 消息里（模型输入侧允许看到，落库的是模型输出）
+    expect(messages[1]!.content).toContain("黑狗追");
+  });
+
+  it("返回值裁到 DREAM_SUMMARY_MAX_CHARS（160）并去除首尾引号", async () => {
+    chatSpy.mockImplementationOnce(async () => `「${"一个关于坠落的梦，".repeat(30)}」`);
+    const out = await summarizeDreamEntry("我梦见坠落", "这个梦在处理失控感。", { language: "zh", config });
+    expect(out.length).toBeLessThanOrEqual(160);
+    expect(out.startsWith("「")).toBe(false);
+  });
+
+  it("LLM 未配置时抛错（与 summarizeSpiritMemory 同一层错误处理约定，由调用方 action 兜底为 null）", async () => {
+    await expect(
+      summarizeDreamEntry("我梦见坠落", "这个梦在处理失控感。", { language: "zh", config: { ...config, apiKey: "" } }),
+    ).rejects.toThrow();
   });
 });

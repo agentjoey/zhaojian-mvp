@@ -56,6 +56,15 @@ export async function tgListMessages(): Promise<
   return (await r.json()).messages ?? [];
 }
 
+export async function tgListDreamHistory(): Promise<
+  { id: string; summary: string; createdAt: string }[]
+> {
+  await ensureTgSession();
+  const r = await fetch("/api/tg/dream", { credentials: "include" });
+  if (!r.ok) return [];
+  return (await r.json()).history ?? [];
+}
+
 export async function tgSpiritStream(
   messages: { role: "user" | "spirit"; content: string }[],
   onChunk: (s: string) => void

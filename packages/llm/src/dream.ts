@@ -4,9 +4,9 @@ import { deriveSpirit } from "@eamvp/core";
 import { extractFacts } from "./facts";
 import { sanitizeReading } from "./prompt";
 import { correctMutagens } from "./correct";
-import { chatStream, type ChatMessage } from "./client";
+import { chat, chatStream, type ChatMessage } from "./client";
 import { resolveLlmConfig, isLlmConfigured } from "./provider";
-import { buildSpiritSystemPrompt, stripSpiritScaffolding, type SpiritOptions } from "./spirit";
+import { buildSpiritSystemPrompt, stripSpiritScaffolding, type SpiritOptions, type SpiritTurn } from "./spirit";
 
 /**
  * 解梦后置机械扫描（EP-dream-01）——与 sanitizeFengshui 同层：确定性兜底，不依赖模型自觉。
@@ -74,6 +74,36 @@ const DREAM_RULES_EN = `
 - Nightmares or painful content: hold the feeling first, then interpret; no medical or psychological diagnosis.
 - Length: at most 7 sentences / 170 words (a target with margin — trim if over; shorter is better). At most ONE chart fact; do not end with a question by default.`;
 
+/** system 提示 + 首轮 user 消息（含命盘事实 + 梦原文）——generateDreamReply 与 continueDreamReply 共用，避免两处 prompt 措辞跑偏。 */
+function buildDreamPrompt(chart: UnifiedChart, dreamText: string, opts: SpiritOptions) {
+  const language = opts.language ?? "en";
+  const zh = language === "zh";
+  const persona = deriveSpirit(chart);
+  const facts = extractFacts(chart);
+  const system = buildSpiritSystemPrompt(persona, chart, language, opts) + (zh ? DREAM_RULES_ZH : DREAM_RULES_EN);
+  const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
+  const firstUser = zh
+    ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n对方讲述了一个梦：\n\n「${dreamText}」\n\n请以「本命之灵」的身份、用简体中文、按解梦规则回应这个梦。`
+    : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nThey shared a dream:\n\n"${dreamText}"\n\nRespond as their 本命之灵, following the dream-reading rules.`;
+  return { system, firstUser, language, zh };
+}
+
+/** 后置链共用：脚手架护栏 → sanitizeReading → sanitizeDream → correctMutagens → fallback。 */
+function finalizeDreamOutput(
+  raw: string,
+  language: ReadingLanguage,
+  chart: UnifiedChart,
+  fallbackText: string,
+): { text: string; stripped: string[] } {
+  let out = stripSpiritScaffolding(raw);
+  out = sanitizeReading(out, language, chart.western !== null);
+  const scan = sanitizeDream(out, language);
+  out = scan.text;
+  out = correctMutagens(out, chart.ziwei.birthMutagens).text;
+  if (out.length < 6) out = fallbackText;
+  return { text: out, stripped: scan.stripped };
+}
+
 /**
  * 解梦完整管线（EP-dream-01）：LLM 生成 → 脚手架护栏 → sanitizeReading → sanitizeDream → correctMutagens → fallback。
  * 返回净化后文本与 sanitizeDream 实际剥离的句子（探针据此报告真实剥离数，而非对成品重扫）。
@@ -85,39 +115,74 @@ export async function generateDreamReply(
 ): Promise<{ text: string; stripped: string[] }> {
   const cfg = opts.config ?? resolveLlmConfig();
   if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置：请设置 LLM_API_KEY。");
-  const language = opts.language ?? "en";
-  const zh = language === "zh";
   const dream = dreamText.trim();
   if (!dream) throw new Error("梦境内容为空");
   if (dream.length > DREAM_MAX_CHARS) throw new Error(`梦境内容过长（>${DREAM_MAX_CHARS} 字）`);
 
-  const persona = deriveSpirit(chart);
-  const facts = extractFacts(chart);
-  const system = buildSpiritSystemPrompt(persona, chart, language, opts) + (zh ? DREAM_RULES_ZH : DREAM_RULES_EN);
-  const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
-  const user = zh
-    ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n对方讲述了一个梦：\n\n「${dream}」\n\n请以「本命之灵」的身份、用简体中文、按解梦规则回应这个梦。`
-    : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nThey shared a dream:\n\n"${dream}"\n\nRespond as their 本命之灵, following the dream-reading rules.`;
-
+  const { system, firstUser, language, zh } = buildDreamPrompt(chart, dream, opts);
   const messages: ChatMessage[] = [
     { role: "system", content: system },
-    { role: "user", content: user },
+    { role: "user", content: firstUser },
   ];
 
   const stream = chatStream(cfg, messages, { signal: opts.signal, maxTokens: 700 });
   let all = "";
   for await (const chunk of stream) all += chunk;
 
-  let out = stripSpiritScaffolding(all);
-  out = sanitizeReading(out, language, chart.western !== null);
-  const scan = sanitizeDream(out, language);
-  out = scan.text;
-  out = correctMutagens(out, chart.ziwei.birthMutagens).text;
-  if (out.length < 6) {
-    out = zh ? "我在。这个梦先放在这里——再说一遍给我听，好吗？" : "I'm here. Let's set this dream down for a moment — tell it to me again?";
-  }
-  console.info(`[dream] model=${cfg.model} chars=${out.length} stripped=${scan.stripped.length}`);
-  return { text: out, stripped: scan.stripped };
+  const result = finalizeDreamOutput(
+    all,
+    language,
+    chart,
+    zh ? "我在。这个梦先放在这里——再说一遍给我听，好吗？" : "I'm here. Let's set this dream down for a moment — tell it to me again?",
+  );
+  console.info(`[dream] model=${cfg.model} chars=${result.text.length} stripped=${result.stripped.length}`);
+  return result;
+}
+
+/**
+ * 解梦追问（EP-dream-history）：同一次解梦对话内的多轮追问——system/首轮 prompt 与
+ * generateDreamReply 完全一致（解梦规则持续生效，追问不会跳出「不占卜」的护栏），
+ * 只是把已发生的对话（灵的首次解读 + 之后的往返）接着喂回去。
+ *
+ * `priorTurns` 从「灵的第一条解读」开始（不含用户的梦原文——梦原文由 dreamText 单独
+ * 传入，用来重建首轮 prompt），之后按 spirit/user 交替。这些对话只活在浏览器会话内、
+ * 随请求体传来即用即弃——服务端不落库（落库的只有 EP-dream-history 的摘要）。
+ */
+export async function continueDreamReply(
+  chart: UnifiedChart,
+  dreamText: string,
+  priorTurns: SpiritTurn[],
+  followUp: string,
+  opts: SpiritOptions = {},
+): Promise<{ text: string; stripped: string[] }> {
+  const cfg = opts.config ?? resolveLlmConfig();
+  if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置：请设置 LLM_API_KEY。");
+  const dream = dreamText.trim();
+  if (!dream) throw new Error("梦境内容为空");
+  const q = followUp.trim();
+  if (!q) throw new Error("追问内容为空");
+  if (q.length > DREAM_MAX_CHARS) throw new Error(`追问内容过长（>${DREAM_MAX_CHARS} 字）`);
+
+  const { system, firstUser, language, zh } = buildDreamPrompt(chart, dream, opts);
+  const messages: ChatMessage[] = [
+    { role: "system", content: system },
+    { role: "user", content: firstUser },
+    ...priorTurns.map((t): ChatMessage => ({ role: t.role === "user" ? "user" : "assistant", content: t.content })),
+    { role: "user", content: q },
+  ];
+
+  const stream = chatStream(cfg, messages, { signal: opts.signal, maxTokens: 700 });
+  let all = "";
+  for await (const chunk of stream) all += chunk;
+
+  const result = finalizeDreamOutput(
+    all,
+    language,
+    chart,
+    zh ? "我在。能再说说你想问的是哪部分吗？" : "I'm here. Could you say more about what you'd like to ask?",
+  );
+  console.info(`[dream:follow-up] model=${cfg.model} chars=${result.text.length} stripped=${result.stripped.length}`);
+  return result;
 }
 
 /**
@@ -131,4 +196,32 @@ export async function* interpretDream(
 ): AsyncGenerator<string> {
   const { text } = await generateDreamReply(chart, dreamText, opts);
   yield text;
+}
+
+/**
+ * 解梦历史条目摘要（EP-dream-history）：只为「最近 10 条」列表生成一句极简 gist，
+ * 与 summarizeSpiritMemory 同一条隐私红线（无 PII）但更严：不是转述关切，而是明确
+ * 禁止逐字复述梦境——spec §5.1「梦原文不落库」的边界是「原文」，摘要只能是第三人称
+ * 转述的主题句，读起来像一句标签，不是梦的副本。
+ */
+const DREAM_SUMMARY_MAX_CHARS = 160;
+
+export async function summarizeDreamEntry(
+  dreamText: string,
+  replyText: string,
+  opts: SpiritOptions = {},
+): Promise<string> {
+  const cfg = opts.config ?? resolveLlmConfig();
+  if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置：请设置 LLM_API_KEY。");
+  const zh = (opts.language ?? "en") === "zh";
+
+  const system = zh
+    ? `你在为一次「解梦」对话生成一句极简标签，供用户以后在历史列表里认出这是哪次解梦。规则：不超过 30 字；只能是第三人称转述的梦的主题（例如「一个关于坠落的梦」），绝不逐字复述梦境原文或引用具体细节；不含姓名、生日、坐标、具体地点等个人信息；不做吉凶/预言判断；只输出这一句话，不要引号、不要前缀。`
+    : `Write one ultra-short label (English, at most 15 words) so the user can later recognize this dream session in a history list. Rules: third-person paraphrase of the dream's theme ONLY (e.g. "a dream about falling") — never quote the dream verbatim or repeat specific details; no names, birthdates, coordinates, or exact locations; no fortune-telling/prediction language. Output only that one sentence — no quotes, no prefix.`;
+  const user = zh
+    ? `梦境（仅供你概括主题，不要逐字复述）：${dreamText.slice(0, 400)}\n\n灵的解读要点：${replyText.slice(0, 400)}`
+    : `Dream (summarize the theme only, do not quote it back): ${dreamText.slice(0, 400)}\n\nKey point from the interpretation: ${replyText.slice(0, 400)}`;
+
+  const raw = await chat(cfg, [{ role: "system", content: system }, { role: "user", content: user }], { signal: opts.signal, maxTokens: 80 });
+  return raw.trim().replace(/^["「『]|["」』]$/g, "").slice(0, DREAM_SUMMARY_MAX_CHARS);
 }

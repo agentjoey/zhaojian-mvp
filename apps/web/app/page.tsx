@@ -60,7 +60,7 @@ export default function Home() {
               style={{ opacity: 0.14 }}
             />
             <div className="zj-rise relative flex items-center gap-2.5">
-              <BellLogo size={26} />
+              <BellLogo size={26} motion="ring" ringKey={0} />
               <span className="font-serif text-[17px] font-bold tracking-[0.14em]">{t("common.brand")}</span>
             </div>
 

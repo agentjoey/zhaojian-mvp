@@ -1,4 +1,4 @@
-import { resolveLlmConfig, isLlmConfigured, interpretDream, DREAM_MAX_CHARS } from "@eamvp/llm";
+import { resolveLlmConfig, isLlmConfigured, interpretDream, continueDreamReply, DREAM_MAX_CHARS, type SpiritTurn } from "@eamvp/llm";
 import type { UnifiedChart } from "@eamvp/core";
 import { supabaseAdmin } from "@/lib/tg/admin";
 import { consumeLlm } from "@/lib/entitlements";
@@ -17,9 +17,14 @@ export async function POST(req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
   const chart = body?.chart as UnifiedChart | undefined;
   const dream = typeof body?.dream === "string" ? body.dream.trim() : "";
+  // EP-dream-history 追问：dream 仍是原始梦文本（用来重建首轮 prompt，见 continueDreamReply），
+  // followUp 是这一轮的新问题；priorTurns 是浏览器会话内持有的往返记录，不落库、随请求即用即弃。
+  const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
+  const priorTurns = (Array.isArray(body?.priorTurns) ? body.priorTurns : []).slice(-12) as SpiritTurn[];
   if (!chart) return new Response("缺少命盘 chart", { status: 400 });
   if (!dream) return new Response("缺少梦境 dream", { status: 400 });
   if (dream.length > DREAM_MAX_CHARS) return new Response("梦境过长", { status: 400 });
+  if (followUp && followUp.length > DREAM_MAX_CHARS) return new Response("追问过长", { status: 400 });
 
   const authHeader = req.headers.get("authorization");
   let userId: string | undefined;
@@ -40,13 +45,19 @@ export async function POST(req: Request): Promise<Response> {
   if (!gate.ok) return Response.json({ error: "paywall" }, { status: 402 });
 
   const language = localeFromRequest(req);
+  const opts = {
+    language,
+    memory: typeof body?.memory === "string" ? body.memory : undefined,
+    questionnaire: typeof body?.questionnaire === "string" ? body.questionnaire : undefined,
+  };
   try {
-    let out = "";
-    for await (const chunk of interpretDream(chart, dream, {
-      language,
-      memory: typeof body?.memory === "string" ? body.memory : undefined,
-      questionnaire: typeof body?.questionnaire === "string" ? body.questionnaire : undefined,
-    })) out += chunk;
+    let out: string;
+    if (followUp) {
+      out = (await continueDreamReply(chart, dream, priorTurns, followUp, opts)).text;
+    } else {
+      out = "";
+      for await (const chunk of interpretDream(chart, dream, opts)) out += chunk;
+    }
     return new Response(out, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   } catch (e) {
     return new Response(`⚠️ ${e instanceof Error ? e.message : String(e)}`, { status: 500 });
