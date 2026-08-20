@@ -132,8 +132,8 @@ describe("anchorKeyTerms", () => {
   });
 });
 
-describe("长答字数档（EP-dream-01 前置）", () => {
-  const longText = "字".repeat(200); // 200 字：超短答档 120，未超长答档 300
+describe("长答字数档（EP-dream-01 前置 + EP-dream-05 dreamMode 独立化）", () => {
+  const longText = "字".repeat(200); // 200 字：超短答档 120，未超 allowLong 长答档 300
 
   it("allowLong 同时放宽句数与字数（280 字梦解读不应误判违规）", () => {
     const v = checkVoice("字".repeat(280), { language: "zh", allowLong: true });
@@ -145,32 +145,69 @@ describe("长答字数档（EP-dream-01 前置）", () => {
     expect(v.some((x) => x.rule === "length")).toBe(true);
   });
 
-  it("默认档下 200 字被抓、dreamMode 下 200 字放行", () => {
+  it("默认档下 200 字被抓、allowLong 下 200 字放行", () => {
     expect(checkVoice(longText, { language: "zh" }).some((x) => x.rule === "length")).toBe(true);
-    expect(checkVoice(longText, { language: "zh", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
+    expect(checkVoice(longText, { language: "zh", allowLong: true }).filter((x) => x.rule === "length")).toEqual([]);
   });
 
-  it(`英文长答档：${VOICE_LIMITS.enWordsLong} 词放行、超一词被抓（allowLong / dreamMode 同档）`, () => {
+  it(`allowLong 英文长答档：${VOICE_LIMITS.enWordsLong} 词放行、超一词被抓`, () => {
     const atCap = Array(VOICE_LIMITS.enWordsLong).fill("word").join(" ") + ".";
     const overCap = Array(VOICE_LIMITS.enWordsLong + 1).fill("word").join(" ") + ".";
     expect(checkVoice(atCap, { language: "en", allowLong: true }).filter((x) => x.rule === "length")).toEqual([]);
-    expect(checkVoice(atCap, { language: "en", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
-    expect(checkVoice(overCap, { language: "en", dreamMode: true }).some((x) => x.rule === "length")).toBe(true);
-  });
-
-  it("dreamMode：8 句 300 字内放行，9 句抓", () => {
-    const eight = Array.from({ length: 8 }, (_, i) => `第${i + 1}句。`).join("");
-    expect(checkVoice(eight, { language: "zh", dreamMode: true }).filter((x) => x.rule === "sentence-count")).toEqual([]);
-    const nine = eight + "第九句。";
-    expect(checkVoice(nine, { language: "zh", dreamMode: true }).some((x) => x.rule === "sentence-count")).toBe(true);
-  });
-
-  it("dreamMode 下 280 字放行、301 字抓", () => {
-    expect(checkVoice("字".repeat(280), { language: "zh", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
-    expect(checkVoice("字".repeat(301), { language: "zh", dreamMode: true }).some((x) => x.rule === "length")).toBe(true);
+    expect(checkVoice(overCap, { language: "en", allowLong: true }).some((x) => x.rule === "length")).toBe(true);
   });
 
   it("默认短答档不变（回归）：121 字仍抓", () => {
     expect(checkVoice("字".repeat(121), { language: "zh" }).some((x) => x.rule === "length")).toBe(true);
+  });
+
+  describe("dreamMode：独立长度档（EP-dream-05，不再与 allowLong 共用 300/200）", () => {
+    it(`dreamMode 下 ${VOICE_LIMITS.zhCharsDream} 字放行、${VOICE_LIMITS.zhCharsDream + 1} 字抓`, () => {
+      expect(
+        checkVoice("字".repeat(VOICE_LIMITS.zhCharsDream), { language: "zh", dreamMode: true }).filter(
+          (x) => x.rule === "length",
+        ),
+      ).toEqual([]);
+      expect(
+        checkVoice("字".repeat(VOICE_LIMITS.zhCharsDream + 1), { language: "zh", dreamMode: true }).some(
+          (x) => x.rule === "length",
+        ),
+      ).toBe(true);
+    });
+
+    it(`dreamMode 下 ${VOICE_LIMITS.enWordsDream} 词放行、超一词被抓`, () => {
+      const atCap = Array(VOICE_LIMITS.enWordsDream).fill("word").join(" ") + ".";
+      const overCap = Array(VOICE_LIMITS.enWordsDream + 1).fill("word").join(" ") + ".";
+      expect(checkVoice(atCap, { language: "en", dreamMode: true }).filter((x) => x.rule === "length")).toEqual([]);
+      expect(checkVoice(overCap, { language: "en", dreamMode: true }).some((x) => x.rule === "length")).toBe(true);
+    });
+
+    it(`dreamMode：${VOICE_LIMITS.sentencesDream} 句放行，${VOICE_LIMITS.sentencesDream + 1} 句抓`, () => {
+      const n = VOICE_LIMITS.sentencesDream;
+      const atCap = Array.from({ length: n }, (_, i) => `第${i + 1}句。`).join("");
+      expect(checkVoice(atCap, { language: "zh", dreamMode: true }).filter((x) => x.rule === "sentence-count")).toEqual([]);
+      const overCap = atCap + "多一句。";
+      expect(checkVoice(overCap, { language: "zh", dreamMode: true }).some((x) => x.rule === "sentence-count")).toBe(true);
+    });
+
+    it("dreamMode 300 字（旧上限）不再是边界——现在应该放行，不是刚好卡线", () => {
+      // 这条直接锁定「dreamMode 不再借用 zhCharsLong=300」这件事：
+      // 改动前这个用例在 301 字时会被抓，改动后 300/301 字都该放行（新上限是 500）。
+      expect(checkVoice("字".repeat(301), { language: "zh", dreamMode: true }).filter((x) => x.rule === "length")).toEqual(
+        [],
+      );
+    });
+  });
+
+  describe("回归锁定：allowLong 与 dreamMode 现在是两个独立档位，互不影响", () => {
+    it("dreamMode 场景下 allowLong 的 300 字上限不生效（应放行到 500）", () => {
+      const v = checkVoice("字".repeat(301), { language: "zh", dreamMode: true });
+      expect(v.filter((x) => x.rule === "length")).toEqual([]);
+    });
+
+    it("allowLong 场景下 dreamMode 的 500 字上限不适用（301 字仍应在 allowLong 下被抓，因为 allowLong 上限还是 300）", () => {
+      const v = checkVoice("字".repeat(301), { language: "zh", allowLong: true });
+      expect(v.some((x) => x.rule === "length")).toBe(true);
+    });
   });
 });

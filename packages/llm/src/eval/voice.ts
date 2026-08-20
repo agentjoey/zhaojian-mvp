@@ -4,8 +4,8 @@ import type { ReadingLanguage } from "../prompt";
  * 风格回归检查器（EP-spirit-voice · C）—— 纯函数、无 LLM 依赖。
  *
  * 机械核对 buildSpiritSystemPrompt「How you speak」里的硬规则：
- *   1) 句数（默认 ≤3；对方明确要求展开时 ≤6；解梦场景 ≤8）
- *   2) 长度（中文 ≤120 字 / 英文 ≤80 词；allowLong 或 dreamMode 放宽到 ≤300 字 / ≤200 词）
+ *   1) 句数（默认 ≤3；对方明确要求展开时 ≤6；解梦场景 ≤12）
+ *   2) 长度（中文 ≤120 字 / 英文 ≤80 词；allowLong 放宽到 ≤300 字 / ≤200 词；dreamMode 独立放宽到 ≤500 字 / ≤320 词）
  *   3) 禁用词命中（中英双版清单 + 语气词堆砌）
  *   4) 问句结尾（默认不以问句收尾）
  *   5) 锚点事实复引（同一锚点关键词在上一轮灵回应里已出现过）
@@ -18,7 +18,7 @@ export type VoiceOptions = {
   language: ReadingLanguage;
   /** 对方明确要求展开（「详细说」「为什么」/"tell me more" 等）：6 句 + 长字数档 */
   allowLong?: boolean;
-  /** 解梦场景（显式展开）：8 句 + 长字数档（EP-dream） */
+  /** 解梦场景（显式展开）：12 句 + dream 独立字数档（500 字 / 320 词，EP-dream-05） */
   dreamMode?: boolean;
   /** 本轮之前灵已说过的回应（用于锚点事实复引检测） */
   previousSpiritReplies?: string[];
@@ -29,11 +29,13 @@ export type VoiceOptions = {
 export const VOICE_LIMITS = {
   sentencesShort: 3,
   sentencesLong: 6,
-  sentencesDream: 8,
+  sentencesDream: 12,
   zhChars: 120,
   enWords: 80,
   zhCharsLong: 300,
   enWordsLong: 200,
+  zhCharsDream: 500,
+  enWordsDream: 320,
 } as const;
 
 export const BANNED_ZH = [
@@ -95,7 +97,6 @@ export function checkVoice(text: string, opts: VoiceOptions): VoiceViolation[] {
     : opts.allowLong
       ? VOICE_LIMITS.sentencesLong
       : VOICE_LIMITS.sentencesShort;
-  const longChars = !!(opts.allowLong || opts.dreamMode);
 
   // 1) 句数
   if (sentences.length > maxSentences) {
@@ -108,13 +109,21 @@ export function checkVoice(text: string, opts: VoiceOptions): VoiceViolation[] {
   // 2) 长度
   if (zh) {
     const n = zhCharCount(text);
-    const maxChars = longChars ? VOICE_LIMITS.zhCharsLong : VOICE_LIMITS.zhChars;
+    const maxChars = opts.dreamMode
+      ? VOICE_LIMITS.zhCharsDream
+      : opts.allowLong
+        ? VOICE_LIMITS.zhCharsLong
+        : VOICE_LIMITS.zhChars;
     if (n > maxChars) {
       violations.push({ rule: "length", detail: `${n} 字，超过上限 ${maxChars} 字` });
     }
   } else {
     const n = enWordCount(text);
-    const maxWords = longChars ? VOICE_LIMITS.enWordsLong : VOICE_LIMITS.enWords;
+    const maxWords = opts.dreamMode
+      ? VOICE_LIMITS.enWordsDream
+      : opts.allowLong
+        ? VOICE_LIMITS.enWordsLong
+        : VOICE_LIMITS.enWords;
     if (n > maxWords) {
       violations.push({ rule: "length", detail: `${n} words, over the ${maxWords}-word cap` });
     }

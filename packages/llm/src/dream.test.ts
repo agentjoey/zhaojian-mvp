@@ -136,10 +136,42 @@ describe("interpretDream", () => {
     const user = messages.at(-1)!.content;
     expect(user).toContain("我梦见被一个人追");
     expect(messages[0]!.content).toContain("解梦"); // 硬规则块在系统提示
-    expect(callOpts.maxTokens).toBeLessThanOrEqual(700);
+    // ⚠️ 精确上界：500 字中文按当前模型 tokenizer 粗估需要 ~900-1100 token，
+    // 700 会截断深化后的输出（这正是本轮要修的截断风险，原为 700 对应旧的 300 字上限）
+    expect(callOpts.maxTokens).toBeLessThanOrEqual(1200);
+    expect(callOpts.maxTokens).toBeGreaterThanOrEqual(900); // 也不能收得过紧，否则 12 句上限会被截断
     expect(out).toContain("紧绷"); // mock 输出经后置链后保留正文
     expect(out).toContain("写完就睡");
     expect(out).not.toContain("预示着财运"); // 闸门真的在：无标注预言句被剥（删掉 sanitizeDream 调用本测试必红）
+  });
+
+  it("beat② 方法论、文风反例、新长度数字都写进了系统提示（EP-dream-05）", async () => {
+    streamSpy.mockClear();
+    for await (const _ of interpretDream(chart, "我梦见坠落", { language: "zh", config })) { /* drain */ }
+    const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+    const sys = messages[0]!.content;
+    // beat② 方法论：投射式提问，不是符号查表
+    expect(sys).toContain("投射");
+    expect(sys).toContain("文化通识");
+    // 文风反例（抽象描述，不展示字面句式——字面反例会 priming 模型照写，人工读样实证）
+    expect(sys).toContain("对照句式");
+    expect(sys).toContain("近义词并排");
+    // 新长度数字（旧数字 260/300/170/200/7/8 不应再出现在解梦规则块里）
+    expect(sys).toContain("12 句");
+    expect(sys).toContain("500 字");
+    expect(sys).not.toContain("260 字");
+    expect(sys).not.toContain("300 字");
+  });
+
+  it("英文路径同样含方法论与反例关键词（EP-dream-05）", async () => {
+    streamSpy.mockClear();
+    for await (const _ of interpretDream(chart, "I dreamt of falling", { language: "en", config })) { /* drain */ }
+    const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+    const sys = messages[0]!.content;
+    expect(sys).toContain("projection");
+    expect(sys).toMatch(/negating/i);
+    expect(sys).toContain("12 sentences");
+    expect(sys).toContain("320 words");
   });
 
   it("memory/questionnaire 注入系统提示（spec §6：解梦锚人不锚梦，可变上下文进系统提示）", async () => {
@@ -197,13 +229,18 @@ describe("continueDreamReply", () => {
     ];
     const result = await continueDreamReply(chart, "我梦见坠落", priorTurns, "会不会跟换工作有关？", { language: "zh", config });
     out = result.text;
-    const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+    const [messages, callOpts] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[], { maxTokens: number }];
     expect(messages[0]!.content).toContain("解梦"); // system 仍含解梦硬规则
     expect(messages[1]!.content).toContain("我梦见坠落"); // 首轮 prompt 重建了梦原文
     expect(messages[2]).toEqual({ role: "assistant", content: priorTurns[0]!.content });
     expect(messages[3]).toEqual({ role: "user", content: priorTurns[1]!.content });
     expect(messages[4]).toEqual({ role: "assistant", content: priorTurns[2]!.content });
     expect(messages[5]).toEqual({ role: "user", content: "会不会跟换工作有关？" });
+    // EP-dream-05 合并修复：追问和首轮共用同一套 12 句/500 字目标，maxTokens 也必须同步
+    // 到 1200——这个函数是 kimi 的 feat/dream-revision 创建时还不存在的新增函数，
+    // git 的按行 merge 不会自动把 700→1200 应用到这里，必须显式锁定防止再漏改。
+    expect(callOpts.maxTokens).toBeGreaterThanOrEqual(900);
+    expect(callOpts.maxTokens).toBeLessThanOrEqual(1200);
     expect(out).toContain("换工作纠结");
   });
 
