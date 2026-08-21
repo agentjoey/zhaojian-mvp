@@ -57,7 +57,7 @@ export async function tgListMessages(): Promise<
 }
 
 export async function tgListDreamHistory(): Promise<
-  { id: string; summary: string; createdAt: string }[]
+  { id: string; summary: string; fullText: string | null; createdAt: string }[]
 > {
   await ensureTgSession();
   const r = await fetch("/api/tg/dream", { credentials: "include" });

@@ -152,6 +152,26 @@ describe("EP-dream-history 追问：followUp/priorTurns", () => {
     expect(interpretDreamSpy).not.toHaveBeenCalled();
     expect(continueDreamReplySpy).not.toHaveBeenCalled();
   });
+
+  it("EP-dream-history-2 续接历史：不带 dream，只带 followUp+priorTurns → continueDreamReply 收到 dreamText=undefined", async () => {
+    const priorTurns = [{ role: "spirit", content: "这个梦在处理坠落感（历史里存的解读全文）。" }];
+    const res = await POST(req({ chart: CHART, followUp: "会不会跟换工作有关？", priorTurns }, "tok"));
+    expect(res.status).toBe(200);
+    expect(continueDreamReplySpy).toHaveBeenCalledWith(
+      CHART,
+      undefined,
+      priorTurns,
+      "会不会跟换工作有关？",
+      expect.objectContaining({ language: "zh" }),
+    );
+  });
+
+  it("不带 dream、也不带 followUp → 400（首次解读必须有梦原文）", async () => {
+    const res = await POST(req({ chart: CHART }, "tok"));
+    expect(res.status).toBe(400);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("EP-account2-05：/api/spirit/dream 同一处闸门漏洞", () => {

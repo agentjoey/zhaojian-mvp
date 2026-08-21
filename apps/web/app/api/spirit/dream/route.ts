@@ -16,14 +16,19 @@ export async function POST(req: Request): Promise<Response> {
 
   const body = await req.json().catch(() => ({}));
   const chart = body?.chart as UnifiedChart | undefined;
-  const dream = typeof body?.dream === "string" ? body.dream.trim() : "";
-  // EP-dream-history 追问：dream 仍是原始梦文本（用来重建首轮 prompt，见 continueDreamReply），
+  // EP-dream-history 追问：dream 是原始梦文本（用来重建首轮 prompt，见 continueDreamReply），
   // followUp 是这一轮的新问题；priorTurns 是浏览器会话内持有的往返记录，不落库、随请求即用即弃。
+  // EP-dream-history-2 续接历史：dream 不传（undefined）——没有梦原文，priorTurns[0] 就是
+  // 历史里存的解读全文，continueDreamReply 据此跳过首轮「对方讲述了一个梦」的重建。
+  const dreamRaw = typeof body?.dream === "string" ? body.dream.trim() : undefined;
   const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
   const priorTurns = (Array.isArray(body?.priorTurns) ? body.priorTurns : []).slice(-12) as SpiritTurn[];
   if (!chart) return new Response("缺少命盘 chart", { status: 400 });
-  if (!dream) return new Response("缺少梦境 dream", { status: 400 });
-  if (dream.length > DREAM_MAX_CHARS) return new Response("梦境过长", { status: 400 });
+  if (!followUp) {
+    // 首次解读：必须有梦原文。追问（含续接历史）时 dream 可选。
+    if (!dreamRaw) return new Response("缺少梦境 dream", { status: 400 });
+  }
+  if (dreamRaw && dreamRaw.length > DREAM_MAX_CHARS) return new Response("梦境过长", { status: 400 });
   if (followUp && followUp.length > DREAM_MAX_CHARS) return new Response("追问过长", { status: 400 });
 
   const authHeader = req.headers.get("authorization");
@@ -53,10 +58,10 @@ export async function POST(req: Request): Promise<Response> {
   try {
     let out: string;
     if (followUp) {
-      out = (await continueDreamReply(chart, dream, priorTurns, followUp, opts)).text;
+      out = (await continueDreamReply(chart, dreamRaw, priorTurns, followUp, opts)).text;
     } else {
       out = "";
-      for await (const chunk of interpretDream(chart, dream, opts)) out += chunk;
+      for await (const chunk of interpretDream(chart, dreamRaw as string, opts)) out += chunk;
     }
     return new Response(out, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   } catch (e) {

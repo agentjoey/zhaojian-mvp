@@ -29,15 +29,16 @@
 ## 🟡 MED（风水遗留）
 - [x] ~~**[EP-fs-wave2] 风水波2 · Layer 1 住宅实盘**~~ —— **2026-08-16 交付**（12 task，每 task 独立评审 + 最终全分支评审）。`dwellings` / `fengshui_reports` 表（迁移 0011，已 apply 生产）、宅卦、多住客合看、租房过滤、会员闸门、物件顾问强版。
 
-- [ ] **[EP-fs-debt] 风水技术债**（逐条已按当前代码核对，2026-08-16）
-  - `corrections` 到 route 边界即丢弃、**无日志**——`degraded` 布尔量会随 JSON body 传到页面并触发降级 UI，但被纠正的具体内容不落任何日志。该失败模式会自我掩盖，建议 `degraded` 时 `console.warn` 出 corrections。**仍未做。**
-  - `ObjectQuery.color` 收下但从不读取（要么接 `ELEMENT_COLORS`，要么连同死 i18n 键一起删）。**仍未做。**
-  - `sessionStorage` 未补 polyfill（与 `localStorage` 同一个 Node 22+ 问题，会绊倒未来给 account/calendar 页写的测试）。**仍未做。**
-  - 重试无次数上限（每次 1600 token）；死 i18n 键待清理。**仍未做。**
+- [x] ~~**[EP-fs-debt] 风水技术债**~~（逐条已按当前代码核对；2026-08-21 收尾——跳过「强版物件顾问强弱版」产品决策项，其余全部处理）
+  - ✅ `corrections` 到 route 边界即丢弃、无日志——`apps/web/lib/fengshui-reading.ts` 的 `generateFengshuiSections` 现在 `degraded` 时 `console.warn` 打出实际 corrections 数组（两条路由 web/TG 共用这一处，一次修复覆盖两边）。补了单测 + mutation 复验。
+  - ✅ `ObjectQuery.color` 收下但从不读取——查证是**全链路死字段**：不只是顾问逻辑没读，表单本身也从没收集/发送过这个字段，i18n 键 `fengshui.object.color` 也是零引用的死键。不是「接 ELEMENT_COLORS」而是直接删（`packages/core/src/fengshui/object-advisor.ts` 的 `ObjectQuery` 类型 + zh.ts/en.ts 两条键），zh/en 键结构一致性测试仍绿。
+  - ✅ `sessionStorage` 未补 polyfill——**查证后发现不是真问题**：当前 Node 25 + vitest jsdom 组合下 `sessionStorage` 的原生 accessor 就是 jsdom 真实实现（未被 Node 的实验性 webstorage 顶掉，与 `localStorage` 的情况不同），今天新写的 `dream`/`auth/callback` 页 sessionStorage 相关测试全部无需 polyfill 直接通过。不加不必要的兜底代码，仅记录这条结论。
+  - ⚠️ **重试无次数上限（每次 1600 token）——查无实据，需要 owner 澄清**：`generateFengshuiReading` 只有一次 `chat()` 调用，走的是共享 `withRetry` 客户端（已有上限，`retries ?? 2`）；页面上"重试"相关代码全是用户点击触发的手动按钮，不是自动无上限循环。没能在当前代码里找到这条描述的行为——可能是这条本身已经在某次修复里解决了，也可能你观察到的其实是"用户可以无限次手动点重试按钮、没有冷却"（跟"自动重试无上限"是两个不同量级的问题）。需要你确认具体是哪种，再决定要不要修、修什么。
+  - ⚠️ **死 i18n 键——只确认了一个，其余不可信**：机械提取 `fengshui.*` 全部键路径去比对引用的方法有大量假阳性（子命名空间的叶子键名会被误判成顶层键）。唯一独立交叉验证过的死键是 `fengshui.group.*`（`east`/`west`，东四命/西四命群组标签）——但这个键留着**不是遗漏清理**，是它明确要留给 `EP-fs-en` 去接线（那边的英文侧修复计划里第一步就是把它接上，不是删掉），所以本轮没动它。
   - ~~`Remedy.tenancy` 端到端是死字段~~ —— **波2 已接通**：`sortRemedies(list, {tenancy})` 按租住/自有排序，`page.tsx` 真的传了 `dwelling.tenancy`。
-  - **[新增] `TG_ENTRIES` 完全没有 flag 门控**——`app/page.tsx` 的 TG 入口列表里「灵」是无条件显示的，而 `AppShell.NAV` 里它受 `NEXT_PUBLIC_SPIRIT_ENABLED` 门控。今天无用户可见问题（spirit flag 线上开着），但关掉 spirit 后 TG 用户仍会看到入口、点进去是「未启用」页。风水项已按正确方式门控，spirit 项未动（改它会变更线上行为）。
-  - **[新增] `/fengshui` 硬取 `dwellings[0]`，无多居所切换器**。多居所付费墙已在最终评审中撤除（为零可观察产出收费不可辩护）。日后做切换器需**同时**新建服务端写入路由——`createDwelling` 是浏览器直写 Supabase，届时任何纯客户端闸门都可绕过。
-  - **[新增·产品未决] 强版物件顾问对约一半会员零价值**——八宅结构决定 `命卦吉方 ∩ 宅卦吉方` 只可能是 4 或 0，故强弱两版推荐方位逐字节相同，唯一差异是 `dwellingNote` 一句话且只在异组时出现；8 个朝向里 4 个是同组。选项：①并入免费层，会员靠 Layer 1 撑 ②回 core 重新设计 `adviseObject` ③维持现状。
+  - ~~`TG_ENTRIES` 完全没有 flag 门控（灵）~~ —— **已修复**：`app/page.tsx` 的 TG 入口列表「灵」补上 `NEXT_PUBLIC_SPIRIT_ENABLED` 门控，与 `AppShell.NAV` 一致；补了开/关两条回归测试 + mutation 复验。
+  - `/fengshui` 硬取 `dwellings[0]`，无多居所切换器——**未处理，非本轮技术债范畴，是延后的新功能**。多居所付费墙已在最终评审中撤除（为零可观察产出收费不可辩护）。日后做切换器需**同时**新建服务端写入路由——`createDwelling` 是浏览器直写 Supabase，届时任何纯客户端闸门都可绕过。
+  - **[产品未决，本轮按 owner 指示跳过] 强版物件顾问对约一半会员零价值**——八宅结构决定 `命卦吉方 ∩ 宅卦吉方` 只可能是 4 或 0，故强弱两版推荐方位逐字节相同，唯一差异是 `dwellingNote` 一句话且只在异组时出现；8 个朝向里 4 个是同组。选项：①并入免费层，会员靠 Layer 1 撑 ②回 core 重新设计 `adviseObject` ③维持现状。
 
 ## ⏸️ 已设计·MVP 后实施
 - [ ] [EP-concurrency] 并发架构（多用户 & LLM 并发）。设计完成 `docs/specs/concurrency-architecture.md`。触发条件：接近 MiniMax 上限或峰值并发上升。MiniMax-M3 限额（官方查证）：**RPM 200 / TPM 10M**（TPS/并发未公布）→ RPM 200 是硬约束、TPM 不是瓶颈；MVP 不会触顶。落地序：Tier0(Fluid Compute+maxDuration+单飞) → Tier1(全局信号量/AI Gateway) → Tier2(异步队列+Realtime)。

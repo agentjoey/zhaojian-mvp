@@ -108,3 +108,39 @@ describe("/auth/callback：EP-account-login 匿名数据合并", () => {
     expect(sessionStorage.getItem("zj_merged")).toBeNull();
   });
 });
+
+describe("/auth/callback：EP-auth-return ?next= 回跳", () => {
+  it("URL 带 ?next=/dream（无 bind）→ 跳回 /dream 而不是 /account", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    await renderCallback("?next=/dream");
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/dream"));
+  });
+
+  it("bind 分支优先于 next——两者都带时走 bind（bind 需要知情同意确认屏，不能被 next 绕过）", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    await renderCallback("?bind=abc123&next=/dream");
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/account?bind=abc123"));
+  });
+
+  it("有暂存匿名 token 时，next 回跳与合并互不影响——先合并再跳 next", async () => {
+    localStorage.setItem(ANON_MERGE_TOKEN_KEY, "anon-tok");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ merged: 1 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await renderCallback("?next=/dream");
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/dream"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/account/merge-anon", expect.anything());
+    expect(sessionStorage.getItem("zj_merged")).toBe("1");
+  });
+
+  it("?next=//evil.com（协议相对地址）→ 拒绝，落回默认 /account（防 open redirect）", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    await renderCallback("?next=" + encodeURIComponent("//evil.com"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/account"));
+  });
+
+  it("?next=https://evil.com（绝对地址）→ 拒绝，落回默认 /account", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    await renderCallback("?next=" + encodeURIComponent("https://evil.com"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/account"));
+  });
+});

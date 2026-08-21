@@ -32,11 +32,13 @@ export async function POST(req: Request): Promise<Response> {
   if (!profile) return new Response("无档案", { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const dream = typeof body?.dream === "string" ? body.dream.trim() : "";
+  // EP-dream-history-2 续接历史：dream 不传（undefined）——priorTurns[0] 就是历史里
+  // 存的解读全文，continueDreamReply 据此跳过首轮梦原文重建。
+  const dreamRaw = typeof body?.dream === "string" ? body.dream.trim() : undefined;
   const followUp = typeof body?.followUp === "string" ? body.followUp.trim() : "";
   const priorTurns = (Array.isArray(body?.priorTurns) ? body.priorTurns : []).slice(-12) as SpiritTurn[];
-  if (!dream) return new Response("缺少梦境 dream", { status: 400 });
-  if (dream.length > DREAM_MAX_CHARS) return new Response("梦境过长", { status: 400 });
+  if (!followUp && !dreamRaw) return new Response("缺少梦境 dream", { status: 400 });
+  if (dreamRaw && dreamRaw.length > DREAM_MAX_CHARS) return new Response("梦境过长", { status: 400 });
   if (followUp && followUp.length > DREAM_MAX_CHARS) return new Response("追问过长", { status: 400 });
 
   if (!(await consumeQuota(s.tgId))) return Response.json({ error: "quota" }, { status: 402 });
@@ -51,18 +53,19 @@ export async function POST(req: Request): Promise<Response> {
   try {
     let out: string;
     if (followUp) {
-      out = (await continueDreamReply(profile.chart, dream, priorTurns, followUp, opts)).text;
+      out = (await continueDreamReply(profile.chart, dreamRaw, priorTurns, followUp, opts)).text;
     } else {
       out = "";
-      for await (const chunk of interpretDream(profile.chart, dream, opts)) out += chunk;
+      for await (const chunk of interpretDream(profile.chart, dreamRaw as string, opts)) out += chunk;
     }
 
     // fire-and-forget：记忆提炼（spec §4「记忆」行）。只存摘要，梦原文不进 spirit_memory。
+    // 续接历史场景 dreamRaw 为 undefined——降级用空串，记忆摘要质量打折但不阻断响应。
     (async () => {
       try {
         const summary = await summarizeSpiritMemory(
           [
-            { role: "user", content: dream },
+            { role: "user", content: dreamRaw ?? "" },
             { role: "spirit", content: out },
           ],
           mem ?? undefined,
@@ -74,12 +77,13 @@ export async function POST(req: Request): Promise<Response> {
       }
     })();
 
-    // fire-and-forget：EP-dream-history 列表摘要。只在首次解读写一条（追问不重复写）。
+    // fire-and-forget：EP-dream-history 列表摘要+解读全文。只在首次解读写一条（追问不重复写）。
     if (!followUp) {
+      const dream = dreamRaw as string;
       (async () => {
         try {
           const entrySummary = await summarizeDreamEntry(dream, out, { language });
-          if (entrySummary) await appendDreamHistory(profile.id, entrySummary);
+          if (entrySummary) await appendDreamHistory(profile.id, entrySummary, out);
         } catch {
           // 历史条目丢一条不影响本次解读已成功返回
         }

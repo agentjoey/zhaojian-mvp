@@ -43,10 +43,12 @@ const SHAPE_ELEMENT: Record<string, string> = {
   方: "土", 扁平: "土", 圆: "金", 弧形: "金", 波浪: "水", 不规则: "水",
 };
 
+// EP-fs-debt：`color?` 曾经在这里，全链路（表单/顾问逻辑/i18n）都没有任何一处
+// 真正读它——不是"顾问逻辑漏读"，是从没有任何东西写过它，纯粹的死字段，删掉
+// （连同 i18n 里 `fengshui.object.color` 一起，见 zh.ts/en.ts）。
 export type ObjectQuery = {
   category: ObjectCategory;
   material?: string;
-  color?: string;
   shape?: string;
   intendedDirection?: Direction;
 };

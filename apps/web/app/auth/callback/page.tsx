@@ -54,7 +54,11 @@ export default function AuthCallbackPage() {
               // 设备上的匿名数据（同 TG 合并路径失败时的既有容错策略）。
             }
           }
-          router.replace("/account");
+          // EP-auth-return：从 /dream 这类「先干活再要求登录」的页面带 ?next=
+          // 过来时，登录后应该送回那一页，而不是永远落回 /account。只接受同源
+          // 相对路径（拒绝 "//evil.com" 这类协议相对地址），防 open redirect。
+          const next = new URLSearchParams(window.location.search).get("next");
+          router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/account");
           return;
         }
         await new Promise((r) => setTimeout(r, 500));

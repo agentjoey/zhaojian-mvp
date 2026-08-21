@@ -92,5 +92,12 @@ export async function generateFengshuiSections(
     })),
   });
   const r = await generateFengshuiReading(fs, { language, nickname: birth.nickname });
+  // EP-fs-debt：corrections 此前到这里就丢了、连日志都没有——`degraded` 布尔量传到
+  // 页面触发降级 UI，但被纠正的具体内容（模型把哪个方位说成了哪颗星、正确是哪颗）
+  // 完全没地方看，这个失败模式会自我掩盖。两条路由（web/TG）共用这个函数，日志加
+  // 这一处即可覆盖两边。
+  if (r.degraded) {
+    console.warn("[fengshui] direction corrections applied:", r.corrections);
+  }
   return { sections: r.sections, degraded: r.degraded };
 }

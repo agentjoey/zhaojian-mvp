@@ -436,7 +436,6 @@ export const zh = {
       subtitle: "说说物件，给你落位建议",
       category: "品类",
       material: "材质",
-      color: "颜色",
       shape: "造型",
       intendedDirection: "打算放在",
       unspecified: "不指定",

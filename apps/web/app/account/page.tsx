@@ -58,6 +58,19 @@ export default function AccountPage() {
   const [deleteChecked, setDeleteChecked] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // EP-auth-return：从别的页面（如 /dream 的 needLogin 引导条）带 ?next= 过来时，
+  // 登录成功后应该送回那一页，而不是永远落在 /account。只接受同源相对路径
+  // （拒绝 "//evil.com" 这类协议相对地址），防 open redirect。
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  useEffect(() => {
+    // setState 放进异步体而不是 effect 同步段：同步 setState 会触发
+    // react-hooks/set-state-in-effect（本仓库把它降为 warn 但不接受新增，见
+    // 下方 bind 的 effect 同一处理）。
+    (async () => {
+      const raw = new URLSearchParams(window.location.search).get("next");
+      if (raw && raw.startsWith("/") && !raw.startsWith("//")) setNextPath(raw);
+    })();
+  }, []);
 
   /**
    * 邮箱绑定确认屏（重设计）：用户点了验证邮件、/auth/callback 把 nonce 转到
@@ -267,7 +280,7 @@ export default function AccountPage() {
     setStatus("sending");
     const isAnon = view.kind === "anon" && !!view.user?.isAnonymous;
     if (!isAnon) {
-      const result = await signInWithEmail(email);
+      const result = await signInWithEmail(email, undefined, nextPath ?? undefined);
       if (result.ok) setStatus("sent");
       else setStatus({ error: result.error });
       return;
@@ -276,7 +289,7 @@ export default function AccountPage() {
     const { data: sessionData } = await supabase().auth.getSession();
     const anonToken = sessionData.session?.access_token;
 
-    const upgraded = await upgradeAnonymousToEmail(email);
+    const upgraded = await upgradeAnonymousToEmail(email, nextPath ?? undefined);
     if (upgraded.ok) {
       setStatus("sent");
       return;
@@ -285,7 +298,7 @@ export default function AccountPage() {
     // upgrade 失败——大概率是邮箱已属于别的账号。退回真正的登录，让用户能进
     // 自己的账号；先存好这台设备的匿名 token 供 callback 合并数据。
     if (anonToken) localStorage.setItem(ANON_MERGE_TOKEN_KEY, anonToken);
-    const signedIn = await signInWithEmail(email);
+    const signedIn = await signInWithEmail(email, undefined, nextPath ?? undefined);
     if (signedIn.ok) {
       setStatus("sent");
     } else {

@@ -428,7 +428,6 @@ export const en: Messages = {
       subtitle: "Tell us about the piece and we'll suggest where it fits",
       category: "Category",
       material: "Material",
-      color: "Color",
       shape: "Shape",
       intendedDirection: "Planned placement",
       unspecified: "No preference",

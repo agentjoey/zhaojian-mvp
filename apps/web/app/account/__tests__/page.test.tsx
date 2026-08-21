@@ -98,7 +98,7 @@ describe("EP-account-login：换设备用已注册邮箱登录", () => {
     await renderAccountPage();
     await fillAndSubmit();
 
-    await waitFor(() => expect(upgradeAnonymousToEmailMock).toHaveBeenCalledWith("existing@example.com"));
+    await waitFor(() => expect(upgradeAnonymousToEmailMock).toHaveBeenCalledWith("existing@example.com", undefined));
     expect(signInWithEmailMock).not.toHaveBeenCalled();
     expect(localStorage.getItem(ANON_MERGE_TOKEN_KEY)).toBeNull();
     expect(await screen.findByText("已发送，请查收邮件中的登录链接")).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe("EP-account-login：换设备用已注册邮箱登录", () => {
     await renderAccountPage();
     await fillAndSubmit();
 
-    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com"));
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, undefined));
     // 退回登录前已经存好匿名 token（不依赖 upgrade 报错文案，任何失败都退回）
     expect(localStorage.getItem(ANON_MERGE_TOKEN_KEY)).toBe("anon-tok-1");
     expect(await screen.findByText("已发送，请查收邮件中的登录链接")).toBeInTheDocument();
@@ -139,8 +139,73 @@ describe("EP-account-login：换设备用已注册邮箱登录", () => {
     await renderAccountPage();
     await fillAndSubmit();
 
-    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com"));
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, undefined));
     expect(upgradeAnonymousToEmailMock).not.toHaveBeenCalled();
     expect(localStorage.getItem(ANON_MERGE_TOKEN_KEY)).toBeNull();
+  });
+});
+
+describe("EP-auth-return：?next= 回跳参数透传", () => {
+  beforeEach(() => {
+    hasTgSessionMock.mockReturnValue(false);
+  });
+
+  function stubSearch(search: string) {
+    Object.defineProperty(window, "location", { value: { ...window.location, search }, writable: true });
+  }
+
+  async function fillAndSubmit(email = "existing@example.com") {
+    const input = await screen.findByLabelText("邮箱地址");
+    fireEvent.change(input, { target: { value: email } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("发送登录链接"));
+    });
+  }
+
+  it("URL 带 ?next=/dream → signInWithEmail 收到 next，让 /auth/callback 能送回 /dream", async () => {
+    stubSearch("?next=/dream");
+    getWebUserMock.mockResolvedValue(null);
+    signInWithEmailMock.mockResolvedValue({ ok: true });
+
+    await renderAccountPage();
+    await fillAndSubmit();
+
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, "/dream"));
+  });
+
+  it("匿名设备退回登录分支同样带上 next", async () => {
+    stubSearch("?next=/dream");
+    getWebUserMock.mockResolvedValue({ id: "anon1", email: null, isAnonymous: true });
+    getSessionMock.mockResolvedValue({ data: { session: { access_token: "anon-tok-1" } } });
+    upgradeAnonymousToEmailMock.mockResolvedValue({ ok: false, error: "taken" });
+    signInWithEmailMock.mockResolvedValue({ ok: true });
+
+    await renderAccountPage();
+    await fillAndSubmit();
+
+    await waitFor(() => expect(upgradeAnonymousToEmailMock).toHaveBeenCalledWith("existing@example.com", "/dream"));
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, "/dream"));
+  });
+
+  it("?next=//evil.com（协议相对地址）→ 拒绝，不当作合法回跳目标透传", async () => {
+    stubSearch("?next=" + encodeURIComponent("//evil.com"));
+    getWebUserMock.mockResolvedValue(null);
+    signInWithEmailMock.mockResolvedValue({ ok: true });
+
+    await renderAccountPage();
+    await fillAndSubmit();
+
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, undefined));
+  });
+
+  it("?next=https://evil.com（绝对地址）→ 拒绝，不透传", async () => {
+    stubSearch("?next=" + encodeURIComponent("https://evil.com"));
+    getWebUserMock.mockResolvedValue(null);
+    signInWithEmailMock.mockResolvedValue({ ok: true });
+
+    await renderAccountPage();
+    await fillAndSubmit();
+
+    await waitFor(() => expect(signInWithEmailMock).toHaveBeenCalledWith("existing@example.com", undefined, undefined));
   });
 });

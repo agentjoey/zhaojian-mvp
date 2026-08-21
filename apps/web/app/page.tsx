@@ -33,7 +33,11 @@ const CARDS = [{ id: "east" as const }, { id: "west" as const }, { id: "resonanc
 const TG_ENTRIES = [
   { icon: "运", accent: "var(--color-cinnabar)", key: "calendar" as const, path: "/calendar" },
   { icon: "盘", accent: "var(--color-water)", key: "chart" as const, path: "/chart" },
-  { icon: "灵", accent: "var(--color-metal)", key: "spirit" as const, path: "/spirit" },
+  // EP-fs-debt：此前「灵」在这里无条件显示，而 AppShell.NAV 的「灵」受
+  // NEXT_PUBLIC_SPIRIT_ENABLED 门控——两处门控条件必须一致（CLAUDE.md 的教训）。
+  ...(process.env.NEXT_PUBLIC_SPIRIT_ENABLED === "1"
+    ? [{ icon: "灵", accent: "var(--color-metal)", key: "spirit" as const, path: "/spirit" }]
+    : []),
   ...(process.env.NEXT_PUBLIC_FENGSHUI_ENABLED === "1"
     ? [{ icon: "境", accent: "var(--color-earth)", key: "fengshui" as const, path: "/fengshui" }]
     : []),

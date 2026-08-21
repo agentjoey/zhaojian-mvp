@@ -41,13 +41,29 @@ export async function getWebUser(): Promise<{ id: string; email: string | null; 
   return { id: data.user.id, email: data.user.email ?? null, isAnonymous: !!data.user.is_anonymous };
 }
 
+/**
+ * EP-auth-return：登录邮件里的回跳地址支持多个可选参数（`bind` 绑定 nonce /
+ * `next` 登录后送回的原页面），字符串拼接一旦要同时带两个就容易拼错——统一
+ * 走 `URLSearchParams`。两者目前互斥（`bind` 只在 `handleLinkEmail` 走，`next`
+ * 只在 `handleSendLink` 走），但共用一个 builder 更不容易在将来加第三个参数时
+ * 再犯字符串拼接的老毛病。
+ */
+function buildAuthCallbackUrl(params: { bind?: string; next?: string }): string | undefined {
+  if (typeof location === "undefined") return undefined;
+  const url = new URL(location.origin + "/auth/callback");
+  if (params.bind) url.searchParams.set("bind", params.bind);
+  if (params.next) url.searchParams.set("next", params.next);
+  return url.toString();
+}
+
 export async function upgradeAnonymousToEmail(
   email: string,
+  next?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { error } = await supabase().auth.updateUser(
       { email },
-      { emailRedirectTo: typeof location !== "undefined" ? location.origin + "/auth/callback" : undefined },
+      { emailRedirectTo: buildAuthCallbackUrl({ next }) },
     );
     if (error) return { ok: false, error: error.message };
     return { ok: true };
@@ -61,16 +77,16 @@ export async function upgradeAnonymousToEmail(
  *   它随 emailRedirectTo 进入邮件 URL，是 complete 阶段**唯一**的账号选择依据——
  *   跨浏览器有效（TG Mini App 里发的信通常在系统浏览器打开，那里没有 zj_tg cookie）。
  *   普通登录不传，链接里就没有 nonce，因此走不进绑定流程。
+ * @param next EP-auth-return：登录成功后要送回的原页面（如 `/dream`）——不传则
+ *   `/auth/callback` 落到默认的 `/account`。
  */
 export async function signInWithEmail(
   email: string,
   bindNonce?: string,
+  next?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const redirect =
-      typeof location !== "undefined"
-        ? location.origin + "/auth/callback" + (bindNonce ? `?bind=${encodeURIComponent(bindNonce)}` : "")
-        : undefined;
+    const redirect = buildAuthCallbackUrl({ bind: bindNonce, next });
     const { error } = await supabase().auth.signInWithOtp({
       email,
       options: { emailRedirectTo: redirect },

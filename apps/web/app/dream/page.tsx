@@ -19,6 +19,10 @@ import { spiritMemoryAction, dreamSummaryAction } from "@/app/actions";
 // API 层（/api/spirit/dream、/api/tg/dream）另有 404 闸门，这里是页面级「不可达」。
 const ENABLED = process.env.NEXT_PUBLIC_DREAM_ENABLED === "1";
 
+// EP-auth-return：撞见 needLogin 后离开这页去登录，回来（甚至只是手动导航回来）
+// 时刚打的字不能没了——用 sessionStorage 兜底草稿，纯 useState 撑不过页面卸载。
+const DREAM_DRAFT_KEY = "zj_dream_draft";
+
 type Turn = { role: "user" | "spirit"; content: string };
 
 export default function DreamPage() {
@@ -27,7 +31,12 @@ export default function DreamPage() {
   const inTg = useIsTelegram();
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   // input 是共用输入框：turns 为空时它是「梦原文」，turns 非空时它是「追问」。
-  const [input, setInput] = useState("");
+  // 初值从 sessionStorage 兜底草稿读回（见 DREAM_DRAFT_KEY 上方注释）。
+  const [input, setInputState] = useState(() => (typeof window !== "undefined" ? sessionStorage.getItem(DREAM_DRAFT_KEY) ?? "" : ""));
+  function setInput(value: string) {
+    setInputState(value);
+    sessionStorage.setItem(DREAM_DRAFT_KEY, value);
+  }
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,13 +86,17 @@ export default function DreamPage() {
   }, [profile]);
 
   const isFollowUp = turns.length > 0;
+  // EP-dream-history-2：turns[0] 的角色天然区分两种追问场景——同一次会话里的追问
+  // 首轮是用户打的梦（role "user"）；点历史条目续接进来的首轮是灵存下的解读全文
+  // （role "spirit"，见 history 列表的 onClick）。据此决定要不要重建梦原文。
+  const resumedFromHistory = isFollowUp && turns[0]!.role === "spirit";
   const tooLong = input.trim().length > 2000;
   const canSubmit = !!profile && input.trim().length >= 4 && !tooLong && !pending;
 
   async function submit() {
     if (!profile || !canSubmit) return;
     const text = input.trim();
-    const dreamText = isFollowUp ? turns[0]!.content : text;
+    const dreamText = isFollowUp ? (resumedFromHistory ? undefined : turns[0]!.content) : text;
     setPending(true);
     setError(null);
     setNeedLogin(false);
@@ -91,10 +104,13 @@ export default function DreamPage() {
     const inTgSession = hasTgSession();
     try {
       let res: Response;
-      const payload: Record<string, unknown> = { dream: dreamText };
+      const payload: Record<string, unknown> = {};
+      if (dreamText !== undefined) payload.dream = dreamText;
       if (isFollowUp) {
         payload.followUp = text;
-        payload.priorTurns = turns.slice(1); // 不含首轮梦原文——首轮由 dream 单独重建
+        // 同一会话追问：priorTurns 不含首轮梦原文——首轮由 dream 单独重建。
+        // 续接历史：没有梦原文可单独重建，priorTurns 直接是完整 turns（[0] 是历史解读）。
+        payload.priorTurns = resumedFromHistory ? turns : turns.slice(1);
       }
       if (inTgSession) {
         res = await fetch("/api/tg/dream", { method: "POST", headers: { "x-zj-locale": locale }, body: JSON.stringify(payload) });
@@ -134,9 +150,9 @@ export default function DreamPage() {
         });
         // 历史摘要只在首次解读后写一条——追问是同一次解梦会话的延续，不产生新的列表条目。
         if (!isFollowUp) {
-          dreamSummaryAction(dreamText, replyText, locale).then((summary) => {
+          dreamSummaryAction(dreamText as string, replyText, locale).then((summary) => {
             if (!summary) return;
-            void appendDreamHistory(profile.id, summary).then(() => listDreamHistory(profile.id).then(setHistory));
+            void appendDreamHistory(profile.id, summary, replyText).then(() => listDreamHistory(profile.id).then(setHistory));
           });
         }
       }
@@ -221,7 +237,7 @@ export default function DreamPage() {
         {needLogin && (
           <div className="mt-4 px-4 py-3 text-[13px]" style={{ borderRadius: "var(--radius-card)", background: "var(--color-error-bg)", color: "var(--color-seal)", border: "1px solid var(--color-error-line)" }}>
             {t("dream.needLogin")}
-            <Link href="/account" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-cinnabar)" }}>
+            <Link href="/account?next=/dream" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-cinnabar)" }}>
               {t("dream.needLoginCta")} →
             </Link>
           </div>
@@ -269,9 +285,29 @@ export default function DreamPage() {
           <div className="mt-10 pt-6" style={{ borderTop: "1px solid var(--color-line)" }}>
             <div className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>{t("dream.historyTitle")}</div>
             <ul className="mt-3 space-y-2.5">
-              {history.map((h) => (
-                <li key={h.id} className="text-[13px] leading-relaxed text-ink-2">{h.summary}</li>
-              ))}
+              {history.map((h) =>
+                h.fullText ? (
+                  <li key={h.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // EP-dream-history-2：turns[0] 是历史里存的解读全文（role
+                        // "spirit"）——resumedFromHistory 据此识别，submit() 走
+                        // 「续接历史」分支（不重建梦原文，priorTurns 直接是 turns）。
+                        setTurns([{ role: "spirit", content: h.fullText! }]);
+                        setInput("");
+                      }}
+                      className="block w-full text-left text-[13px] leading-relaxed text-ink-2 underline decoration-[var(--color-line)] underline-offset-4 transition-colors hover:text-ink hover:decoration-[var(--color-cinnabar)]"
+                    >
+                      {h.summary}
+                    </button>
+                  </li>
+                ) : (
+                  // 迁移 0018 之前写入的旧行没有 full_text，续接功能对它降级不可用——
+                  // 只当摘要展示，不做成看起来能点的样子。
+                  <li key={h.id} className="text-[13px] leading-relaxed text-ink-2">{h.summary}</li>
+                ),
+              )}
             </ul>
           </div>
         )}

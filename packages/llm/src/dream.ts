@@ -76,18 +76,44 @@ const DREAM_RULES_EN = `
 - Nightmares or painful content: hold the feeling first, then interpret; no medical or psychological diagnosis.
 - Length: at most 12 sentences / 320 words (a target with margin — trim if over; shorter is better). At most ONE chart fact — and it must actually drive beat ②'s reasoning, not be a label dropped in for its own sake. Do not end with a question by default.`;
 
-/** system 提示 + 首轮 user 消息（含命盘事实 + 梦原文）——generateDreamReply 与 continueDreamReply 共用，避免两处 prompt 措辞跑偏。 */
-function buildDreamPrompt(chart: UnifiedChart, dreamText: string, opts: SpiritOptions) {
+/**
+ * system 提示 + 首轮 user 消息（含命盘事实 + 梦原文）——generateDreamReply 与
+ * continueDreamReply 共用，避免两处 prompt 措辞跑偏。
+ *
+ * `dreamText` 为 `undefined`：EP-dream-history-2「续接历史」场景——没有梦原文可用
+ * 来重建"对方讲述了一个梦"这句首轮 prompt（历史表按 owner 决策只存灵的解读全文，
+ * 不存梦原文，见迁移 0018），但命盘事实仍必须喂给模型，因此直接并进 system 尾部；
+ * `firstUser` 返回 `undefined`，调用方据此跳过那条首轮 user 消息。
+ */
+function buildDreamPrompt(
+  chart: UnifiedChart,
+  dreamText: string,
+  opts: SpiritOptions,
+): { system: string; firstUser: string; language: ReadingLanguage; zh: boolean };
+function buildDreamPrompt(
+  chart: UnifiedChart,
+  dreamText: undefined,
+  opts: SpiritOptions,
+): { system: string; firstUser: undefined; language: ReadingLanguage; zh: boolean };
+function buildDreamPrompt(chart: UnifiedChart, dreamText: string | undefined, opts: SpiritOptions) {
   const language = opts.language ?? "en";
   const zh = language === "zh";
   const persona = deriveSpirit(chart);
   const facts = extractFacts(chart);
-  const system = buildSpiritSystemPrompt(persona, chart, language, opts) + (zh ? DREAM_RULES_ZH : DREAM_RULES_EN);
+  const baseSystem = buildSpiritSystemPrompt(persona, chart, language, opts) + (zh ? DREAM_RULES_ZH : DREAM_RULES_EN);
   const factsBlock = `\`\`\`json\n${JSON.stringify(facts, null, 2)}\n\`\`\``;
+
+  if (dreamText === undefined) {
+    const factsNote = zh
+      ? `\n\n以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}`
+      : `\n\nHere are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}`;
+    return { system: baseSystem + factsNote, firstUser: undefined, language, zh };
+  }
+
   const firstUser = zh
     ? `以下是确定性算出的命盘事实（你只能引用这些）：\n\n${factsBlock}\n\n对方讲述了一个梦：\n\n「${dreamText}」\n\n请以「本命之灵」的身份、用简体中文、按解梦规则回应这个梦。`
     : `Here are the deterministically computed chart facts (the ONLY facts you may use):\n\n${factsBlock}\n\nThey shared a dream:\n\n"${dreamText}"\n\nRespond as their 本命之灵, following the dream-reading rules.`;
-  return { system, firstUser, language, zh };
+  return { system: baseSystem, firstUser, language, zh };
 }
 
 /** 后置链共用：脚手架护栏 → sanitizeReading → sanitizeDream → correctMutagens → fallback。 */
@@ -144,33 +170,46 @@ export async function generateDreamReply(
 }
 
 /**
- * 解梦追问（EP-dream-history）：同一次解梦对话内的多轮追问——system/首轮 prompt 与
- * generateDreamReply 完全一致（解梦规则持续生效，追问不会跳出「不占卜」的护栏），
- * 只是把已发生的对话（灵的首次解读 + 之后的往返）接着喂回去。
+ * 解梦追问：两种场景共用一个函数。
  *
- * `priorTurns` 从「灵的第一条解读」开始（不含用户的梦原文——梦原文由 dreamText 单独
- * 传入，用来重建首轮 prompt），之后按 spirit/user 交替。这些对话只活在浏览器会话内、
- * 随请求体传来即用即弃——服务端不落库（落库的只有 EP-dream-history 的摘要）。
+ * 1. 同一次解梦对话内的多轮追问（EP-dream-history）：`dreamText` 传原始梦文本，
+ *    system/首轮 prompt 与 generateDreamReply 完全一致（解梦规则持续生效，追问
+ *    不会跳出「不占卜」的护栏），`priorTurns` 从「灵的第一条解读」开始（不含梦
+ *    原文——梦原文由 dreamText 单独传入，用来重建首轮 prompt），之后按
+ *    spirit/user 交替。
+ * 2. 续接历史（EP-dream-history-2）：`dreamText` 传 `undefined`——没有梦原文
+ *    （历史表只存灵的解读全文，不存梦原文，见迁移 0018），`priorTurns[0]` 直接
+ *    就是那条存下来的历史解读（spirit 角色），不重建首轮"对方讲述了一个梦"的
+ *    user 消息，命盘事实改并进 system（见 `buildDreamPrompt`）。
+ *
+ * 两种场景下 `priorTurns` 都只活在浏览器会话内、随请求体传来即用即弃——服务端
+ * 不落库（落库的只有 EP-dream-history 的摘要/解读全文）。
  */
 export async function continueDreamReply(
   chart: UnifiedChart,
-  dreamText: string,
+  dreamText: string | undefined,
   priorTurns: SpiritTurn[],
   followUp: string,
   opts: SpiritOptions = {},
 ): Promise<{ text: string; stripped: string[] }> {
   const cfg = opts.config ?? resolveLlmConfig();
   if (!isLlmConfigured(cfg)) throw new Error("LLM 未配置：请设置 LLM_API_KEY。");
-  const dream = dreamText.trim();
-  if (!dream) throw new Error("梦境内容为空");
+  const dream = dreamText?.trim();
+  if (dreamText !== undefined && !dream) throw new Error("梦境内容为空");
+  if (dreamText === undefined && priorTurns.length === 0) throw new Error("没有可续接的历史解读");
   const q = followUp.trim();
   if (!q) throw new Error("追问内容为空");
   if (q.length > DREAM_MAX_CHARS) throw new Error(`追问内容过长（>${DREAM_MAX_CHARS} 字）`);
 
-  const { system, firstUser, language, zh } = buildDreamPrompt(chart, dream, opts);
+  // 三元而非直接传 `dream`（string | undefined）：buildDreamPrompt 用重载对 dreamText
+  // 是否为 undefined 做了返回类型分流（firstUser 是 string 还是 undefined），三元的
+  // 每个分支里 TS 才能把 dream 收窄成对应重载要求的具体类型。
+  const { system, firstUser, language, zh } = dream !== undefined
+    ? buildDreamPrompt(chart, dream, opts)
+    : buildDreamPrompt(chart, undefined, opts);
   const messages: ChatMessage[] = [
     { role: "system", content: system },
-    { role: "user", content: firstUser },
+    ...(firstUser !== undefined ? [{ role: "user", content: firstUser } as ChatMessage] : []),
     ...priorTurns.map((t): ChatMessage => ({ role: t.role === "user" ? "user" : "assistant", content: t.content })),
     { role: "user", content: q },
   ];

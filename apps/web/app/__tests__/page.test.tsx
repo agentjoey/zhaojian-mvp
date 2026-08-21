@@ -53,6 +53,10 @@ beforeEach(() => {
   tgEnv.inTg = true;
   routerPush.mockReset();
   vi.stubEnv("NEXT_PUBLIC_FENGSHUI_ENABLED", "1");
+  // EP-fs-debt：「灵」此前无条件显示（TG_ENTRIES 里没有 flag 门控，AppShell.NAV
+  // 却有），默认开着让既有用例（假设「本命之灵」在场）继续成立，专门的开关测试见
+  // 下面新增的 describe 块。
+  vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "1");
 });
 
 afterEach(() => {
@@ -120,6 +124,23 @@ describe("web 首页目录列表：解梦「梦」（inTg=false 臂）", () => {
     // 先确认列表渲染（防恒真），再断言缺席
     expect(await screen.findByText("今日运势")).toBeInTheDocument();
     expect(screen.queryByText("解梦")).toBeNull();
+  });
+});
+
+describe("TG 首页入口列表：本命之灵「灵」（EP-fs-debt：补齐此前缺失的 flag 门控）", () => {
+  it("TG 内 + flag 开：「灵」入口出现，且点击后真的导向 /spirit", async () => {
+    await renderHome();
+    const cell = await screen.findByText("本命之灵");
+    fireEvent.click(cell);
+    expect(routerPush).toHaveBeenCalledWith("/spirit");
+  });
+
+  it("TG 内 + flag 关：「灵」入口不出现（与 AppShell.NAV 的门控保持一致）", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SPIRIT_ENABLED", "");
+    await renderHome();
+    expect(await screen.findByText("今日运势")).toBeInTheDocument();
+    expect(screen.queryByText("本命之灵")).toBeNull();
+    expect(routerPush).not.toHaveBeenCalled();
   });
 });
 

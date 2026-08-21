@@ -77,15 +77,17 @@ export async function saveMemory(
   if (error) throw error;
 }
 
-export type DreamHistoryEntry = { id: string; summary: string; createdAt: string };
-type DreamHistoryRow = { id: string; summary: string; created_at: string };
-const toDreamHistoryEntry = (r: DreamHistoryRow): DreamHistoryEntry => ({ id: r.id, summary: r.summary, createdAt: r.created_at });
+// EP-dream-history-2：fullText 是灵的解读全文（不是梦原文），供点历史条目续追问用；
+// 旧行（迁移 0018 之前写入的）没有这一列，可能为 null——续接功能对那些行降级不可用。
+export type DreamHistoryEntry = { id: string; summary: string; fullText: string | null; createdAt: string };
+type DreamHistoryRow = { id: string; summary: string; full_text: string | null; created_at: string };
+const toDreamHistoryEntry = (r: DreamHistoryRow): DreamHistoryEntry => ({ id: r.id, summary: r.summary, fullText: r.full_text, createdAt: r.created_at });
 const MAX_DREAM_HISTORY = 10;
 
 export async function listDreamHistory(profileId: string): Promise<DreamHistoryEntry[]> {
   const { data, error } = await supabaseAdmin()
     .from("dream_history")
-    .select("id, summary, created_at")
+    .select("id, summary, full_text, created_at")
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false })
     .limit(MAX_DREAM_HISTORY);
@@ -93,8 +95,8 @@ export async function listDreamHistory(profileId: string): Promise<DreamHistoryE
   return (data as DreamHistoryRow[] | null)?.map(toDreamHistoryEntry) ?? [];
 }
 
-/** 追加一条摘要并裁到最近 10 条。同 appendMessage：service-role 下 auth.uid() 为 NULL，须显式带 user_id。 */
-export async function appendDreamHistory(profileId: string, summary: string): Promise<void> {
+/** 追加一条历史（摘要+解读全文）并裁到最近 10 条。同 appendMessage：service-role 下 auth.uid() 为 NULL，须显式带 user_id。 */
+export async function appendDreamHistory(profileId: string, summary: string, fullText: string): Promise<void> {
   const sb = supabaseAdmin();
   const { data: prof, error: e1 } = await sb.from("profiles").select("user_id").eq("id", profileId).maybeSingle();
   if (e1) throw e1;
@@ -103,6 +105,7 @@ export async function appendDreamHistory(profileId: string, summary: string): Pr
     profile_id: profileId,
     user_id: (prof as { user_id: string }).user_id,
     summary,
+    full_text: fullText,
   });
   if (error) throw error;
 

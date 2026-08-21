@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const appendMessage = vi.fn();
 const saveMemory = vi.fn();
 const appendDreamHistoryMock = vi.fn();
-const listDreamHistoryMock = vi.fn(async (..._a: unknown[]) => [{ id: "h1", summary: "一个关于坠落的梦", createdAt: "2026-08-20T00:00:00Z" }]);
+const listDreamHistoryMock = vi.fn(async (..._a: unknown[]) => [{ id: "h1", summary: "一个关于坠落的梦", fullText: "这个梦在处理坠落感。", createdAt: "2026-08-20T00:00:00Z" }]);
 const readSessionMock = vi.fn(async (v?: unknown): Promise<{ uid: string; tgId: number } | null> =>
   v === "ok" ? { uid: "u1", tgId: 123 } : null,
 );
@@ -219,7 +219,7 @@ describe("EP-dream-history：TG 臂追问 + 历史摘要", () => {
     expect(res.status).toBe(200);
     await flushMicrotasks();
     expect(summarizeDreamEntrySpy).toHaveBeenCalledWith("我梦见坠落", "解读", expect.objectContaining({ language: "zh" }));
-    expect(appendDreamHistoryMock).toHaveBeenCalledWith("p1", "一个关于坠落的梦");
+    expect(appendDreamHistoryMock).toHaveBeenCalledWith("p1", "一个关于坠落的梦", "解读");
   });
 
   it("摘要为空/抛错都不影响已返回的响应，也不调用 appendDreamHistory", async () => {
@@ -260,6 +260,28 @@ describe("EP-dream-history：TG 臂追问 + 历史摘要", () => {
     expect(interpretDreamSpy).not.toHaveBeenCalled();
     expect(continueDreamReplySpy).not.toHaveBeenCalled();
   });
+
+  it("EP-dream-history-2 续接历史：不带 dream，只带 followUp+priorTurns → continueDreamReply 收到 dreamText=undefined", async () => {
+    const priorTurns = [{ role: "spirit", content: "这个梦在处理坠落感（历史里存的解读全文）。" }];
+    const res = await POST(req({ followUp: "会不会跟换工作有关？", priorTurns }));
+    expect(res.status).toBe(200);
+    expect(continueDreamReplySpy).toHaveBeenCalledWith(
+      { fake: true },
+      undefined,
+      priorTurns,
+      "会不会跟换工作有关？",
+      expect.objectContaining({ language: "zh" }),
+    );
+    await flushMicrotasks();
+    expect(appendDreamHistoryMock).not.toHaveBeenCalled(); // 续接不重复写历史
+  });
+
+  it("不带 dream、也不带 followUp → 400（首次解读必须有梦原文）", async () => {
+    const res = await POST(req({}));
+    expect(res.status).toBe(400);
+    expect(interpretDreamSpy).not.toHaveBeenCalled();
+    expect(continueDreamReplySpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("GET /api/tg/dream", () => {
@@ -275,7 +297,7 @@ describe("GET /api/tg/dream", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.history).toEqual([{ id: "h1", summary: "一个关于坠落的梦", createdAt: "2026-08-20T00:00:00Z" }]);
+    expect(json.history).toEqual([{ id: "h1", summary: "一个关于坠落的梦", fullText: "这个梦在处理坠落感。", createdAt: "2026-08-20T00:00:00Z" }]);
     expect(listDreamHistoryMock).toHaveBeenCalledWith("p1");
   });
 

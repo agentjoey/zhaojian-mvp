@@ -275,6 +275,50 @@ describe("continueDreamReply", () => {
     );
     expect(text).toContain("能再说说");
   });
+
+  // ─── EP-dream-history-2：dreamText 传 undefined = 续接历史（没有梦原文，
+  // priorTurns[0] 就是历史里存的解读全文）───────────────────────────────
+  describe("续接历史（dreamText=undefined）", () => {
+    it("priorTurns 为空 → 直接抛错（没有可续接的历史解读），不进 LLM", async () => {
+      streamSpy.mockClear();
+      await expect(
+        continueDreamReply(chart, undefined, [], "还有别的解读吗？", { language: "zh", config }),
+      ).rejects.toThrow();
+      expect(streamSpy).not.toHaveBeenCalled();
+    });
+
+    it("不重建首轮「对方讲述了一个梦」的 user 消息——system 之后直接是历史解读（assistant），命盘事实并进 system", async () => {
+      streamSpy.mockClear();
+      streamSpy.mockImplementationOnce(async function* () {
+        yield "这可能和你说的换工作纠结有关。";
+      });
+      const priorTurns = [{ role: "spirit" as const, content: "这个梦在处理坠落感，可能对应最近的失控体验。" }];
+      const { text } = await continueDreamReply(chart, undefined, priorTurns, "会不会跟换工作有关？", { language: "zh", config });
+      const [messages] = streamSpy.mock.calls.at(-1)!.slice(1) as unknown as [{ role: string; content: string }[]];
+      expect(messages[0]!.content).toContain("解梦"); // system 仍含解梦硬规则
+      expect(messages[0]!.content).toContain("命盘事实"); // 命盘事实并进了 system，不是首轮 user 消息
+      expect(messages[1]).toEqual({ role: "assistant", content: priorTurns[0]!.content }); // 紧接 system 的就是历史解读，没有首轮 user 消息插在中间
+      expect(messages[2]).toEqual({ role: "user", content: "会不会跟换工作有关？" });
+      expect(messages.length).toBe(3); // system + 历史解读 + 本次追问，恰好 3 条
+      expect(text).toContain("换工作纠结");
+    });
+
+    it("续接历史的输出仍经过 sanitizeDream 后置链（护栏不因为跳过首轮 user 消息而失效）", async () => {
+      streamSpy.mockClear();
+      streamSpy.mockImplementationOnce(async function* () {
+        yield "这和坠落感有关。梦见水预示着财运要来了。试着记下今晚的感受。";
+      });
+      const { text } = await continueDreamReply(
+        chart,
+        undefined,
+        [{ role: "spirit", content: "这个梦在处理坠落感。" }],
+        "还有别的解读吗？",
+        { language: "zh", config },
+      );
+      expect(text).toContain("记下今晚的感受");
+      expect(text).not.toContain("预示着财运");
+    });
+  });
 });
 
 // ─── summarizeDreamEntry（EP-dream-history 列表摘要）───────────────────────
