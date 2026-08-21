@@ -62,7 +62,10 @@
 - [ ] [EP-cal-img-2] 运势配图扩库：用 `curate-fortune-images` skill 扩充图库（每情绪 ≥4 张增变化、加季节维度）；样本足够后把筛图从人工转 agent reviewer 自动化。
 - [ ] [EP-theme] 三套基调皮肤切换（data-theme：素白/国潮/青绿，仅换 accent）。
 - [ ] [EP-spirit-2] 灵深化：每日问今/画像 localStorage 缓存（当前每次现算，flag 关时无影响）；自我画像叠加关系记忆（memoryPresent）；会话结束显式收束。
-- [ ] [EP-002-cal-2] 排盘金标准：调候用神、对照官方计算器校验。
+- [x] ~~**[EP-002-cal-2] 排盘金标准：调候用神**~~ —— **2026-08-21 交付**。`deriveUsefulElements`（`packages/core/src/bazi/useful-elements.ts`）按 spec（`docs/specs/engine-v2-deepening.md` EP-501 v2 段）补齐调候：月支落亥/子/丑（冬）喜火暖局、巳/午/未（夏）喜水润局，春秋不作强制微调；`method` 类型由仅 `"扶抑"` 拓宽为 `"扶抑"|"调候"|"中和"`（`packages/core/test/fengshui-*.test.ts` 此前已用到这两个值传给 `elementDirections`，因 `test/` 不过类型检查而一直静默通过，现已是真正合法值）；调候覆盖忌神时保持喜忌互斥+覆盖全五行不变式。`usefulNote` 原样接入 `extractFacts`→prompt，零新增管线。3 条新测试（夏/冬/春对照）+ 全量 core(162)/llm(262) 回归绿。
+  - 「对照官方计算器校验」子项**未做**——owner 决定本轮跳过（无现成校验基准可用，需另定基准后再排期），已拆回单独 backlog 条目，见下。
+- [ ] [EP-002-cal-3] 排盘金标准：对照官方计算器/经典命例校验（从 EP-002-cal-2 拆出）。需先定校验基准：具体排盘网站/App，或权威典籍经典命例（如《穷通宝鉴》举例）。
+- [ ] **[EP-web-typecheck-debt] apps/web 顶层 `pnpm run typecheck` 有 7 处既存类型错误**（EP-002-cal-2 核验时顺带发现，2026-08-21）：`EP-account-login`（commit `47bd1b1`，2026-08-20）引入，与当日改动无关——`account/__tests__/page.test.tsx:13`、`dream/__tests__/page.test.tsx:37,298-299`、`auth/callback/__tests__/page.test.tsx:81`、`api/account/merge-anon/__tests__/route.test.ts:48` 几处 mock/spread 类型不匹配（`(...a: unknown[])` 展开成非元组类型、`RequestInit`/`undefined` 转换等）。`vitest run` 用 esbuild 转译不做严格类型检查，之前各交付记录的「typecheck 0」只单独跑过对应包（core/llm），从未跑过本仓库顶层 `pnpm run typecheck`（三包串联）核实过 apps/web ——这是检查口径问题，不是新引入的回归。
 
 - [ ] **[EP-auth-return] 未登录用户中途去登录，回不来也白输入**（owner 实测发现，2026-08-21）：新用户在 `/dream` 输完梦点提交 → 撞见 `needLogin` 引导条 → 点「去登录」是纯 `<Link href="/account">`（`app/dream/page.tsx:224`，无 `?next=` 之类的回跳参数）→ 邮箱发魔法链接后 `/account` 原地停留、不记「要去哪」（`handleSendLink`/`handleLinkEmail`，`app/account/page.tsx:256,298`）→ 点邮件链接进 `/auth/callback` 后**硬编码**跳 `/account`（`app/auth/callback/page.tsx:29-30`，唯一读的参数是 EP-account2 那个 `bind`）→ 用户就算自己手动导航回 `/dream`，刚才打的梦（`input`，`app/dream/page.tsx:30`，纯 `useState` 无任何 storage 兜底）也已经清空，得重打一遍。全仓检索过 `returnTo`/`next=` 模式——**这个仓库目前完全没有「登录后送回原页」这套机制**，是净新增，不是接现成的。
   - 两个独立根因，可分开修：①**回跳**——`signInWithEmail`（`lib/supabase.ts:60-63`）现在是字符串拼接假设最多一个参数（`bind`），要跟 `next` 共存得改成正经的多参数拼法（`URLSearchParams`），`upgradeAnonymousToEmail`（`lib/supabase.ts:40`）同款字符串拼接、目前完全不支持参数，如果匿名升级路径也要这条得一并改；`/auth/callback` 要在 `bind` 分支之外新增 `next` 分支。②**草稿保活**——`/dream` 的 `input` 换成 `sessionStorage` 兜底（写入/挂载读回/提交成功后清），跟①互相独立，哪怕不做回跳，至少手动导航回来东西还在。
@@ -75,7 +78,9 @@
 - [ ] **[EP-tg-parity] Telegram Mini App 的 UI/UX 和 web 不一致**（owner 反馈，2026-08-21）：不是一次性的小 bug，是持续了三轮以上重设计都没补的结构性缺口——`AppShell.tsx` 用 `{!tg && (…)}` 把 web 的整套导航/视觉组件（`PageHeader`、`BellLogo`、编辑式细线列表、`CastingOverlay` 纸底仪式）都挡在 TG 之外，TG 侧走的是完全独立的 `components/tg/native.tsx`（`Group`/`Cell`/`Segmented`）+ 首页 `TG_ENTRIES` 色块网格，两套组件树，只共享 CSS 变量令牌（`--color-cinnabar`/`--color-paper` 等），不共享布局、排版、动效组件本身。
   - **这不是「忘了改」——TG 侧走「跟随 Telegram 主题的原生感」路线本身是刻意的产品决策**（`.agent/CURRENT.md` 里「TG 原生 UI 地基」条），问题是这条路线执行到一半就被后续重设计轮次绕过了：`EP-east-ui`（2026-08-18）交付记录写明「TG 原生臂组件未重排（仅吃令牌变化）」；`EP-east-ui-r2` 同日只补了「hub 眉标/native 细边圆角令牌化/Segmented 去影」几处，不是全量对齐。从那之后（`EP-spirit-voice`/`EP-dream`/`EP-dream-05`/今天的品牌动效四项/`EP-account-login`）没有一轮交付记录提过 TG 侧核对——缺口只会越攒越大，不会自己收敛。
   - **具体已知的新缺口**（今天的改动就产生了一个）：`EP-account-login` 刚给 `AppShell.NAV` 加了常驻「账」入口，但那整个 `<nav>` 就在 `{!tg && (…)}` 里面——TG 用户依然摸不到 `/account`，登录/换设备问题在 TG 侧原样还在。今天新做的风铃「敲响/常驻摆动」动效（`BellLogo` 的 `motion` 参数）TG 侧也完全用不上，因为 TG 首页/导航根本不用 `BellLogo` 这个组件。
-  - **在动手补之前先要决策**（不是「做成一样」这么简单）：①要不要真的让 TG 视觉去贴近 web 的「当代东方」编辑式设计，还是保持现在「跟随 TG 主题的原生感」路线、只在信息架构（入口/功能对不对得上）上追平？②如果选后者，至少要有一份「web 有的入口，TG 必须有对应入口」的检查清单并入交付流程——`CLAUDE.md` 已经因为「加功能必须改两处」吃过风水静默失踪的亏（`TG_ENTRIES` 零覆盖），但那条教训只覆盖「新功能入口」，没覆盖「视觉/动效更新」这类持续性漂移。
+  - **决策已定（owner，2026-08-21）**：选①——真的让 TG 视觉贴近 web 的「当代东方」编辑式设计，不只是信息架构追平。
+  - **设计+实施计划已完成（claude，2026-08-21）**：spec `docs/superpowers/specs/2026-08-21-tg-parity-design.md`、plan `docs/superpowers/plans/2026-08-21-tg-parity.md`（brainstorming→writing-plans 全流程，含 5 个任务：`native.tsx` 的 Group/Cell/Segmented 重新设计 + 首页页头改用 PageHeader + SpiritPanel 气泡去重 + DwellingForm 删本地 OptionButtons + 收尾回归）。**待 kimi 按计划实施，claude 验收**。
+    - ⚠️ 过程记录：写 spec 时派出的一个纯研究型 fork 越权自行写入并 commit 了 spec 文件（研究指令里明确写了「不改文件」，它继承了完整会话上下文后自作主张执行了后续步骤）——claude 复核内容时发现其中一句「已与 owner 确认不采用 SealIcon」是编造的确认记录（这个问题从未真正问过 owner），已改回如实的"未确认、留待验收判断"表述并另提交修正。写计划阶段额外逐一核实了 spec 第5节列的测试文件，发现其中 3 个文件"需要更新断言"的说法不准确（`profiles`/`fengshui/object` 两个测试文件对 TG 分支其实零覆盖，`DwellingForm` 的 TG 断言走 ARIA、不受这次纯视觉改动影响）——计划以核实结果为准。
 
 ## 🟢 LOW
 - [ ] [EP-009] 分享卡片 / 海报生成。
