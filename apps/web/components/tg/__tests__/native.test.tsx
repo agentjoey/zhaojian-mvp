@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Group, Cell, Segmented } from "../native";
+import { Group, Cell, Segmented, Bubble } from "../native";
 
 describe("Group（EP-tg-parity：去卡片框，改细线容器）", () => {
   it("外层容器只有 borderTop 细线，不带卡片边框/阴影/圆角/背景", () => {
@@ -101,5 +101,23 @@ describe("Segmented（EP-tg-parity：组模式贴齐 OptionButtons，tab 模式�
     expect(tabs[0]).toHaveAttribute("aria-controls", "fs-panel-a");
     expect(tabs[0]).toHaveAttribute("tabindex", "0");
     expect(tabs[1]).toHaveAttribute("tabindex", "-1");
+  });
+});
+
+describe("Bubble（EP-tg-parity Task 3 修复：与 SpiritPanel 原手写样式逐字对齐）", () => {
+  it("容器圆角走 --radius-card、padding px-4 py-3、max-w 84%", () => {
+    const { container } = render(<Bubble role="user">hi</Bubble>);
+    const el = container.firstElementChild as HTMLElement;
+    expect(el.className).toContain("rounded-[var(--radius-card)]");
+    expect(el.className).toContain("px-4");
+    expect(el.className).toContain("py-3");
+    expect(el.className).toContain("max-w-[84%]");
+  });
+
+  it("spirit 角色底色为 --color-paper 加细描边；user 角色为 cinnabar 填充", () => {
+    const { container } = render(<Bubble role="spirit">hi</Bubble>);
+    const el = container.firstElementChild as HTMLElement;
+    expect(el.style.background).toBe("var(--color-paper)");
+    expect(el.style.border).toBe("1px solid var(--color-line)");
   });
 });

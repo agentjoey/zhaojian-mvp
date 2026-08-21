@@ -173,14 +173,14 @@ export function Bubble({
   const isUser = role === "user";
   return (
     <div
-      className={`max-w-[84%] rounded-2xl px-3 py-2.5 text-[14px] leading-relaxed ${
+      className={`max-w-[84%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed ${
         isUser ? "ml-auto text-white" : "text-[var(--color-ink-2)]"
       }`}
       style={
         isUser
           ? { background: "var(--color-cinnabar)" }
           : {
-              background: "var(--color-bg2)",
+              background: "var(--color-paper)",
               border: "1px solid var(--color-line)",
             }
       }
