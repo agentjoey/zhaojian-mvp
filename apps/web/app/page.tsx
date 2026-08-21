@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BellLogo, HeroWheel } from "@/components/ui";
+import { PageHeader } from "@/components/PageHeader";
 import { useIsTelegram } from "@/lib/tg/ui";
 import { Group, Cell } from "@/components/tg/native";
 import { useT } from "@/lib/i18n/I18nProvider";
@@ -137,25 +138,21 @@ export default function Home() {
 
       {inTg && (
         <div className="px-5 pt-10">
-          <div className="mb-5 pb-5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-            <p className="text-[11px] tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>
-              — {t("home.kickerHero")} —
-            </p>
-            <h1 className="mt-3 font-serif text-[24px] font-bold tracking-[0.08em]">{t("common.brand")}</h1>
-            <p className="mt-1 text-[13px] text-muted">{t("home.tg.tagline")}</p>
+          <PageHeader kicker={t("home.kickerHero")} title={t("common.brand")} annotation={t("home.tg.tagline")} />
+          <div className="mt-5">
+            <Group>
+              {TG_ENTRIES.map((e) => (
+                <Cell
+                  key={e.key}
+                  icon={e.icon}
+                  accent={e.accent}
+                  title={t(`home.tg.entries.${e.key}.title`)}
+                  subtitle={t(`home.tg.entries.${e.key}.subtitle`)}
+                  onClick={() => router.push(e.path)}
+                />
+              ))}
+            </Group>
           </div>
-          <Group>
-            {TG_ENTRIES.map((e) => (
-              <Cell
-                key={e.key}
-                icon={e.icon}
-                accent={e.accent}
-                title={t(`home.tg.entries.${e.key}.title`)}
-                subtitle={t(`home.tg.entries.${e.key}.subtitle`)}
-                onClick={() => router.push(e.path)}
-              />
-            ))}
-          </Group>
         </div>
       )}
     </main>
