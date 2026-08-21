@@ -25,12 +25,7 @@ export function Group({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="overflow-hidden [&>*+*]:border-t [&>*+*]:border-[var(--color-line)]"
-      style={{
-        background: "var(--color-bg2)",
-        border: "1px solid var(--color-line)",
-        borderRadius: "var(--radius-card)",
-        boxShadow: "var(--shadow-card)",
-      }}
+      style={{ borderTop: "1px solid var(--color-line)" }}
     >
       {children}
     </div>
@@ -58,8 +53,8 @@ export function Cell({
       }`}
     >
       <div
-        className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[var(--radius-icon)] font-serif text-[16px] text-white"
-        style={{ background: accent || "var(--color-cinnabar)" }}
+        className="shrink-0 font-serif text-[18px]"
+        style={{ color: accent || "var(--color-cinnabar)" }}
       >
         {icon}
       </div>
@@ -125,8 +120,7 @@ export function Segmented<T extends string>({
       role={idBase ? "tablist" : "group"}
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
-      className="flex gap-[2px] p-[2px]"
-      style={{ background: "var(--color-bg2)", borderRadius: "var(--radius-button)" }}
+      className={idBase ? "flex gap-1" : "flex gap-2"}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -144,12 +138,22 @@ export function Segmented<T extends string>({
                 }
               : { "aria-pressed": active })}
             onClick={() => onChange(o.value)}
-            className="flex-1 px-3 py-1.5 text-[13px]"
-            style={{
-              borderRadius: "var(--radius-chip)",
-              background: active ? "var(--color-paper)" : "transparent",
-              color: active ? "var(--color-ink)" : "var(--color-muted)",
-            }}
+            className={
+              idBase
+                ? "px-3 py-2 text-[14px]"
+                : "flex-1 rounded-[var(--radius-button)] border py-2 text-[14px]"
+            }
+            style={
+              idBase
+                ? {
+                    color: active ? "var(--color-cinnabar)" : "var(--color-ink-2)",
+                    borderBottom: active ? "2px solid var(--color-cinnabar)" : "2px solid transparent",
+                  }
+                : {
+                    borderColor: active ? "var(--color-cinnabar)" : "var(--color-line)",
+                    color: active ? "var(--color-cinnabar)" : "var(--color-ink)",
+                  }
+            }
           >
             {o.label}
           </button>
