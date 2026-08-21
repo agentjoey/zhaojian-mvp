@@ -10,6 +10,7 @@ import { useTgMainButton, haptics } from "@/lib/tg/ui";
 import { supabase } from "@/lib/supabase";
 import { Markdown } from "@/components/Markdown";
 import { Paywall } from "@/components/Paywall";
+import { Bubble } from "@/components/tg/native";
 import { QuickPrompts } from "@/components/spirit/QuickPrompts";
 import { spiritMemoryAction } from "@/app/actions";
 import { useLocale, useT } from "@/lib/i18n/I18nProvider";
@@ -279,12 +280,7 @@ export function SpiritPanel({ profile, autoSend }: { profile: Profile; autoSend?
       >
         {messages.length === 0 && isTelegram() && (
           <div className="flex justify-start">
-            <div
-              className="max-w-[82%] rounded-[var(--radius-card)] bg-[var(--color-paper)] px-4 py-3 text-[14px] leading-relaxed text-ink-2"
-              style={{ border: "1px solid var(--color-line)" }}
-            >
-              {t("spirit.emptyPrompt")}
-            </div>
+            <Bubble role="spirit">{t("spirit.emptyPrompt")}</Bubble>
           </div>
         )}
         {messages.map((m) => (
@@ -292,18 +288,7 @@ export function SpiritPanel({ profile, autoSend }: { profile: Profile; autoSend?
             key={m.id}
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <div
-              className={`max-w-[82%] rounded-[var(--radius-card)] px-4 py-3 text-[14px] leading-relaxed ${
-                m.role === "user"
-                  ? "text-white"
-                  : "bg-[var(--color-paper)] text-ink-2"
-              }`}
-              style={
-                m.role === "user"
-                  ? { background: "var(--color-cinnabar)" }
-                  : { border: "1px solid var(--color-line)" }
-              }
-            >
+            <Bubble role={m.role === "user" ? "user" : "spirit"}>
               {m.role === "user" ? (
                 <p className="whitespace-pre-wrap">{m.content}</p>
               ) : m.content ? (
@@ -311,7 +296,7 @@ export function SpiritPanel({ profile, autoSend }: { profile: Profile; autoSend?
               ) : streaming ? (
                 <span className="inline-block animate-pulse text-cinnabar">▋</span>
               ) : null}
-            </div>
+            </Bubble>
           </div>
         ))}
       </div>
