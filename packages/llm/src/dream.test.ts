@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { vi } from "vitest";
 import { sanitizeDream } from "./dream";
+import type { LlmConfig } from "./provider";
 
 const streamSpy = vi.fn(async function* () {
   yield "这个梦在替你处理最近的紧绷。梦里被追，常常对应清醒时躲着的那件事。\n试着今晚把它写下来，写完就睡。";
@@ -108,7 +109,7 @@ describe("sanitizeDream：预言措辞机械扫描", () => {
 const { interpretDream, continueDreamReply, summarizeDreamEntry } = await import("./dream");
 const { computeUnifiedChart, BirthInputSchema } = await import("@eamvp/core");
 const dreamChart = computeUnifiedChart(BirthInputSchema.parse({ date: "1991-03-15", time: "14:30", gender: "male", latitude: 31.23, longitude: 121.47 }));
-const dreamConfig = { provider: "minimax", wire: "anthropic", baseUrl: "https://x/anthropic", model: "MiniMax-M3", apiKey: "sk-test", supportsJsonSchema: false } as never;
+const dreamConfig = { provider: "minimax", wire: "anthropic", baseUrl: "https://x/anthropic", model: "MiniMax-M3", apiKey: "sk-test", supportsJsonSchema: false } as LlmConfig;
 
 describe("interpretDream", () => {
   const chart = dreamChart;
