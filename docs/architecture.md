@@ -96,7 +96,7 @@ UnifiedChart.bazi + date → computeDailyFortune(流日×命主十神 → 五维
 
 **命理深度**（接入 extractFacts + prompt，实跑验证落地无幻觉）
 - ✅ EP-502 `deriveStrength` 旺衰证据化（得令/通根藏干/同党异党/ratio），模型据证判断。
-- ✅ EP-501 `deriveUsefulElements` 用神喜忌（扶抑法）→ 成长段「宜近木/水、向东/北」接地建议。
+- ✅ EP-501 `deriveUsefulElements` 用神喜忌（扶抑法 + EP-002-cal-2 补齐调候：月支冬喜火暖局/夏喜水润局，春秋不强制微调）→ 成长段「宜近木/水、向东/北」接地建议。
 - ✅ EP-503 `deriveTriad` 紫微三方四正借星 → 空宫据实接地。
 - ✅ EP-504 `computeDailyFortune` 流日干支 × 本命四支冲合刑害 + 用神 → 千人千日 + 厚卦象。
 - ✅ EP-505 `deriveWesternProfile` 元素/模式平衡、命主星、月相、星群。
