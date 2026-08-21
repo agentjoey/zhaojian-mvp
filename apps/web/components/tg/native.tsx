@@ -74,7 +74,8 @@ export function Cell({
 }
 
 /**
- * iOS 风格分段选择器（EP-fs-tg）。颜色全部走 CSS 令牌，跟随 TG 明/暗主题。
+ * 分段选择器（EP-fs-tg；EP-tg-parity 起改为东方编辑式：细线/朱红描边）。
+ * 颜色全部走 CSS 令牌，跟随 TG 明/暗主题。
  *
  * 两种语义模式（评审 M4——ARIA 契约要么建全、要么别建一半）：
  * - 传 `idBase`：**真 Tab**（tablist/tab + aria-controls + 面板配对 + 方向键漫游

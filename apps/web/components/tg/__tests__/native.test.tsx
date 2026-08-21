@@ -119,5 +119,10 @@ describe("Bubble（EP-tg-parity Task 3 修复：与 SpiritPanel 原手写样式�
     const el = container.firstElementChild as HTMLElement;
     expect(el.style.background).toBe("var(--color-paper)");
     expect(el.style.border).toBe("1px solid var(--color-line)");
+
+    const { container: c2 } = render(<Bubble role="user">hi</Bubble>);
+    expect((c2.firstElementChild as HTMLElement).style.background).toBe(
+      "var(--color-cinnabar)",
+    );
   });
 });
