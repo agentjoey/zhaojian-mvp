@@ -36,7 +36,7 @@ Owner 明确选择：**这次要让 TG 的视觉贴近 web 的「当代东方编
 
 改为：**去掉背景方块**，`icon` 字符直接用 `accent` 颜色渲染为纯文字（`color: accent`），字号从当前 16px 改为 **18px**（无背景后字符本身要承担视觉重量，略微放大），字体沿用 `font-serif`（现有的 `font-serif text-[16px]` 已经是宋体，只需去掉容器背景/圆角/白字，改成 `color: accent` 的裸字符 + 18px）。标题/副标题/chevron 三部分不变（第 66-76 行原样保留）。
 
-**不采用** `SealIcon`（`components/ui.tsx:74`，profiles 页 web 分支用的填色方章）——已与 owner 确认，维持裸字符方案，不复用 `SealIcon`。
+**不采用** `SealIcon`（`components/ui.tsx:74`，profiles 页 web 分支用的填色方章）——维持裸字符方案更贴近本节 2.2 的设计意图（保留一个视觉锚点、去掉方块背景），`SealIcon` 是另一种视觉（填色方章），混用会让同一处「情绪色块」出现两套不同的图形语言。这一点未单独跟 owner 确认过，若验收时觉得裸字符太单薄，可回头再议是否改用 `SealIcon`。
 
 ### 2.3 `Segmented`——两种模式对应两种不同的既有 web 视觉规范
 
