@@ -6,18 +6,35 @@ import type { Relation } from "@eamvp/core";
  * 每张图带「意境标签」：与当日命理流日的情绪一致，形成心理暗示。
  * 当前为静态清单 + 仓库内图片；日后量大可把 file 换成 CDN/Storage URL（matchFortuneImage 不变）。
  */
+export type Season = "春" | "夏" | "秋" | "冬";
+
 export type FortuneImage = {
   file: string; // 相对 public，如 /fortune/guansha-1.jpeg
   /** 深色版约定路径（/fortune/x.jpg → /fortune/x-dark.jpg），不存在时由客户端 onError 回退 */
   darkFile?: string;
   /** 适配的十神情绪（可多选）—— 主匹配维度，确保意境一致 */
   moods: Relation[];
+  /** 适配季节（可选，EP-cal-img-2 加的第二匹配维度，软匹配——同情绪池内优先选季节相符的，没有就不筛季节） */
+  seasons?: Season[];
   /** 适配五行（可选，软匹配） */
   elements?: ("木" | "火" | "土" | "金" | "水")[];
   /** 意境标签文案（一句，作心理暗示，配在图下） */
   caption: string;
   alt: string;
 };
+
+/**
+ * 按传统节气边界取季（立春 2 月起算，与本仓库八字引擎"年柱以立春为界"同一惯例——
+ * 见 packages/core 的 ming-gua.ts 注释），不是西式 3/6/9/12 月历法季。
+ * 只用于配图这种软装饰性匹配，不需要精确到具体节气日，月份粗粒度足够。
+ */
+export function seasonOf(dateStr: string): Season {
+  const month = Number(dateStr.slice(5, 7));
+  if (month >= 2 && month <= 4) return "春";
+  if (month >= 5 && month <= 7) return "夏";
+  if (month >= 8 && month <= 10) return "秋";
+  return "冬"; // 11, 12, 1
+}
 
 /** 十神情绪 → 该日主题词（与 computeDailyFortune 的关系语义一致）。 */
 export const MOOD_LABEL: Record<Relation, string> = {
@@ -49,8 +66,8 @@ export const FORTUNE_IMAGES: FortuneImage[] = [
   { file: "/fortune/shishang-4.jpeg", moods: ["食伤"], caption: "飞瀑入涧，今日宜倾吐、让郁气流动", alt: "水墨飞瀑落涧" },
   { file: "/fortune/cai-3.jpeg", moods: ["财"], caption: "策杖登高，今日宜进取、循径而上", alt: "水墨策杖独行登山" },
   { file: "/fortune/cai-4.jpeg", moods: ["财"], caption: "大江扬帆，今日宜乘势、放眼远处", alt: "水墨大江千帆过尽" },
-  { file: "/fortune/guansha-3.jpeg", moods: ["官杀"], caption: "雪覆寒山，今日宜潜藏、静待时机", alt: "水墨深雪寒山一径" },
-  { file: "/fortune/guansha-4.jpeg", moods: ["官杀"], caption: "雪亭独对，今日宜安守、不妄动", alt: "水墨雪中孤亭" },
+  { file: "/fortune/guansha-3.jpeg", moods: ["官杀"], seasons: ["冬"], caption: "雪覆寒山，今日宜潜藏、静待时机", alt: "水墨深雪寒山一径" },
+  { file: "/fortune/guansha-4.jpeg", moods: ["官杀"], seasons: ["冬"], caption: "雪亭独对，今日宜安守、不妄动", alt: "水墨雪中孤亭" },
 ];
 
 function hashStr(s: string): number {
@@ -67,13 +84,17 @@ export function darkVariant(path: string): string {
 }
 
 /**
- * 按当日流日选一张配图：先按情绪(relation)匹配，命中多张则按日期确定性轮选（同一天稳定）。
- * 无匹配则在全库回退。库为空返回 null（UI 降级不显示）。
+ * 按当日流日选一张配图：先按情绪(relation)匹配，池内再优先取当季(seasonOf)标签相符的子集
+ * （子集为空则退回整个情绪池），最终按日期确定性轮选（同一天稳定）。
+ * 全无情绪匹配则在全库回退。库为空返回 null（UI 降级不显示）。
  */
 export function matchFortuneImage(relation: Relation, dateStr: string): FortuneImage | null {
   if (FORTUNE_IMAGES.length === 0) return null;
-  const pool = FORTUNE_IMAGES.filter((i) => i.moods.includes(relation));
-  const list = pool.length ? pool : FORTUNE_IMAGES;
+  const moodPool = FORTUNE_IMAGES.filter((i) => i.moods.includes(relation));
+  const pool = moodPool.length ? moodPool : FORTUNE_IMAGES;
+  const season = seasonOf(dateStr);
+  const seasonPool = pool.filter((i) => i.seasons?.includes(season));
+  const list = seasonPool.length ? seasonPool : pool;
   const image = list[hashStr(dateStr) % list.length];
   if (!image) return null;
   return { ...image, darkFile: darkVariant(image.file) };
